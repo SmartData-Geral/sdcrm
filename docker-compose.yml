@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: sd_framework_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-sd_framework}
+      MYSQL_USER: ${MYSQL_USER:-sd_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-sd_password}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - db_data:/var/lib/mysql
+
+  backend:
+    build:
+      context: ./backend
+    container_name: sd_framework_backend
+    depends_on:
+      - db
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-mysql+pymysql://sd_user:sd_password@db:3306/sd_framework}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    working_dir: /app
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: sd_framework_frontend
+    depends_on:
+      - backend
+    env_file:
+      - .env
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    command: npm run dev -- --host 0.0.0.0 --port 5173
+    working_dir: /app
+
+volumes:
+  db_data:
+
