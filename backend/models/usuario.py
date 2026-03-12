@@ -16,6 +16,7 @@ class Usuario(Base):
     usuSenhaHash: Mapped[str] = mapped_column(String(255), nullable=False)
     usuAdmin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     usuPerfil: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    usuAvatarUrl: Mapped[str | None] = mapped_column(String(500), nullable=True)
     usuAtivo: Mapped[bool] = AtivoColumnFactory.bool_ativo("usuAtivo")
     usuDataCriacao: Mapped[datetime] = AuditColumnFactory.datetime_criacao("usuDataCriacao")
     usuDataAtualizacao: Mapped[datetime | None] = AuditColumnFactory.datetime_atualizacao("usuDataAtualizacao")

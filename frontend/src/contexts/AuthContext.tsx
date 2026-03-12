@@ -9,6 +9,7 @@ export interface Usuario {
   usuEmail: string;
   usuAdmin: boolean;
   usuAtivo: boolean;
+  usuAvatarUrl?: string | null;
 }
 
 interface AuthContextValue {

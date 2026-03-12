@@ -4,6 +4,10 @@ import { DataTable } from "../../components/DataTable";
 import Loader from "../../components/Loader";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import Modal from "../../components/Modal";
+import ActionIconButton from "../../components/ActionIconButton";
+import ListingToolbar from "../../components/ListingToolbar";
+import ListingTableCard from "../../components/ListingTableCard";
+import PaginationBar from "../../components/PaginationBar";
 import { useAuth } from "../../contexts/AuthContext";
 
 interface Cliente {
@@ -102,82 +106,73 @@ const ClientesPage: React.FC = () => {
 
   return (
     <Layout>
-      <div className="page-header">
-        <h1>Clientes</h1>
-        <div className="page-header-actions">
-          <input
-            type="text"
-            placeholder="Filtrar por nome"
-            value={nomeFiltro}
-            onChange={(e) => {
-              setPage(1);
-              setNomeFiltro(e.target.value);
-            }}
-          />
-          <select
-            value={statusFiltro}
-            onChange={(e) => {
-              setPage(1);
-              setStatusFiltro(e.target.value as typeof statusFiltro);
-            }}
-          >
-            <option value="todos">Todos</option>
-            <option value="ativos">Ativos</option>
-            <option value="inativos">Inativos</option>
-          </select>
-          <button type="button" onClick={openCreate}>
+      <ListingToolbar
+        actions={
+          <button type="button" className="btn-primary" onClick={openCreate}>
             Novo cliente
           </button>
-        </div>
-      </div>
+        }
+        filters={
+          <>
+            <input
+              type="text"
+              placeholder="Filtrar por nome"
+              value={nomeFiltro}
+              onChange={(e) => {
+                setPage(1);
+                setNomeFiltro(e.target.value);
+              }}
+            />
+            <select
+              value={statusFiltro}
+              onChange={(e) => {
+                setPage(1);
+                setStatusFiltro(e.target.value as typeof statusFiltro);
+              }}
+            >
+              <option value="todos">Todos</option>
+              <option value="ativos">Ativos</option>
+              <option value="inativos">Inativos</option>
+            </select>
+          </>
+        }
+      />
       {loading ? (
         <Loader />
       ) : (
-        <DataTable
-          keyField="cliId"
-          data={clientes}
-          columns={[
-            { key: "cliNome", header: "Nome" },
-            { key: "cliEmail", header: "E-mail" },
-            { key: "cliTelefone", header: "Telefone" },
-            {
-              key: "cliAtivo",
-              header: "Status",
-              render: (c) => (c.cliAtivo ? "Ativo" : "Inativo")
-            },
-            {
-              key: "cliId",
-              header: "Ações",
-              render: (c) => (
-                <div className="actions">
-                  <button type="button" onClick={() => openEdit(c)}>
-                    Editar
-                  </button>
-                  <button type="button" className="danger" onClick={() => confirmDelete(c)}>
-                    Excluir
-                  </button>
-                </div>
-              )
-            }
-          ]}
-        />
-      )}
-      <div className="pagination">
-        <span>
-          Página {page} de {Math.max(1, Math.ceil(total / pageSize))}
-        </span>
-        <button type="button" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-          Anterior
-        </button>
-        <button
-          type="button"
-          disabled={page >= Math.ceil(total / pageSize)}
-          onClick={() => setPage((p) => p + 1)}
+        <ListingTableCard
+          footer={<PaginationBar page={page} pageSize={pageSize} total={total} onPageChange={(next) => setPage(next)} />}
         >
-          Próxima
-        </button>
-      </div>
-
+          <DataTable
+            keyField="cliId"
+            data={clientes}
+            columns={[
+              { key: "cliNome", header: "Nome" },
+              { key: "cliEmail", header: "E-mail" },
+              { key: "cliTelefone", header: "Telefone" },
+              {
+                key: "cliAtivo",
+                header: "Status",
+                render: (c) => (
+                  <span className={`status-badge ${c.cliAtivo ? "status-badge--active" : "status-badge--inactive"}`}>
+                    {c.cliAtivo ? "Ativo" : "Inativo"}
+                  </span>
+                )
+              },
+              {
+                key: "cliId",
+                header: "Ações",
+                render: (c) => (
+                  <div className="actions">
+                    <ActionIconButton icon="edit" label="Editar" onClick={() => openEdit(c)} />
+                    <ActionIconButton icon="delete" label="Excluir" tone="danger" onClick={() => confirmDelete(c)} />
+                  </div>
+                )
+              }
+            ]}
+          />
+        </ListingTableCard>
+      )}
       <Modal isOpen={isModalOpen} title={selected ? "Editar cliente" : "Novo cliente"} onClose={() => setIsModalOpen(false)}>
         <form className="form-vertical" onSubmit={saveCliente}>
           <label>

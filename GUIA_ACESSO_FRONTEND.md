@@ -47,7 +47,7 @@ Resultado esperado no terminal:
 Ainda na raiz do projeto:
 
 ```powershell
-cd "C:\Users\carlo\Documents\Sistemas\framework"
+cd "C:\Users\carlo\Documents\Sistemas\sdcrm"
 .\.venv\Scripts\Activate.ps1
 pip install -r backend\requirements.txt
 uvicorn backend.main:app --reload --port 8000
