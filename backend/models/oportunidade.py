@@ -61,6 +61,9 @@ class Oportunidade(Base):
     opoValorOportunidade: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     opoDataUltimoContato: Mapped[date | None] = mapped_column(Date, nullable=True)
     opoDataFechamento: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # 0 = recorrência, 1 = projeto
+    opoFechadoRecorrencia: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    opoValorFechado: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     opoStatusFechamento: Mapped[str | None] = mapped_column(String(20), nullable=True)
     opoDoresMotivadores: Mapped[str | None] = mapped_column(Text, nullable=True)
     opoComentarios: Mapped[str | None] = mapped_column(Text, nullable=True)

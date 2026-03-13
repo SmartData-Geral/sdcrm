@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import Layout from "../../components/Layout";
 import Loader from "../../components/Loader";
 import Modal from "../../components/Modal";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import OptionalTextareaField from "../../components/OptionalTextareaField";
 import ActionIconButton from "../../components/ActionIconButton";
 import AvatarSelect from "../../components/AvatarSelect";
@@ -30,6 +31,8 @@ interface OportunidadeDetail {
   opoValorOportunidade: number | null;
   opoDataUltimoContato: string | null;
   opoDataFechamento: string | null;
+  opoFechadoRecorrencia: number | null;
+  opoValorFechado: number | null;
   opoStatusFechamento: string | null;
   opoDoresMotivadores: string | null;
   opoComentarios: string | null;
@@ -88,6 +91,11 @@ const OportunidadeDetalhePage: React.FC = () => {
   const [isStandByModalOpen, setIsStandByModalOpen] = useState(false);
   const [standByDataRetorno, setStandByDataRetorno] = useState("");
   const [loadingStandBy, setLoadingStandBy] = useState(false);
+  const [isRetornoDialogOpen, setIsRetornoDialogOpen] = useState(false);
+  const [isGanharModalOpen, setIsGanharModalOpen] = useState(false);
+  const [ganharData, setGanharData] = useState(() => new Date().toISOString().slice(0, 10));
+  const [ganharTipo, setGanharTipo] = useState<0 | 1>(0);
+  const [ganharValor, setGanharValor] = useState<number | "">("");
   const [dataHistorico, setDataHistorico] = useState(() => new Date().toISOString().slice(0, 10));
   const [novoHistorico, setNovoHistorico] = useState("");
   const [editingHistoricoId, setEditingHistoricoId] = useState<number | null>(null);
@@ -165,11 +173,29 @@ const OportunidadeDetalhePage: React.FC = () => {
     setShowDores(Boolean(oportunidade.opoDoresMotivadores));
     setShowComentarios(Boolean(oportunidade.opoComentarios));
     setMotivoPerdaId(oportunidade.opoMcaId ?? "");
+    setGanharData(new Date().toISOString().slice(0, 10));
+    setGanharTipo((oportunidade.opoFechadoRecorrencia as 0 | 1 | null) ?? 0);
+    setGanharValor(
+      oportunidade.opoValorFechado ??
+        oportunidade.opoValorOportunidade ??
+        ""
+    );
     void loadCombos();
   }, [oportunidade?.opoId]);
 
-  const ganhar = async () => {
-    await api.patch(`/oportunidades/${id}/ganhar`);
+  const ganhar = () => {
+    setIsGanharModalOpen(true);
+  };
+
+  const confirmarGanhar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ganharData || ganharValor === "") return;
+    await api.patch(`/oportunidades/${id}/ganhar`, {
+      opoDataFechamento: ganharData,
+      opoFechadoRecorrencia: ganharTipo,
+      opoValorFechado: Number(ganharValor),
+    });
+    setIsGanharModalOpen(false);
     await loadOportunidade();
   };
 
@@ -209,6 +235,12 @@ const OportunidadeDetalhePage: React.FC = () => {
     } finally {
       setLoadingStandBy(false);
     }
+  };
+
+  const confirmarRetornoParaAtivo = async () => {
+    await api.patch(`/oportunidades/${id}/retornar-ativo`);
+    setIsRetornoDialogOpen(false);
+    await loadOportunidade();
   };
 
   const addHistorico = async (e: React.FormEvent) => {
@@ -280,6 +312,8 @@ const OportunidadeDetalhePage: React.FC = () => {
   }, [oportunidade?.opoStatusFechamento]);
 
   const statusAberto = !oportunidade?.opoStatusFechamento || oportunidade.opoStatusFechamento === "aberto";
+  const podeRetornarAtivo =
+    oportunidade?.opoStatusFechamento === "perdido" || oportunidade?.opoStatusFechamento === "stand-by";
 
   if (loading || !id) {
     return (
@@ -320,6 +354,11 @@ const OportunidadeDetalhePage: React.FC = () => {
                     Stand-by
                   </button>
                 </>
+              )}
+              {podeRetornarAtivo && (
+                <button type="button" className="btn-primary" onClick={() => setIsRetornoDialogOpen(true)}>
+                  Retornar para ativo
+                </button>
               )}
               <button type="button" onClick={() => navigate("/oportunidades")}>
                 Voltar
@@ -610,6 +649,55 @@ const OportunidadeDetalhePage: React.FC = () => {
           </div>
         </form>
       </Modal>
+      <Modal isOpen={isGanharModalOpen} title="Marcar como ganha" onClose={() => setIsGanharModalOpen(false)}>
+        <form className="form-vertical" onSubmit={confirmarGanhar}>
+          <label>
+            Data
+            <input
+              type="date"
+              value={ganharData}
+              onChange={(e) => setGanharData(e.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Tipo
+            <select
+              value={ganharTipo}
+              onChange={(e) => setGanharTipo(Number(e.target.value) as 0 | 1)}
+            >
+              <option value={0}>Recorrência</option>
+              <option value={1}>Projeto</option>
+            </select>
+          </label>
+          <label>
+            Valor fechado
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={ganharValor}
+              onChange={(e) => setGanharValor(e.target.value ? Number(e.target.value) : "")}
+              required
+            />
+          </label>
+          <div className="modal-actions">
+            <button type="button" onClick={() => setIsGanharModalOpen(false)}>
+              Cancelar
+            </button>
+            <button type="submit" className="success" disabled={ganharValor === ""}>
+              Confirmar ganho
+            </button>
+          </div>
+        </form>
+      </Modal>
+      <ConfirmDialog
+        isOpen={isRetornoDialogOpen}
+        title="Retornar para ativo"
+        message={`Deseja retornar a oportunidade "${oportunidade.opoTitulo}" para ativo?`}
+        onCancel={() => setIsRetornoDialogOpen(false)}
+        onConfirm={confirmarRetornoParaAtivo}
+      />
     </Layout>
   );
 };

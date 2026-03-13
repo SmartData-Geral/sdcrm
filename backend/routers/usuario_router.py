@@ -2,7 +2,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query, status
 
-from ..dependencies import CompanyIdDep, CurrentUserDep, DbSessionDep, require_admin, require_user_in_company
+from ..dependencies import CurrentUserDep, DbSessionDep, require_admin
 from ..schemas.usuario import UsuarioCreate, UsuarioListResponse, UsuarioResponse, UsuarioUpdate
 from ..services import usuario_service
 
@@ -13,16 +13,15 @@ router = APIRouter(prefix="/api/usuarios", tags=["usuarios"])
 def listar(
     db: DbSessionDep,
     current_user: CurrentUserDep,
-    company_id: CompanyIdDep,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     nome: Optional[str] = Query(default=None),
     status: Literal["ativos", "inativos", "todos"] = Query(default="ativos"),
 ) -> UsuarioListResponse:
+    """Lista todos os usuários do sistema (apenas para admin), independente de empresa."""
     require_admin(current_user)
-    require_user_in_company(db=db, current_user=current_user, company_id=company_id)
     return usuario_service.list_usuarios(
-        db, company_id=company_id, nome=nome, status=status, page=page, page_size=page_size
+        db, nome=nome, status=status, page=page, page_size=page_size
     )
 
 

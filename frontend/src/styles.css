@@ -586,6 +586,11 @@ button:disabled {
   vertical-align: middle;
 }
 
+.datatable th:last-child,
+.datatable td:last-child {
+  text-align: right;
+}
+
 .datatable th {
   font-size: 0.74rem;
   text-transform: uppercase;

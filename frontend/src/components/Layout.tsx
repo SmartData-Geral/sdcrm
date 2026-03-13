@@ -197,6 +197,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     });
   }, [location.pathname]);
 
+  const handleCompanyChange = (value: string) => {
+    const nextCompanyId = value ? Number(value) : null;
+    if (nextCompanyId === companyId) return;
+    setCompanyId(nextCompanyId);
+    window.location.reload();
+  };
+
   return (
     <div className="app-layout">
       <aside className="sidebar">
@@ -210,7 +217,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <select
               className="sidebar-company-select"
               value={companyId ?? ""}
-              onChange={(e) => setCompanyId(e.target.value ? Number(e.target.value) : null)}
+              onChange={(e) => handleCompanyChange(e.target.value)}
             >
               <option value="">Selecione</option>
               {empresas.map((e) => (

@@ -30,6 +30,17 @@ def list_empresas_for_user(db: Session, user_id: int) -> EmpresaListResponse:
     return EmpresaListResponse(items=[EmpresaResponse.model_validate(e) for e in items])
 
 
+def list_empresas_ativas(db: Session) -> EmpresaListResponse:
+    """Lista todas as empresas ativas (uso para ADMIN no seletor)."""
+    stmt = (
+        select(Empresa)
+        .where(Empresa.empAtivo.is_(True))
+        .order_by(Empresa.empNome)
+    )
+    items = db.scalars(stmt).unique().all()
+    return EmpresaListResponse(items=[EmpresaResponse.model_validate(e) for e in items])
+
+
 def list_empresas_gestao(
     db: Session,
     nome: Optional[str] = None,

@@ -23,6 +23,10 @@ class OportunidadeBase(BaseModel):
     opoValorOportunidade: float | None = None
     opoDataUltimoContato: date | None = None
     opoDataFechamento: date | None = None
+    opoFechadoRecorrencia: int | None = Field(
+        default=None, description="0 = recorrência, 1 = projeto"
+    )
+    opoValorFechado: float | None = None
     opoStatusFechamento: str | None = Field(default=None, max_length=20)
     opoDoresMotivadores: str | None = None
     opoComentarios: str | None = None
@@ -52,6 +56,10 @@ class OportunidadeUpdate(BaseModel):
     opoValorOportunidade: float | None = None
     opoDataUltimoContato: date | None = None
     opoDataFechamento: date | None = None
+    opoFechadoRecorrencia: int | None = Field(
+        default=None, description="0 = recorrência, 1 = projeto"
+    )
+    opoValorFechado: float | None = None
     opoStatusFechamento: str | None = Field(default=None, max_length=20)
     opoDoresMotivadores: str | None = None
     opoComentarios: str | None = None
@@ -94,3 +102,11 @@ class OportunidadeTemperaturaRequest(BaseModel):
 
 class OportunidadeStandByRequest(BaseModel):
     opoDataUltimoContato: date
+
+
+class OportunidadeGanharRequest(BaseModel):
+    opoDataFechamento: date
+    opoFechadoRecorrencia: int = Field(
+        default=0, description="0 = recorrência, 1 = projeto"
+    )
+    opoValorFechado: float

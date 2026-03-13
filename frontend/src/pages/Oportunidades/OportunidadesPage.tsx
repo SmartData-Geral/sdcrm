@@ -4,6 +4,7 @@ import Layout from "../../components/Layout";
 import { DataTable } from "../../components/DataTable";
 import Loader from "../../components/Loader";
 import Modal from "../../components/Modal";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import ActionIconButton from "../../components/ActionIconButton";
 import ListingToolbar from "../../components/ListingToolbar";
 import ListingTableCard from "../../components/ListingTableCard";
@@ -84,6 +85,8 @@ const OportunidadesPage: React.FC = () => {
   const [usuarios, setUsuarios] = useState<UsuarioItem[]>([]);
   const [comoConheceu, setComoConheceu] = useState<ComoConheceuItem[]>([]);
   const [selected, setSelected] = useState<OportunidadeItem | null>(null);
+  const [selectedRetorno, setSelectedRetorno] = useState<OportunidadeItem | null>(null);
+  const [isRetornoDialogOpen, setIsRetornoDialogOpen] = useState(false);
   const [showDores, setShowDores] = useState(false);
   const [showComentarios, setShowComentarios] = useState(false);
   const [form, setForm] = useState({
@@ -220,6 +223,19 @@ const OportunidadesPage: React.FC = () => {
       await api.post("/oportunidades", payload);
     }
     setIsModalOpen(false);
+    await loadOportunidades();
+  };
+
+  const abrirRetornoParaAtivo = (row: OportunidadeItem) => {
+    setSelectedRetorno(row);
+    setIsRetornoDialogOpen(true);
+  };
+
+  const confirmarRetornoParaAtivo = async () => {
+    if (!selectedRetorno) return;
+    await api.patch(`/oportunidades/${selectedRetorno.opoId}/retornar-ativo`);
+    setIsRetornoDialogOpen(false);
+    setSelectedRetorno(null);
     await loadOportunidades();
   };
 
@@ -390,6 +406,14 @@ const OportunidadesPage: React.FC = () => {
                   <div className="actions">
                     <ActionIconButton icon="view" label="Visualizar" onClick={() => navigate(`/oportunidades/${r.opoId}`)} />
                     <ActionIconButton icon="edit" label="Editar" onClick={() => openEdit(r)} />
+                    {(r.opoStatusFechamento === "perdido" || r.opoStatusFechamento === "stand-by") && (
+                      <ActionIconButton
+                        icon="activate"
+                        label="Retornar para ativo"
+                        tone="success"
+                        onClick={() => abrirRetornoParaAtivo(r)}
+                      />
+                    )}
                   </div>
                 ),
               },
@@ -563,6 +587,16 @@ const OportunidadesPage: React.FC = () => {
           </div>
         </form>
       </Modal>
+      <ConfirmDialog
+        isOpen={isRetornoDialogOpen}
+        title="Retornar para ativo"
+        message={`Deseja retornar a oportunidade "${selectedRetorno?.opoTitulo ?? ""}" para ativo?`}
+        onCancel={() => {
+          setIsRetornoDialogOpen(false);
+          setSelectedRetorno(null);
+        }}
+        onConfirm={confirmarRetornoParaAtivo}
+      />
     </Layout>
   );
 };

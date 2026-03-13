@@ -10,6 +10,7 @@ from ..models.oportunidade import Oportunidade
 from ..models.oportunidade_historico import OportunidadeHistorico
 from ..schemas.oportunidade import (
     OportunidadeCreate,
+    OportunidadeGanharRequest,
     OportunidadeLeadScoreRequest,
     OportunidadeListResponse,
     OportunidadeMoverEtapaRequest,
@@ -54,6 +55,8 @@ def _reativar_standby_vencidos(db: Session, oportunidades: list[Oportunidade]) -
             continue
         oportunidade.opoStatusFechamento = None
         oportunidade.opoDataFechamento = None
+        oportunidade.opoFechadoRecorrencia = None
+        oportunidade.opoValorFechado = None
         _registrar_historico_automatico(
             db,
             oportunidade,
@@ -167,11 +170,20 @@ def set_oportunidade_status_fechamento(
     opo_id: int,
     status: str,
     company_id: Optional[int] = None,
+    data: OportunidadeGanharRequest | None = None,
 ) -> OportunidadeResponse:
     obj = get_oportunidade(db, opo_id, company_id)
     status_anterior = obj.opoStatusFechamento
     obj.opoStatusFechamento = status
-    obj.opoDataFechamento = date.today()
+    if status == "ganho" and data is not None:
+        obj.opoDataFechamento = data.opoDataFechamento
+        obj.opoFechadoRecorrencia = data.opoFechadoRecorrencia
+        obj.opoValorFechado = data.opoValorFechado
+        # fallback: se não tiver valor original, mantém só o fechado
+        if obj.opoValorOportunidade is None:
+            obj.opoValorOportunidade = data.opoValorFechado
+    else:
+        obj.opoDataFechamento = date.today()
     if status_anterior != status:
         _registrar_historico_automatico(
             db,
@@ -201,6 +213,29 @@ def set_oportunidade_stand_by(
         f'Oportunidade em stand-by até {data_retorno.strftime("%d/%m/%Y")}.',
     )
     obj.opoDataUltimoContato = data_retorno
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return OportunidadeResponse.model_validate(obj)
+
+
+def reativar_oportunidade_para_funil(
+    db: Session,
+    opo_id: int,
+    company_id: Optional[int] = None,
+) -> OportunidadeResponse:
+    obj = get_oportunidade(db, opo_id, company_id)
+    status_anterior = obj.opoStatusFechamento
+    obj.opoStatusFechamento = None
+    obj.opoDataFechamento = None
+    obj.opoFechadoRecorrencia = None
+    obj.opoValorFechado = None
+    if status_anterior in {"perdido", "stand-by"}:
+        _registrar_historico_automatico(
+            db,
+            obj,
+            'Status alterado para "ativo".',
+        )
     db.add(obj)
     db.commit()
     db.refresh(obj)

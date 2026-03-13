@@ -31,6 +31,11 @@ def listar(
         return empresa_service.list_empresas_gestao(
             db, nome=nome, status=status, page=page, page_size=page_size
         )
+    # Para o seletor de empresas:
+    # - ADMIN: vê todas as empresas ativas
+    # - USER: vê apenas empresas vinculadas (usuario_empresa)
+    if current_user.usuAdmin:
+        return empresa_service.list_empresas_ativas(db)
     return empresa_service.list_empresas_for_user(db, current_user.usuId)
 
 

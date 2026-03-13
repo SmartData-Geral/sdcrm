@@ -17,6 +17,16 @@ interface UsuarioItem {
   usuAdmin: boolean;
   usuAtivo: boolean;
   usuAvatarUrl: string | null;
+   empresas?: string[] | null;
+}
+
+interface UsuarioForm {
+  usuNome: string;
+  usuEmail: string;
+  usuSenha: string;
+  usuPerfil: "ADMIN" | "USER";
+  usuAvatarUrl: string;
+  empresasIds: number[];
 }
 
 interface ListResponse {
@@ -26,8 +36,17 @@ interface ListResponse {
   page_size: number;
 }
 
+interface EmpresaItem {
+  empId: number;
+  empNome: string;
+}
+
+interface EmpresaListResponse {
+  items: EmpresaItem[];
+}
+
 const UsuariosPage: React.FC = () => {
-  const { api } = useAuth();
+  const { api, companyId } = useAuth();
   const [items, setItems] = useState<UsuarioItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -38,7 +57,15 @@ const UsuariosPage: React.FC = () => {
   const [selected, setSelected] = useState<UsuarioItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isInativarOpen, setIsInativarOpen] = useState(false);
-  const [form, setForm] = useState({ usuNome: "", usuEmail: "", usuSenha: "", usuAdmin: false, usuAvatarUrl: "" });
+  const [empresas, setEmpresas] = useState<EmpresaItem[]>([]);
+  const [form, setForm] = useState<UsuarioForm>({
+    usuNome: "",
+    usuEmail: "",
+    usuSenha: "",
+    usuPerfil: "USER",
+    usuAvatarUrl: "",
+    empresasIds: [],
+  });
 
   const load = async () => {
     setLoading(true);
@@ -57,9 +84,26 @@ const UsuariosPage: React.FC = () => {
     void load();
   }, [page, nomeFiltro, statusFiltro]);
 
+  useEffect(() => {
+    const loadEmpresas = async () => {
+      const res = await api.get<EmpresaListResponse>("/empresas", {
+        params: { gestao: 1, status: "ativos", page: 1, page_size: 100 },
+      });
+      setEmpresas(res.data.items);
+    };
+    void loadEmpresas();
+  }, [api]);
+
   const openCreate = () => {
     setSelected(null);
-    setForm({ usuNome: "", usuEmail: "", usuSenha: "", usuAdmin: false, usuAvatarUrl: "" });
+    setForm({
+      usuNome: "",
+      usuEmail: "",
+      usuSenha: "",
+      usuPerfil: "USER",
+      usuAvatarUrl: "",
+      empresasIds: [],
+    });
     setIsModalOpen(true);
   };
 
@@ -69,8 +113,9 @@ const UsuariosPage: React.FC = () => {
       usuNome: row.usuNome,
       usuEmail: row.usuEmail,
       usuSenha: "",
-      usuAdmin: row.usuAdmin,
+      usuPerfil: row.usuAdmin ? "ADMIN" : "USER",
       usuAvatarUrl: row.usuAvatarUrl ?? "",
+      empresasIds: [],
     });
     setIsModalOpen(true);
   };
@@ -78,13 +123,25 @@ const UsuariosPage: React.FC = () => {
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selected) {
-      const payload: { usuNome: string; usuEmail: string; usuAdmin: boolean; usuAvatarUrl?: string | null; usuSenha?: string } = {
+      const payload: {
+        usuNome: string;
+        usuEmail: string;
+        usuAdmin: boolean;
+        usuPerfil: "ADMIN" | "USER";
+        usuAvatarUrl?: string | null;
+        usuSenha?: string;
+        empresasIds?: number[];
+      } = {
         usuNome: form.usuNome,
         usuEmail: form.usuEmail,
-        usuAdmin: form.usuAdmin,
+        usuAdmin: form.usuPerfil === "ADMIN",
+        usuPerfil: form.usuPerfil,
         usuAvatarUrl: form.usuAvatarUrl.trim() || null,
       };
       if (form.usuSenha) payload.usuSenha = form.usuSenha;
+      if (form.usuPerfil === "USER") {
+        payload.empresasIds = form.empresasIds;
+      }
       await api.put(`/usuarios/${selected.usuId}`, payload);
     } else {
       if (!form.usuSenha) return;
@@ -92,8 +149,15 @@ const UsuariosPage: React.FC = () => {
         usuNome: form.usuNome,
         usuEmail: form.usuEmail,
         usuSenha: form.usuSenha,
-        usuAdmin: form.usuAdmin,
+        usuAdmin: form.usuPerfil === "ADMIN",
+        usuPerfil: form.usuPerfil,
         usuAvatarUrl: form.usuAvatarUrl.trim() || null,
+        empresasIds:
+          form.usuPerfil === "USER"
+            ? form.empresasIds
+            : companyId
+            ? [companyId]
+            : [],
       });
     }
     setIsModalOpen(false);
@@ -164,6 +228,12 @@ const UsuariosPage: React.FC = () => {
               { key: "usuNome", header: "Nome" },
               { key: "usuEmail", header: "E-mail" },
               {
+                key: "empresas",
+                header: "Empresas",
+                render: (r) =>
+                  r.usuAdmin ? "Todas" : (r.empresas && r.empresas.length > 0 ? r.empresas.join(", ") : "-"),
+              },
+              {
                 key: "usuAdmin",
                 header: "Admin",
                 render: (r) => (r.usuAdmin ? "Sim" : "Não"),
@@ -212,6 +282,45 @@ const UsuariosPage: React.FC = () => {
             />
           </label>
           <label>
+            Perfil *
+            <select
+              value={form.usuPerfil}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  usuPerfil: e.target.value as UsuarioForm["usuPerfil"],
+                }))
+              }
+            >
+              <option value="ADMIN">ADMIN</option>
+              <option value="USER">USER</option>
+            </select>
+          </label>
+          {form.usuPerfil === "USER" && (
+            <div>
+              <p>Empresas *</p>
+              <div className="empresa-checkbox-grid">
+                {empresas.map((emp) => (
+                  <label key={emp.empId} className="checkbox-inline">
+                    <input
+                      type="checkbox"
+                      checked={form.empresasIds.includes(emp.empId)}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          empresasIds: e.target.checked
+                            ? [...f.empresasIds, emp.empId]
+                            : f.empresasIds.filter((id) => id !== emp.empId),
+                        }))
+                      }
+                    />
+                    {emp.empNome}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          <label>
             E-mail
             <input
               type="email"
@@ -239,14 +348,6 @@ const UsuariosPage: React.FC = () => {
               onChange={(e) => setForm((f) => ({ ...f, usuAvatarUrl: e.target.value }))}
               placeholder="https://..."
             />
-          </label>
-          <label className="checkbox-inline">
-            <input
-              type="checkbox"
-              checked={form.usuAdmin}
-              onChange={(e) => setForm((f) => ({ ...f, usuAdmin: e.target.checked }))}
-            />
-            Administrador
           </label>
           <div className="modal-actions">
             <button type="button" onClick={() => setIsModalOpen(false)}>

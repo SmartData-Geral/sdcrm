@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, status
 from ..dependencies import CompanyIdDep, CurrentUserDep, DbSessionDep, require_user_in_company
 from ..schemas.oportunidade import (
     OportunidadeCreate,
+    OportunidadeGanharRequest,
     OportunidadeLeadScoreRequest,
     OportunidadeListResponse,
     OportunidadeMoverEtapaRequest,
@@ -96,12 +97,15 @@ def atualizar(
 @router.patch("/{opo_id}/ganhar", response_model=OportunidadeResponse)
 def ganhar(
     opo_id: int,
+    data: OportunidadeGanharRequest,
     db: DbSessionDep,
     current_user: CurrentUserDep,
     company_id: CompanyIdDep,
 ) -> OportunidadeResponse:
     require_user_in_company(db=db, current_user=current_user, company_id=company_id)
-    return oportunidade_service.set_oportunidade_status_fechamento(db, opo_id, "ganho", company_id)
+    return oportunidade_service.set_oportunidade_status_fechamento(
+        db, opo_id, "ganho", company_id, data=data
+    )
 
 
 @router.patch("/{opo_id}/perder", response_model=OportunidadeResponse)
@@ -125,6 +129,17 @@ def stand_by(
 ) -> OportunidadeResponse:
     require_user_in_company(db=db, current_user=current_user, company_id=company_id)
     return oportunidade_service.set_oportunidade_stand_by(db, opo_id, data, company_id)
+
+
+@router.patch("/{opo_id}/retornar-ativo", response_model=OportunidadeResponse)
+def retornar_ativo(
+    opo_id: int,
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    company_id: CompanyIdDep,
+) -> OportunidadeResponse:
+    require_user_in_company(db=db, current_user=current_user, company_id=company_id)
+    return oportunidade_service.reativar_oportunidade_para_funil(db, opo_id, company_id)
 
 
 @router.patch("/{opo_id}/mover-etapa", response_model=OportunidadeResponse)

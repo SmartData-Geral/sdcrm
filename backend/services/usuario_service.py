@@ -10,19 +10,20 @@ from ..models.usuario_empresa import UsuarioEmpresa
 from ..schemas.usuario import UsuarioCreate, UsuarioListResponse, UsuarioResponse, UsuarioUpdate
 
 
+def _usuario_to_response(user: Usuario) -> UsuarioResponse:
+    resp = UsuarioResponse.model_validate(user)
+    resp.empresas = [v.empresa.empNome for v in user.empresas_vinculo if v.empresa is not None]
+    return resp
+
+
 def list_usuarios(
     db: Session,
-    company_id: Optional[int] = None,
     nome: Optional[str] = None,
     status: Literal["ativos", "inativos", "todos"] = "ativos",
     page: int = 1,
     page_size: int = 20,
 ) -> UsuarioListResponse:
     stmt = select(Usuario)
-    if company_id is not None:
-        stmt = stmt.join(UsuarioEmpresa, Usuario.usuId == UsuarioEmpresa.useUsuId).where(
-            UsuarioEmpresa.useEmpId == company_id
-        )
     if nome:
         stmt = stmt.where(Usuario.usuNome.ilike(f"%{nome}%"))
     if status == "ativos":
@@ -35,7 +36,7 @@ def list_usuarios(
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
     items = db.scalars(stmt).all()
     return UsuarioListResponse(
-        items=[UsuarioResponse.model_validate(u) for u in items],
+        items=[_usuario_to_response(u) for u in items],
         total=total,
         page=page,
         page_size=page_size,
@@ -61,15 +62,19 @@ def create_usuario(db: Session, data: UsuarioCreate) -> UsuarioResponse:
         usuPerfil=data.usuPerfil,
         usuAvatarUrl=data.usuAvatarUrl,
     )
+    # Vínculos de empresa para perfil USER
+    if data.empresasIds:
+        user.empresas_vinculo = [UsuarioEmpresa(useEmpId=emp_id) for emp_id in data.empresasIds]
     db.add(user)
     db.commit()
     db.refresh(user)
-    return UsuarioResponse.model_validate(user)
+    return _usuario_to_response(user)
 
 
 def update_usuario(db: Session, usu_id: int, data: UsuarioUpdate) -> UsuarioResponse:
     user = get_usuario(db, usu_id)
     update_data = data.model_dump(exclude_unset=True)
+    empresas_ids = update_data.pop("empresasIds", None)
     if "usuSenha" in update_data:
         update_data["usuSenhaHash"] = get_password_hash(update_data.pop("usuSenha"))
     if "usuEmail" in update_data:
@@ -85,10 +90,15 @@ def update_usuario(db: Session, usu_id: int, data: UsuarioUpdate) -> UsuarioResp
             raise BadRequestError("Já existe usuário com este e-mail")
     for k, v in update_data.items():
         setattr(user, k, v)
+    # Atualiza vínculos de empresa quando enviado
+    if empresas_ids is not None:
+        user.empresas_vinculo.clear()
+        for emp_id in empresas_ids:
+            user.empresas_vinculo.append(UsuarioEmpresa(useEmpId=emp_id))
     db.add(user)
     db.commit()
     db.refresh(user)
-    return UsuarioResponse.model_validate(user)
+    return _usuario_to_response(user)
 
 
 def set_usuario_ativo(db: Session, usu_id: int, ativo: bool) -> UsuarioResponse:
@@ -97,4 +107,4 @@ def set_usuario_ativo(db: Session, usu_id: int, ativo: bool) -> UsuarioResponse:
     db.add(user)
     db.commit()
     db.refresh(user)
-    return UsuarioResponse.model_validate(user)
+    return _usuario_to_response(user)
