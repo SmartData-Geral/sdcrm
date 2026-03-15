@@ -1,13 +1,30 @@
 import axios, { AxiosError, AxiosInstance } from "axios";
 
 export function getApiBaseUrl(): string {
+  // Se houver variável de ambiente, usamos ela (ideal para produção/homolog).
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL as string;
   }
+  // Ambiente de desenvolvimento: conversa direto com o backend local.
   if (import.meta.env.DEV) {
-    return "/api";
+    // Backend rodando em http://127.0.0.1:8000
+    return "http://127.0.0.1:8000/api";
   }
+  // Caminho padrão quando frontend é servido junto com backend (produção).
   return "/crm/api";
+}
+
+/** URL base para arquivos estáticos (avatars) servidos pelo backend. */
+export function getStaticBaseUrl(): string {
+  const base = getApiBaseUrl();
+  return base.replace(/\/api\/?$/, "") || base;
+}
+
+/** Retorna a URL completa para exibir um avatar (aceita path relativo ou URL absoluta). */
+export function getAvatarSrc(avatarUrl: string | null | undefined): string | undefined {
+  if (!avatarUrl) return undefined;
+  if (avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://")) return avatarUrl;
+  return getStaticBaseUrl() + (avatarUrl.startsWith("/") ? avatarUrl : "/" + avatarUrl);
 }
 
 export function createApiClient(

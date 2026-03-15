@@ -13,6 +13,7 @@ import { useAuth } from "../../contexts/AuthContext";
 interface ComoConheceuItem {
   ccoId: number;
   ccoNome: string;
+  ccoGrupo?: string | null;
   ccoAtivo: boolean;
 }
 
@@ -35,7 +36,7 @@ const ComoConheceuPage: React.FC = () => {
   const [selected, setSelected] = useState<ComoConheceuItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isInativarOpen, setIsInativarOpen] = useState(false);
-  const [form, setForm] = useState({ ccoNome: "" });
+  const [form, setForm] = useState({ ccoNome: "", ccoGrupo: "" });
 
   const load = async () => {
     setLoading(true);
@@ -56,22 +57,26 @@ const ComoConheceuPage: React.FC = () => {
 
   const openCreate = () => {
     setSelected(null);
-    setForm({ ccoNome: "" });
+    setForm({ ccoNome: "", ccoGrupo: "" });
     setIsModalOpen(true);
   };
 
   const openEdit = (row: ComoConheceuItem) => {
     setSelected(row);
-    setForm({ ccoNome: row.ccoNome });
+    setForm({ ccoNome: row.ccoNome, ccoGrupo: row.ccoGrupo ?? "" });
     setIsModalOpen(true);
   };
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
+    const payload = {
+      ...form,
+      ccoGrupo: form.ccoGrupo.trim() || null,
+    };
     if (selected) {
-      await api.put(`/como-conheceu/${selected.ccoId}`, form);
+      await api.put(`/como-conheceu/${selected.ccoId}`, payload);
     } else {
-      await api.post("/como-conheceu", form);
+      await api.post("/como-conheceu", payload);
     }
     setIsModalOpen(false);
     await load();
@@ -140,6 +145,11 @@ const ComoConheceuPage: React.FC = () => {
             columns={[
               { key: "ccoNome", header: "Nome" },
               {
+                key: "ccoGrupo",
+                header: "Grupo",
+                render: (r) => r.ccoGrupo || "-",
+              },
+              {
                 key: "ccoAtivo",
                 header: "Status",
                 render: (r) => (
@@ -180,6 +190,15 @@ const ComoConheceuPage: React.FC = () => {
               value={form.ccoNome}
               onChange={(e) => setForm((f) => ({ ...f, ccoNome: e.target.value }))}
               required
+            />
+          </label>
+          <label>
+            Grupo
+            <input
+              type="text"
+              value={form.ccoGrupo}
+              onChange={(e) => setForm((f) => ({ ...f, ccoGrupo: e.target.value }))}
+              maxLength={100}
             />
           </label>
           <div className="modal-actions">

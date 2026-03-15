@@ -18,6 +18,7 @@ class ComoConheceu(Base):
         index=True,
     )
     ccoNome: Mapped[str] = mapped_column(String(200), nullable=False)
+    ccoGrupo: Mapped[str | None] = mapped_column(String(100), nullable=True)
     ccoAtivo: Mapped[bool] = AtivoColumnFactory.bool_ativo("ccoAtivo")
     ccoDataCriacao: Mapped[datetime] = AuditColumnFactory.datetime_criacao("ccoDataCriacao")
     ccoDataAtualizacao: Mapped[datetime | None] = AuditColumnFactory.datetime_atualizacao("ccoDataAtualizacao")

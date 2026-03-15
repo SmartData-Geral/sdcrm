@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Layout from "../../components/Layout";
 import { DataTable } from "../../components/DataTable";
@@ -10,6 +10,7 @@ import ListingToolbar from "../../components/ListingToolbar";
 import ListingTableCard from "../../components/ListingTableCard";
 import PaginationBar from "../../components/PaginationBar";
 import OptionalTextareaField from "../../components/OptionalTextareaField";
+import UserAvatar from "../../components/UserAvatar";
 import { useAuth } from "../../contexts/AuthContext";
 
 interface OportunidadeItem {
@@ -32,6 +33,7 @@ interface OportunidadeItem {
   opoDataRecebimento: string | null;
   opoDataUltimoContato: string | null;
   opoValorOportunidade: number | null;
+  opoValorFechado: number | null;
   opoDoresMotivadores: string | null;
   opoComentarios: string | null;
   opoAtivo: boolean;
@@ -55,6 +57,7 @@ interface ProdutoItem {
 interface UsuarioItem {
   usuId: number;
   usuNome: string;
+  usuAvatarUrl?: string | null;
 }
 interface ComoConheceuItem {
   ccoId: number;
@@ -68,7 +71,7 @@ const OportunidadesPage: React.FC = () => {
   const [items, setItems] = useState<OportunidadeItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(10);
+  const [pageSize] = useState(25);
   const [total, setTotal] = useState(0);
   const [responsavelFiltroDraft, setResponsavelFiltroDraft] = useState<number | null>(null);
   const [solucaoFiltroDraft, setSolucaoFiltroDraft] = useState<number | null>(null);
@@ -89,6 +92,7 @@ const OportunidadesPage: React.FC = () => {
   const [isRetornoDialogOpen, setIsRetornoDialogOpen] = useState(false);
   const [showDores, setShowDores] = useState(false);
   const [showComentarios, setShowComentarios] = useState(false);
+  const [search, setSearch] = useState("");
   const [form, setForm] = useState({
     opoTitulo: "",
     opoNomeContato: "",
@@ -134,12 +138,20 @@ const OportunidadesPage: React.FC = () => {
       const [etapasRes, produtosRes, usuariosRes, ccoRes] = await Promise.all([
         api.get<{ items: EtapaItem[] }>("/etapas-kanban", { params: { page_size: 100, status: "ativos" } }),
         api.get<{ items: ProdutoItem[] }>("/produtos", { params: { page_size: 100, status: "ativos" } }),
-        api.get<{ items: UsuarioItem[] }>("/usuarios", { params: { page_size: 100, status: "ativos" } }),
+        api.get<{ items: Array<{ usuId: number; usuNome: string; usuAvatarUrl?: string | null }> }>("/usuarios", {
+          params: { page_size: 100, status: "ativos" },
+        }),
         api.get<{ items: ComoConheceuItem[] }>("/como-conheceu", { params: { page_size: 100, status: "ativos" } }),
       ]);
       setEtapas(etapasRes.data.items);
       setProdutos(produtosRes.data.items);
-      setUsuarios(usuariosRes.data.items);
+      setUsuarios(
+        (usuariosRes.data.items ?? []).map((u) => ({
+          usuId: u.usuId,
+          usuNome: u.usuNome,
+          usuAvatarUrl: u.usuAvatarUrl ?? null,
+        })),
+      );
       setComoConheceu(ccoRes.data.items);
     } catch {
       // combos opcionais
@@ -268,6 +280,134 @@ const OportunidadesPage: React.FC = () => {
     if (normalized === "quente") return "oportunidade-label oportunidade-label--quente";
     return "oportunidade-label oportunidade-label--default";
   };
+
+  const filteredItems = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return items;
+    return items.filter((r) => {
+      const cliente = (r.opoEmpresaContato ?? r.opoTitulo ?? "").toLowerCase();
+      const contato = (r.opoNomeContato ?? "").toLowerCase();
+      const responsavel = usuarioNome(r.opoUsuResponsavelId).toLowerCase();
+      return cliente.includes(term) || contato.includes(term) || responsavel.includes(term);
+    });
+  }, [items, search, usuarios]);
+
+  const columns = useMemo(() => {
+    const baseCols = [
+      {
+        key: "opoEmpresaContato",
+        header: "Cliente",
+        render: (r: OportunidadeItem) => r.opoEmpresaContato ?? r.opoTitulo,
+      },
+      {
+        key: "opoNomeContato",
+        header: "Contato",
+        render: (r: OportunidadeItem) => r.opoNomeContato ?? "-",
+      },
+      {
+        key: "opoTemperatura",
+        header: "",
+        render: (r: OportunidadeItem) => (
+          <span className={temperaturaClass(r.opoTemperatura)} aria-label={temperaturaLabel(r.opoTemperatura)}>
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M14 14.76V5a2 2 0 10-4 0v9.76a4 4 0 104 0z" />
+            </svg>
+          </span>
+        ),
+      },
+      {
+        key: "opoProId",
+        header: "Solução",
+        render: (r: OportunidadeItem) => produtoNome(r.opoProId, r.opoSolucao),
+      },
+    ];
+
+    const comumResponsavelEUltimoContato = [
+      {
+        key: "opoUsuResponsavelId",
+        header: "Responsável",
+        render: (r: OportunidadeItem) => {
+          const usuario = usuarios.find((u) => u.usuId === r.opoUsuResponsavelId);
+          if (!usuario) return "-";
+          return (
+            <span className="oportunidades-responsavel-cell">
+              <UserAvatar name={usuario.usuNome} avatarUrl={usuario.usuAvatarUrl ?? null} size="sm" />
+              <span className="oportunidades-responsavel-nome">{usuario.usuNome}</span>
+            </span>
+          );
+        },
+      },
+      {
+        key: "opoDataUltimoContato",
+        header: "Último contato",
+        render: (r: OportunidadeItem) => formatDateTime(r.opoDataUltimoContato),
+      },
+    ];
+
+    const açõesCol = {
+      key: "opoId",
+      header: "Ações",
+      render: (r: OportunidadeItem) => (
+        <div className="actions">
+          <ActionIconButton icon="view" label="Visualizar" onClick={() => navigate(`/oportunidades/${r.opoId}`)} />
+          <ActionIconButton icon="edit" label="Editar" onClick={() => openEdit(r)} />
+          {(r.opoStatusFechamento === "perdido" || r.opoStatusFechamento === "stand-by") && (
+            <ActionIconButton
+              icon="activate"
+              label="Retornar para ativo"
+              tone="success"
+              onClick={() => abrirRetornoParaAtivo(r)}
+            />
+          )}
+        </div>
+      ),
+    };
+
+    if (abaStatus === "ganho") {
+      return [
+        ...baseCols,
+        {
+          key: "opoValorFechado",
+          header: "Valor fechado",
+          render: (r: OportunidadeItem) =>
+            r.opoValorFechado != null
+              ? r.opoValorFechado.toLocaleString("pt-BR", {
+                  style: "currency",
+                  currency: "BRL",
+                  minimumFractionDigits: 2,
+                })
+              : "-",
+        },
+        ...comumResponsavelEUltimoContato,
+        açõesCol,
+      ];
+    }
+
+    if (abaStatus === "stand-by") {
+      return [
+        ...baseCols,
+        {
+          key: "opoDataUltimoContato",
+          header: "Data retorno",
+          render: (r: OportunidadeItem) => formatDateTime(r.opoDataUltimoContato),
+        },
+        ...comumResponsavelEUltimoContato,
+        açõesCol,
+      ];
+    }
+
+    // ativo / perdido usam coluna Status
+    return [
+      ...baseCols,
+      {
+        key: "opoEtkId",
+        header: "Status",
+        render: (r: OportunidadeItem) => <span className="status-badge status-badge--open">{etapaNome(r.opoEtkId)}</span>,
+      },
+      ...comumResponsavelEUltimoContato,
+      açõesCol,
+    ];
+  }, [abaStatus, abrirRetornoParaAtivo, navigate, usuarios, produtos, etapas, search, items]);
   const aplicarFiltros = () => {
     setPage(1);
     setResponsavelFiltro(responsavelFiltroDraft);
@@ -304,6 +444,12 @@ const OportunidadesPage: React.FC = () => {
         }
         filters={
           <div className="oportunidades-filtros">
+            <input
+              type="text"
+              placeholder="Buscar por cliente, contato ou responsável"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
             <select
               value={responsavelFiltroDraft ?? ""}
               onChange={(e) => setResponsavelFiltroDraft(e.target.value ? Number(e.target.value) : null)}
@@ -370,54 +516,8 @@ const OportunidadesPage: React.FC = () => {
         >
           <DataTable
             keyField="opoId"
-            data={items}
-            columns={[
-              { key: "opoEmpresaContato", header: "Cliente", render: (r) => r.opoEmpresaContato ?? r.opoTitulo },
-              { key: "opoNomeContato", header: "Contato", render: (r) => r.opoNomeContato ?? "-" },
-              {
-                key: "opoTemperatura",
-                header: "Label",
-                render: (r) => <span className={temperaturaClass(r.opoTemperatura)}>{temperaturaLabel(r.opoTemperatura)}</span>,
-              },
-              {
-                key: "opoProId",
-                header: "Solução",
-                render: (r) => produtoNome(r.opoProId, r.opoSolucao),
-              },
-              {
-                key: "opoEtkId",
-                header: "Status",
-                render: (r) => <span className="status-badge status-badge--open">{etapaNome(r.opoEtkId)}</span>,
-              },
-              {
-                key: "opoUsuResponsavelId",
-                header: "Responsável",
-                render: (r) => usuarioNome(r.opoUsuResponsavelId),
-              },
-              {
-                key: "opoDataUltimoContato",
-                header: "Último contato",
-                render: (r) => formatDateTime(r.opoDataUltimoContato),
-              },
-              {
-                key: "opoId",
-                header: "Ações",
-                render: (r) => (
-                  <div className="actions">
-                    <ActionIconButton icon="view" label="Visualizar" onClick={() => navigate(`/oportunidades/${r.opoId}`)} />
-                    <ActionIconButton icon="edit" label="Editar" onClick={() => openEdit(r)} />
-                    {(r.opoStatusFechamento === "perdido" || r.opoStatusFechamento === "stand-by") && (
-                      <ActionIconButton
-                        icon="activate"
-                        label="Retornar para ativo"
-                        tone="success"
-                        onClick={() => abrirRetornoParaAtivo(r)}
-                      />
-                    )}
-                  </div>
-                ),
-              },
-            ]}
+            data={filteredItems}
+            columns={columns}
           />
         </ListingTableCard>
       )}

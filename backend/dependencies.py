@@ -34,6 +34,8 @@ def require_user_in_company(
 ) -> None:
     if not settings.MULTIEMPRESA_ENABLED or company_id is None:
         return
+    if current_user.usuAdmin:
+        return
     vinculo = (
         db.query(UsuarioEmpresa)
         .filter(

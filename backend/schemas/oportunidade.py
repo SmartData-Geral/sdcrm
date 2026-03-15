@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class OportunidadeBase(BaseModel):
@@ -30,6 +30,13 @@ class OportunidadeBase(BaseModel):
     opoStatusFechamento: str | None = Field(default=None, max_length=20)
     opoDoresMotivadores: str | None = None
     opoComentarios: str | None = None
+
+    @field_validator("opoEmail", mode="before")
+    @classmethod
+    def normalize_empty_email(cls, value: object) -> object:
+        if isinstance(value, str) and value.strip() == "":
+            return None
+        return value
 
 
 class OportunidadeCreate(OportunidadeBase):
@@ -64,6 +71,13 @@ class OportunidadeUpdate(BaseModel):
     opoDoresMotivadores: str | None = None
     opoComentarios: str | None = None
     opoAtivo: bool | None = None
+
+    @field_validator("opoEmail", mode="before")
+    @classmethod
+    def normalize_empty_email(cls, value: object) -> object:
+        if isinstance(value, str) and value.strip() == "":
+            return None
+        return value
 
 
 class OportunidadeInDBBase(OportunidadeBase):

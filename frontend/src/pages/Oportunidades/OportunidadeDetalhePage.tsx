@@ -75,6 +75,7 @@ const OportunidadeDetalhePage: React.FC = () => {
   const [propostaDraft, setPropostaDraft] = useState(false);
   const [dores, setDores] = useState("");
   const [comentarios, setComentarios] = useState("");
+  const [detalheTitulo, setDetalheTitulo] = useState("");
   const [detalheNomeContato, setDetalheNomeContato] = useState("");
   const [detalheTelefone, setDetalheTelefone] = useState("");
   const [detalheProId, setDetalheProId] = useState<number | null>(null);
@@ -159,6 +160,7 @@ const OportunidadeDetalhePage: React.FC = () => {
 
   useEffect(() => {
     if (!oportunidade) return;
+    setDetalheTitulo(oportunidade.opoTitulo);
     setDores(oportunidade.opoDoresMotivadores ?? "");
     setComentarios(oportunidade.opoComentarios ?? "");
     setDetalheNomeContato(oportunidade.opoNomeContato ?? "");
@@ -271,6 +273,7 @@ const OportunidadeDetalhePage: React.FC = () => {
     setLoadingSave(true);
     try {
       await api.put(`/oportunidades/${id}`, {
+        opoTitulo: detalheTitulo || oportunidade.opoTitulo,
         opoLeadScore: leadScoreDraft === "" ? null : Number(leadScoreDraft),
         opoReuniaoConfirmada: reuniaoDraft,
         opoPropostaEnviada: propostaDraft,
@@ -340,7 +343,14 @@ const OportunidadeDetalhePage: React.FC = () => {
         <div className="oportunidade-context-top">
           <div className="oportunidade-breadcrumb">Dashboard &gt; CRM &gt; Oportunidades</div>
           <div className="oportunidade-title-row">
-            <h1>{oportunidade.opoTitulo}</h1>
+            <div className="oportunidade-title-edit">
+              <input
+                className="oportunidade-title-input"
+                value={detalheTitulo}
+                onChange={(e) => setDetalheTitulo(e.target.value)}
+                placeholder="Nome da oportunidade"
+              />
+            </div>
             <div className="page-header-actions page-header-actions--wrap oportunidade-actions">
               {!isFechada && (
                 <>

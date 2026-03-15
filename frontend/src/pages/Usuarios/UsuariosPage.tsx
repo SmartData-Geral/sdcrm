@@ -8,7 +8,9 @@ import ActionIconButton from "../../components/ActionIconButton";
 import ListingToolbar from "../../components/ListingToolbar";
 import ListingTableCard from "../../components/ListingTableCard";
 import PaginationBar from "../../components/PaginationBar";
+import UserAvatar from "../../components/UserAvatar";
 import { useAuth } from "../../contexts/AuthContext";
+import { getAvatarSrc } from "../../utils/api";
 
 interface UsuarioItem {
   usuId: number;
@@ -66,6 +68,7 @@ const UsuariosPage: React.FC = () => {
     usuAvatarUrl: "",
     empresasIds: [],
   });
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -118,6 +121,31 @@ const UsuariosPage: React.FC = () => {
       empresasIds: [],
     });
     setIsModalOpen(true);
+  };
+
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
+    if (![".png", ".jpg", ".jpeg"].includes(ext)) {
+      return;
+    }
+    setAvatarUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await api.post<{ avatarUrl: string }>("/usuarios/avatar/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setForm((f) => ({ ...f, usuAvatarUrl: res.data.avatarUrl }));
+    } finally {
+      setAvatarUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const removeAvatar = () => {
+    setForm((f) => ({ ...f, usuAvatarUrl: "" }));
   };
 
   const save = async (e: React.FormEvent) => {
@@ -341,13 +369,33 @@ const UsuariosPage: React.FC = () => {
             />
           </label>
           <label>
-            Avatar (URL)
-            <input
-              type="url"
-              value={form.usuAvatarUrl}
-              onChange={(e) => setForm((f) => ({ ...f, usuAvatarUrl: e.target.value }))}
-              placeholder="https://..."
-            />
+            Avatar
+            <div className="avatar-upload-area">
+              {form.usuAvatarUrl ? (
+                <div className="avatar-preview-wrap">
+                  <img
+                    src={getAvatarSrc(form.usuAvatarUrl) || ""}
+                    alt="Avatar"
+                    className="avatar-preview-img"
+                  />
+                  {!avatarUploading && (
+                    <button type="button" className="btn-link btn-link-danger" onClick={removeAvatar}>
+                      Remover
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <UserAvatar name={form.usuNome || "?"} avatarUrl={null} size="md" />
+              )}
+              <input
+                type="file"
+                accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+                onChange={handleAvatarFileChange}
+                disabled={avatarUploading}
+              />
+              {avatarUploading && <span className="avatar-upload-status">Enviando...</span>}
+              <span className="field-hint">PNG ou JPG</span>
+            </div>
           </label>
           <div className="modal-actions">
             <button type="button" onClick={() => setIsModalOpen(false)}>

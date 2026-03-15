@@ -1,4 +1,5 @@
 import React from "react";
+import { getAvatarSrc } from "../utils/api";
 
 interface UserAvatarProps {
   name: string;
@@ -14,9 +15,10 @@ function getInitials(name: string): string {
 }
 
 const UserAvatar: React.FC<UserAvatarProps> = ({ name, avatarUrl, size = "md" }) => {
+  const src = getAvatarSrc(avatarUrl);
   return (
     <span className={`user-avatar user-avatar--${size}`} title={name} aria-label={name}>
-      {avatarUrl ? <img src={avatarUrl} alt={name} /> : <span>{getInitials(name)}</span>}
+      {src ? <img src={src} alt={name} /> : <span>{getInitials(name)}</span>}
     </span>
   );
 };
