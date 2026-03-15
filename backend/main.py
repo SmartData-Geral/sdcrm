@@ -9,6 +9,7 @@ from .dependencies import CurrentUserDep, require_admin
 from .routers import (
     auth_router,
     como_conheceu_router,
+    crm_dashboard_router,
     empresa_router,
     etapa_kanban_router,
     health_router,
@@ -39,12 +40,18 @@ app.include_router(etapa_kanban_router.router)
 app.include_router(oportunidade_router.router)
 app.include_router(historico_oportunidade_router.router)
 app.include_router(usuario_router.router)
+app.include_router(crm_dashboard_router.router)
 
 # Pasta de uploads (avatars) e rota estática
 UPLOADS_DIR = Path(__file__).resolve().parent / "uploads"
 AVATARS_DIR = UPLOADS_DIR / "avatars"
 AVATARS_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/static", StaticFiles(directory=str(UPLOADS_DIR)), name="static")
+# Servimos arquivos estáticos (avatars) em dois caminhos:
+# - /static        -> uso atual
+# - /api/static    -> compatibilidade com URLs antigas gravadas no banco
+static_files = StaticFiles(directory=str(UPLOADS_DIR))
+app.mount("/static", static_files, name="static")
+app.mount("/api/static", static_files, name="api-static")
 
 ALLOWED_AVATAR_CONTENT_TYPES = {"image/png", "image/jpeg", "image/jpg"}
 ALLOWED_AVATAR_EXTENSIONS = {".png", ".jpg", ".jpeg"}

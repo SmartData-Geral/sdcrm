@@ -61,9 +61,9 @@ function setStoredOpen(open: Record<string, boolean>) {
 function getHeaderData(pathname: string): HeaderData {
   if (pathname === "/") {
     return {
-      breadcrumb: ["Dashboard"],
-      title: "Dashboard",
-      description: "Visão geral do sistema e indicadores principais.",
+      breadcrumb: ["Dashboard", "CRM"],
+      title: "Dashboard CRM",
+      description: "Indicadores e funil de oportunidades do CRM.",
     };
   }
   if (pathname.startsWith("/oportunidades-kanban")) {
@@ -208,8 +208,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     <div className="app-layout">
       <aside className="sidebar">
         <div className="brand-block">
-          <span className="brand-caption">Smart Data</span>
-          <strong className="brand-title">SD Framework</strong>
+          <strong className="brand-title">Smart CRM</strong>
         </div>
         {empresas.length > 0 && (
           <div className="sidebar-company">
