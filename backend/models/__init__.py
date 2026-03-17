@@ -8,4 +8,10 @@ from .produto import Produto  # noqa: F401
 from .etapa_kanban import EtapaKanban  # noqa: F401
 from .oportunidade import Oportunidade  # noqa: F401
 from .oportunidade_historico import OportunidadeHistorico  # noqa: F401
+from .proposta_template import PropostaTemplate  # noqa: F401
+from .proposta import Proposta  # noqa: F401
+from .proposta_versao import PropostaVersao  # noqa: F401
+from .proposta_bloco import PropostaBloco  # noqa: F401
+from .proposta_bloco_padrao import PropostaBlocoPadrao  # noqa: F401
+from .proposta_evento import PropostaEvento  # noqa: F401
 

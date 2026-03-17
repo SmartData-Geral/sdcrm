@@ -80,6 +80,20 @@ function getHeaderData(pathname: string): HeaderData {
       description: "Visualize informações completas e histórico da oportunidade.",
     };
   }
+  if (pathname.startsWith("/propostas/")) {
+    return {
+      breadcrumb: ["Dashboard", "CRM", "Propostas"],
+      title: "Editor de Propostas",
+      description: "Edite conteúdo, publique e acompanhe eventos da proposta.",
+    };
+  }
+  if (pathname.startsWith("/cadastros/propostas")) {
+    return {
+      breadcrumb: ["Dashboard", "Cadastros", "Propostas"],
+      title: "Cadastros de Propostas",
+      description: "Gerencie templates e itens base para propostas comerciais.",
+    };
+  }
   if (pathname.startsWith("/oportunidades")) {
     return {
       breadcrumb: ["Dashboard", "CRM", "Oportunidades"],
@@ -187,6 +201,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           path.startsWith("/motivos-cancelamento") ||
           path.startsWith("/produtos") ||
           path.startsWith("/etapas-kanban") ||
+          path.startsWith("/cadastros/propostas") ||
           path.startsWith("/empresas")) &&
         !prev.cadastros
       ) {
@@ -286,6 +301,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 </NavLink>
                 <NavLink to="/etapas-kanban" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
                   Etapas Kanban
+                </NavLink>
+                <NavLink to="/cadastros/propostas" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
+                  Propostas
                 </NavLink>
                 {user?.usuAdmin && (
                   <NavLink to="/empresas" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>

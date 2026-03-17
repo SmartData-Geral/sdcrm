@@ -14,6 +14,7 @@ interface EmpresaItem {
   empId: number;
   empNome: string;
   empAtivo: boolean;
+  empLogoUrl?: string | null;
 }
 
 interface ListResponse {
@@ -35,7 +36,8 @@ const EmpresasPage: React.FC = () => {
   const [selected, setSelected] = useState<EmpresaItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isInativarOpen, setIsInativarOpen] = useState(false);
-  const [form, setForm] = useState({ empNome: "" });
+  const [form, setForm] = useState({ empNome: "", empLogoUrl: "" });
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -61,13 +63,13 @@ const EmpresasPage: React.FC = () => {
 
   const openCreate = () => {
     setSelected(null);
-    setForm({ empNome: "" });
+    setForm({ empNome: "", empLogoUrl: "" });
     setIsModalOpen(true);
   };
 
   const openEdit = (row: EmpresaItem) => {
     setSelected(row);
-    setForm({ empNome: row.empNome });
+    setForm({ empNome: row.empNome, empLogoUrl: row.empLogoUrl ?? "" });
     setIsModalOpen(true);
   };
 
@@ -92,6 +94,22 @@ const EmpresasPage: React.FC = () => {
       await api.patch(`/empresas/${selected.empId}/inativar`);
       setIsInativarOpen(false);
       await load();
+    }
+  };
+
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingLogo(true);
+    try {
+      const data = new FormData();
+      data.append("file", file);
+      const res = await api.post<{ logoUrl: string }>("/empresas/logo/upload", data, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setForm((f) => ({ ...f, empLogoUrl: res.data.logoUrl }));
+    } finally {
+      setUploadingLogo(false);
     }
   };
 
@@ -187,6 +205,18 @@ const EmpresasPage: React.FC = () => {
               required
             />
           </label>
+          <label>
+            Logo da empresa
+            <input type="file" accept="image/png,image/jpeg" onChange={handleLogoFileChange} />
+            <span className="field-hint">PNG ou JPG. Logo usada no header da proposta pública.</span>
+          </label>
+          {uploadingLogo && <p className="muted-text">Enviando logo...</p>}
+          {form.empLogoUrl && (
+            <div className="empresa-logo-preview">
+              <p className="muted-text">Pré-visualização:</p>
+              <img src={form.empLogoUrl} alt="Logo da empresa" />
+            </div>
+          )}
           <div className="modal-actions">
             <button type="button" onClick={() => setIsModalOpen(false)}>
               Cancelar

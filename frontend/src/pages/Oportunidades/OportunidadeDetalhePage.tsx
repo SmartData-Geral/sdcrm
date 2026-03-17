@@ -9,6 +9,7 @@ import ActionIconButton from "../../components/ActionIconButton";
 import AvatarSelect from "../../components/AvatarSelect";
 import TemperatureSelect from "../../components/TemperatureSelect";
 import { useAuth } from "../../contexts/AuthContext";
+import { getStaticBaseUrl } from "../../utils/api";
 
 interface OportunidadeDetail {
   opoId: number;
@@ -59,6 +60,16 @@ interface MotivoCancelamentoOption {
   mcaNome: string;
 }
 
+interface PropostaItem {
+  prpId: number;
+  prpTitulo: string;
+  prpTipo: "projeto" | "planos" | "hibrida";
+  prpStatus: string;
+  prpTokenPublico: string;
+  prpVersaoAtual: number | null;
+  prpDataCriacao?: string | null;
+}
+
 const OportunidadeDetalhePage: React.FC = () => {
   const { opoId } = useParams<{ opoId: string }>();
   const navigate = useNavigate();
@@ -101,6 +112,8 @@ const OportunidadeDetalhePage: React.FC = () => {
   const [novoHistorico, setNovoHistorico] = useState("");
   const [editingHistoricoId, setEditingHistoricoId] = useState<number | null>(null);
   const [editingHistoricoTexto, setEditingHistoricoTexto] = useState("");
+  const [propostas, setPropostas] = useState<PropostaItem[]>([]);
+  const [loadingPropostas, setLoadingPropostas] = useState(false);
 
   const id = opoId ? parseInt(opoId, 10) : NaN;
   const isFechada = oportunidade?.opoStatusFechamento && ["ganho", "perdido", "stand-by"].includes(oportunidade.opoStatusFechamento);
@@ -131,6 +144,19 @@ const OportunidadeDetalhePage: React.FC = () => {
     }
   };
 
+  const loadPropostas = async () => {
+    if (!id || isNaN(id)) return;
+    setLoadingPropostas(true);
+    try {
+      const res = await api.get<{ items: PropostaItem[] }>(`/oportunidades/${id}/propostas`, {
+        params: { page_size: 100 },
+      });
+      setPropostas(res.data.items ?? []);
+    } finally {
+      setLoadingPropostas(false);
+    }
+  };
+
   const loadCombos = async () => {
     try {
       const [produtosRes, usuariosRes, ccoRes, motivosRes] = await Promise.all([
@@ -156,6 +182,10 @@ const OportunidadeDetalhePage: React.FC = () => {
 
   useEffect(() => {
     if (oportunidade) void loadHistoricos();
+  }, [oportunidade?.opoId]);
+
+  useEffect(() => {
+    if (oportunidade) void loadPropostas();
   }, [oportunidade?.opoId]);
 
   useEffect(() => {
@@ -306,6 +336,36 @@ const OportunidadeDetalhePage: React.FC = () => {
     setEditingHistoricoId(null);
     setEditingHistoricoTexto("");
     await loadHistoricos();
+  };
+
+  const criarProposta = async () => {
+    const payload = {
+      prpOpoId: id,
+      prpTitulo: `Proposta - ${oportunidade.opoTitulo}`,
+      prpTipo: "projeto",
+      prpNomeContato: oportunidade.opoNomeContato ?? null,
+      prpEmailContato: oportunidade.opoEmail ?? null,
+      prpWhatsappContato: oportunidade.opoTelefone ?? null,
+      prpUsuResponsavelId: oportunidade.opoUsuResponsavelId ?? null,
+    };
+    const res = await api.post<PropostaItem>("/propostas", payload);
+    await loadPropostas();
+    navigate(`/propostas/${res.data.prpId}/editor`);
+  };
+
+  const publicarProposta = async (prpId: number) => {
+    await api.patch(`/propostas/${prpId}/publicar`, { forcar_nova_versao: true });
+    await loadPropostas();
+  };
+
+  const duplicarProposta = async (prpId: number) => {
+    await api.patch(`/propostas/${prpId}/duplicar`);
+    await loadPropostas();
+  };
+
+  const copiarLinkProposta = async (token: string) => {
+    const link = `${getStaticBaseUrl()}/public/propostas/${token}`;
+    await navigator.clipboard.writeText(link);
   };
 
   const statusBadgeClass = useMemo(() => {
@@ -541,6 +601,58 @@ const OportunidadeDetalhePage: React.FC = () => {
                 </button>
               </div>
             </div>
+          </section>
+          <section className="surface-card details-card">
+            <div className="proposal-section-header">
+              <h2 className="section-title">Propostas</h2>
+              <button type="button" className="btn-primary" onClick={criarProposta}>
+                Nova proposta
+              </button>
+            </div>
+            {loadingPropostas ? (
+              <Loader />
+            ) : propostas.length === 0 ? (
+              <p className="muted-text">Nenhuma proposta cadastrada para esta oportunidade.</p>
+            ) : (
+              <div className="proposal-table-wrapper">
+                <table className="datatable">
+                  <thead>
+                    <tr>
+                      <th>Título</th>
+                      <th>Tipo</th>
+                      <th>Status</th>
+                      <th>Versão</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {propostas.map((p) => (
+                      <tr key={p.prpId}>
+                        <td>{p.prpTitulo}</td>
+                        <td>{p.prpTipo}</td>
+                        <td>
+                          <span className="status-badge status-badge--open">{p.prpStatus}</span>
+                        </td>
+                        <td>{p.prpVersaoAtual ?? "-"}</td>
+                        <td>
+                          <div className="actions">
+                            <ActionIconButton icon="edit" label="Editar" onClick={() => navigate(`/propostas/${p.prpId}/editor`)} />
+                            <ActionIconButton
+                              icon="view"
+                              label="Visualizar página pública"
+                              onClick={() => window.open(`${getStaticBaseUrl()}/public/propostas/${p.prpTokenPublico}`, "_blank")}
+                            />
+                            <ActionIconButton icon="view" label="Copiar link" onClick={() => copiarLinkProposta(p.prpTokenPublico)} />
+                            <ActionIconButton icon="activate" label="Publicar" tone="success" onClick={() => publicarProposta(p.prpId)} />
+                            <ActionIconButton icon="edit" label="Duplicar" onClick={() => duplicarProposta(p.prpId)} />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         </div>
 

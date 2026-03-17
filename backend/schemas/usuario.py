@@ -11,6 +11,7 @@ class UsuarioCreate(BaseModel):
     usuAdmin: bool = False
     usuPerfil: str | None = Field(default=None, max_length=50)
     usuAvatarUrl: str | None = Field(default=None, max_length=500)
+    usuWhatsapp: str | None = Field(default=None, max_length=50)
     empresasIds: List[int] = Field(default_factory=list, description="Ids das empresas vinculadas (para perfil USER)")
 
 
@@ -21,6 +22,7 @@ class UsuarioUpdate(BaseModel):
     usuAdmin: bool | None = None
     usuPerfil: str | None = Field(default=None, max_length=50)
     usuAvatarUrl: str | None = Field(default=None, max_length=500)
+    usuWhatsapp: str | None = Field(default=None, max_length=50)
     usuAtivo: bool | None = None
     empresasIds: List[int] | None = Field(
         default=None, description="Ids das empresas vinculadas (para perfil USER)"
@@ -35,6 +37,7 @@ class UsuarioInDBBase(BaseModel):
     usuAtivo: bool
     usuPerfil: str | None = None
     usuAvatarUrl: str | None = None
+    usuWhatsapp: str | None = None
     usuDataCriacao: datetime | None = None
     usuDataAtualizacao: datetime | None = None
 

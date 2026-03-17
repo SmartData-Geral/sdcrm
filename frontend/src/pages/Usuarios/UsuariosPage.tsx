@@ -19,7 +19,8 @@ interface UsuarioItem {
   usuAdmin: boolean;
   usuAtivo: boolean;
   usuAvatarUrl: string | null;
-   empresas?: string[] | null;
+  usuWhatsapp?: string | null;
+  empresas?: string[] | null;
 }
 
 interface UsuarioForm {
@@ -28,6 +29,7 @@ interface UsuarioForm {
   usuSenha: string;
   usuPerfil: "ADMIN" | "USER";
   usuAvatarUrl: string;
+  usuWhatsapp: string;
   empresasIds: number[];
 }
 
@@ -66,6 +68,7 @@ const UsuariosPage: React.FC = () => {
     usuSenha: "",
     usuPerfil: "USER",
     usuAvatarUrl: "",
+    usuWhatsapp: "",
     empresasIds: [],
   });
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -105,6 +108,7 @@ const UsuariosPage: React.FC = () => {
       usuSenha: "",
       usuPerfil: "USER",
       usuAvatarUrl: "",
+      usuWhatsapp: "",
       empresasIds: [],
     });
     setIsModalOpen(true);
@@ -118,6 +122,7 @@ const UsuariosPage: React.FC = () => {
       usuSenha: "",
       usuPerfil: row.usuAdmin ? "ADMIN" : "USER",
       usuAvatarUrl: row.usuAvatarUrl ?? "",
+      usuWhatsapp: row.usuWhatsapp ?? "",
       empresasIds: [],
     });
     setIsModalOpen(true);
@@ -157,6 +162,7 @@ const UsuariosPage: React.FC = () => {
         usuAdmin: boolean;
         usuPerfil: "ADMIN" | "USER";
         usuAvatarUrl?: string | null;
+        usuWhatsapp?: string | null;
         usuSenha?: string;
         empresasIds?: number[];
       } = {
@@ -165,6 +171,7 @@ const UsuariosPage: React.FC = () => {
         usuAdmin: form.usuPerfil === "ADMIN",
         usuPerfil: form.usuPerfil,
         usuAvatarUrl: form.usuAvatarUrl.trim() || null,
+        usuWhatsapp: form.usuWhatsapp.trim() || null,
       };
       if (form.usuSenha) payload.usuSenha = form.usuSenha;
       if (form.usuPerfil === "USER") {
@@ -180,6 +187,7 @@ const UsuariosPage: React.FC = () => {
         usuAdmin: form.usuPerfil === "ADMIN",
         usuPerfil: form.usuPerfil,
         usuAvatarUrl: form.usuAvatarUrl.trim() || null,
+        usuWhatsapp: form.usuWhatsapp.trim() || null,
         empresasIds:
           form.usuPerfil === "USER"
             ? form.empresasIds
@@ -356,6 +364,15 @@ const UsuariosPage: React.FC = () => {
               onChange={(e) => setForm((f) => ({ ...f, usuEmail: e.target.value }))}
               required
               disabled={!!selected}
+            />
+          </label>
+          <label>
+            WhatsApp comercial
+            <input
+              type="text"
+              value={form.usuWhatsapp}
+              onChange={(e) => setForm((f) => ({ ...f, usuWhatsapp: e.target.value }))}
+              placeholder="(00) 00000-0000"
             />
           </label>
           <label>

@@ -32,6 +32,7 @@ class UsuarioBase(BaseModel):
     usuAtivo: bool
     usuPerfil: str | None = None
     usuAvatarUrl: str | None = None
+    usuWhatsapp: str | None = None
 
     class Config:
         from_attributes = True

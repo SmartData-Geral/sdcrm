@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 class EmpresaBase(BaseModel):
     empNome: str = Field(..., max_length=200)
+    empLogoUrl: str | None = Field(default=None, max_length=500)
 
 
 class EmpresaCreate(EmpresaBase):
@@ -14,12 +15,14 @@ class EmpresaCreate(EmpresaBase):
 class EmpresaUpdate(BaseModel):
     empNome: str | None = Field(default=None, max_length=200)
     empAtivo: bool | None = None
+    empLogoUrl: str | None = Field(default=None, max_length=500)
 
 
 class EmpresaResponse(BaseModel):
     empId: int
     empNome: str
     empAtivo: bool
+    empLogoUrl: str | None = None
     empDataCriacao: datetime | None = None
     empDataAtualizacao: datetime | None = None
 

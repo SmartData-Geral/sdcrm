@@ -61,6 +61,7 @@ def create_usuario(db: Session, data: UsuarioCreate) -> UsuarioResponse:
         usuAdmin=data.usuAdmin,
         usuPerfil=data.usuPerfil,
         usuAvatarUrl=data.usuAvatarUrl,
+        usuWhatsapp=data.usuWhatsapp,
     )
     # Vínculos de empresa para perfil USER
     if data.empresasIds:

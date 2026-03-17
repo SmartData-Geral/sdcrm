@@ -33,7 +33,7 @@ Importante:
 Na raiz do projeto:
 
 ```powershell
-cd "C:\Users\carlo\Documents\Sistemas\framework"
+cd "C:\Users\carlo\Documents\Sistemas\sdcrm"
 .\.venv\Scripts\Activate.ps1
 alembic -c backend\alembic.ini upgrade head
 ```
@@ -47,11 +47,16 @@ Resultado esperado no terminal:
 Ainda na raiz do projeto:
 
 ```powershell
-cd "C:\Users\carlo\Documents\Sistemas\sdcrm"
+cd "C:\Users\carlo\OneDrive\Documents\Sistemas\sdcrm"
 .\.venv\Scripts\Activate.ps1
 pip install -r backend\requirements.txt
 uvicorn backend.main:app --reload --port 8000
 ```
+```powershell
+.\.venv\Scripts\Activate.ps1
+uvicorn backend.main:app --reload --port 8000
+```
+
 
 Resultado esperado:
 - API em `http://127.0.0.1:8000`
@@ -85,7 +90,7 @@ Resultado esperado:
 Em outro terminal:
 
 ```powershell
-cd "C:\Users\carlo\Documents\Sistemas\framework\frontend"
+cd frontend
 npm install
 npm run dev
 ```

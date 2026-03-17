@@ -791,6 +791,25 @@ button.warning {
   gap: 0.62rem;
 }
 
+.form-vertical .field-hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.empresa-logo-preview {
+  margin-top: 0.25rem;
+}
+
+.empresa-logo-preview img {
+  max-height: 48px;
+  max-width: 200px;
+  object-fit: contain;
+  display: block;
+  border-radius: var(--radius-sm);
+  background: #f1f5f9;
+  padding: 0.3rem 0.5rem;
+}
+
 label {
   display: flex;
   flex-direction: column;
@@ -1440,6 +1459,37 @@ label {
 .status-badge--open {
   background: #dbeafe;
   color: #1e40af;
+}
+
+/* Status da proposta (editor) */
+.status-badge--rascunho {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.status-badge--publicada {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-badge--visualizada {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.status-badge--aceita {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge--arquivada {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.status-badge--default {
+  background: #f1f5f9;
+  color: #475569;
 }
 
 .oportunidade-label {
@@ -2221,6 +2271,981 @@ label {
 
 .history-item-actions--top {
   margin-top: 0;
+}
+
+.proposal-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.proposal-table-wrapper {
+  overflow-x: auto;
+}
+
+.proposal-editor-root {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-bottom: 0.5rem;
+}
+
+.proposal-editor-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.proposal-editor-tab {
+  border: 1px solid #dbe2ea;
+  background: #fff;
+  color: #334155;
+  font-size: 0.8rem;
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+}
+
+.proposal-editor-tab.is-active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.proposal-editor-content {
+  margin-top: 0.25rem;
+}
+
+.proposal-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.proposal-editor-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.proposal-editor-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.proposal-editor-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.65rem;
+  background: #f8fafc;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.proposal-editor-block h4 {
+  margin: 0 0 0.45rem;
+}
+
+.proposal-preview {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.proposal-render-hero {
+  background: linear-gradient(140deg, #1d4ed8, #0f172a);
+  color: #fff;
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.proposal-render-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  padding: 0.85rem;
+}
+
+.proposal-render-section h3 {
+  margin: 0 0 0.5rem;
+}
+
+.proposal-render-grid {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.proposal-render-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.6rem;
+}
+
+.proposal-render-card.is-highlight {
+  border-color: #2563eb;
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.12);
+}
+
+.proposal-render-list {
+  margin: 0.35rem 0 0;
+  padding-left: 1rem;
+}
+
+.proposal-public-wrapper {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  min-height: 560px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+}
+
+.proposal-public-iframe {
+  width: 100%;
+  min-height: 560px;
+  border: 0;
+  background: #f1f5f9;
+  display: block;
+}
+
+/* --- Toasts --- */
+.toast-container {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 360px;
+}
+
+.toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15);
+  font-size: 0.9rem;
+  animation: toast-in 0.25s ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.toast-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.toast--success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.toast--error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+
+.toast--warning {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+
+.toast--info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+}
+
+/* --- Editor: abas como fluxo --- */
+.proposal-editor-steps {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-bottom: 1.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+.proposal-editor-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.proposal-editor-step-btn {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.proposal-editor-step-btn:hover {
+  color: var(--text);
+  background: #f1f5f9;
+}
+
+.proposal-editor-step-btn.is-active {
+  background: var(--brand);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+.proposal-editor-step-connector {
+  width: 24px;
+  height: 2px;
+  background: #e2e8f0;
+  flex-shrink: 0;
+  margin: 0 0.1rem;
+}
+
+.proposal-editor-step-connector.is-done {
+  background: var(--brand);
+  opacity: 0.5;
+}
+
+/* --- Editor: seções Dados Gerais --- */
+.proposal-editor-section {
+  margin-bottom: 1.75rem;
+}
+
+.proposal-editor-section:last-child {
+  margin-bottom: 0;
+}
+
+.proposal-editor-section + .proposal-editor-section {
+  margin-top: 1.25rem;
+}
+
+.proposal-editor-section-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.proposal-editor-section-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.proposal-editor-content {
+  padding: 1.5rem 1.35rem;
+}
+
+.proposal-editor-actions {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+/* --- Escopo: cards visuais --- */
+.scope-cards-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.scope-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 1.1rem 1.25rem;
+  box-shadow: var(--shadow-soft);
+  transition: box-shadow 0.2s ease;
+}
+
+.scope-card:hover {
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.scope-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.scope-card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.scope-card-subtitle {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.scope-card-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+}
+
+.scope-card-list li {
+  padding: 0.25rem 0;
+  padding-left: 1rem;
+  position: relative;
+  font-size: 0.88rem;
+  color: #334155;
+}
+
+.scope-card-list li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: var(--brand);
+  font-weight: 700;
+}
+
+.scope-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.scope-card-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: var(--radius-md);
+  border: 1px dashed #e2e8f0;
+}
+
+.scope-add-card-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--brand);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  margin-top: 0.5rem;
+}
+
+.scope-add-card-btn:hover {
+  background: var(--brand-dark);
+}
+
+/* --- Planos: pricing cards --- */
+.plans-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.plan-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-soft);
+  transition: box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.plan-card.is-destaque {
+  border-color: var(--brand);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.15);
+  position: relative;
+}
+
+.plan-card.is-destaque::before {
+  content: none;
+}
+
+.plan-card-recommended-badge {
+  display: inline-block;
+  background: var(--brand);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+}
+
+.plan-card-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.plan-card-subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.plan-card-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0.25rem 0;
+}
+
+.plan-card-value small {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.plan-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.plan-card-form {
+  margin-top: 0.75rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: var(--radius-md);
+  border: 1px dashed #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.plans-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--brand);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  margin-top: 0.5rem;
+}
+
+.plans-add-btn:hover {
+  background: var(--brand-dark);
+}
+
+/* --- Versões: cards --- */
+.versoes-section .surface-card {
+  padding: 1.25rem 1.35rem;
+}
+
+.versoes-section h3 {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.versoes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.versao-card {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.versao-card-info h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.versao-card-meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.versao-card-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* --- Eventos: timeline --- */
+.eventos-section .surface-card {
+  padding: 1.25rem 1.35rem;
+}
+
+.eventos-section h3 {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.eventos-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+  padding-left: 1.5rem;
+  border-left: 2px solid #e2e8f0;
+  margin-left: 0.5rem;
+}
+
+.eventos-timeline li {
+  position: relative;
+  padding-bottom: 1rem;
+}
+
+.eventos-timeline li:last-child {
+  padding-bottom: 0;
+}
+
+.eventos-timeline li::before {
+  content: "";
+  position: absolute;
+  left: -1.5rem;
+  top: 0.35rem;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--brand);
+  opacity: 0.7;
+}
+
+.eventos-timeline-icon {
+  font-size: 1rem;
+  margin-right: 0.4rem;
+}
+
+.eventos-timeline-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.eventos-timeline-date {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}
+
+/* --- Contexto da proposta (topo) --- */
+.proposal-context-bar {
+  margin-bottom: 1rem;
+  padding: 1rem 1.25rem;
+}
+
+.proposal-context-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem 1.5rem;
+}
+
+.proposal-context-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.proposal-context-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.proposal-context-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.proposal-context-value.status-badge {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+}
+
+/* --- Indicador de progresso da proposta --- */
+.proposal-progress-bar {
+  margin-bottom: 1rem;
+  padding: 0.85rem 1.1rem;
+}
+
+.proposal-progress-checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.proposal-progress-done {
+  color: #166534;
+}
+
+.proposal-progress-pending {
+  color: var(--muted);
+}
+
+.proposal-progress-text {
+  margin: 0.5rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+/* --- Aba Preview: cabeçalho --- */
+.proposal-preview-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.proposal-preview-tab-header {
+  margin-bottom: 0.25rem;
+}
+
+.proposal-preview-tab-title {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.proposal-preview-tab-subtitle {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+/* --- Aba Publicação: seções --- */
+.proposal-publicacao-section {
+  padding: 1rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.proposal-publicacao-section:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.proposal-publicacao-section .proposal-editor-section-title {
+  margin-top: 0;
+}
+
+/* --- Barra fixa de ações --- */
+.proposal-editor-actions-bar {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin-top: 1rem;
+  padding: 0.85rem 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.proposal-editor-actions-status {
+  min-height: 1.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.proposal-status {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.proposal-status--saved {
+  color: #166534;
+}
+
+.proposal-status--dirty {
+  color: #92400e;
+}
+
+.proposal-editor-actions-buttons {
+  display: flex;
+  gap: 0.6rem;
+}
+
+/* --- Preview: container central, fundo cinza, shadow --- */
+.proposal-preview-outer {
+  background: #e2e8f0;
+  padding: 1rem;
+  border-radius: var(--radius-lg);
+  margin: 0 -0.5rem;
+}
+
+.proposal-preview-landing {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+}
+
+.proposal-preview-landing .proposal-public-wrapper {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.proposal-preview-landing .proposal-public-iframe {
+  min-height: 680px;
+}
+
+/* --- Aba Publicação --- */
+.proposal-publicacao-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.proposal-publicacao-link-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.proposal-publicacao-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* --- Escopo: empty state e header dos cards --- */
+.scope-empty-state {
+  text-align: center;
+  padding: 2rem 1.5rem;
+  background: #f8fafc;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-lg);
+  margin-bottom: 1rem;
+}
+
+.scope-empty-state p {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.scope-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.scope-card-drag {
+  color: #94a3b8;
+  cursor: default;
+  font-size: 0.9rem;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.scope-card-title-block {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.scope-card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.scope-card-item-count {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.scope-card-header-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* --- Diferenciais: cards no editor --- */
+.differentials-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.differential-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 1.1rem 1.25rem;
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.differential-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.differential-card-title-block {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.differential-card-title {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.differential-card-subtitle {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.differential-card-header-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.differential-card-form {
+  margin-top: 0.75rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: var(--radius-md);
+  border: 1px dashed #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+/* --- Planos: empty state e benefícios --- */
+.plans-empty-state {
+  text-align: center;
+  padding: 2rem 1.5rem;
+  background: #f8fafc;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-lg);
+  margin-bottom: 1rem;
+}
+
+.plans-empty-state p {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.plan-card-benefits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.85rem;
+  color: #334155;
+}
+
+.plan-card-benefits li {
+  padding: 0.2rem 0;
+  padding-left: 0.25rem;
+}
+
+/* --- Seções da página do editor --- */
+.proposal-editor-page-section {
+  margin-top: 1.25rem;
+}
+
+/* --- Hierarquia geral editor --- */
+.proposal-editor-content .form-grid {
+  gap: 1rem 1.1rem;
+}
+
+.proposal-editor-block {
+  margin-bottom: 1.5rem;
+}
+
+.proposal-editor-block h4 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 @media (max-width: 900px) {

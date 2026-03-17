@@ -12,6 +12,7 @@ class Empresa(Base):
 
     empId: Mapped[int] = IdColumnFactory.int_id("empId")
     empNome: Mapped[str] = mapped_column(String(200), nullable=False)
+    empLogoUrl: Mapped[str | None] = mapped_column(String(500), nullable=True)
     empAtivo: Mapped[bool] = AtivoColumnFactory.bool_ativo("empAtivo")
     empDataCriacao: Mapped[datetime] = AuditColumnFactory.datetime_criacao("empDataCriacao")
     empDataAtualizacao: Mapped[datetime | None] = AuditColumnFactory.datetime_atualizacao("empDataAtualizacao")

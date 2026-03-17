@@ -10,6 +10,7 @@ export interface Usuario {
   usuAdmin: boolean;
   usuAtivo: boolean;
   usuAvatarUrl?: string | null;
+  usuWhatsapp?: string | null;
 }
 
 interface AuthContextValue {

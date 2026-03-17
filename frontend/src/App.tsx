@@ -10,6 +10,8 @@ import UsuariosPage from "./pages/Usuarios/UsuariosPage";
 import OportunidadesPage from "./pages/Oportunidades/OportunidadesPage";
 import OportunidadeDetalhePage from "./pages/Oportunidades/OportunidadeDetalhePage";
 import OportunidadesKanbanPage from "./pages/Oportunidades/OportunidadesKanbanPage";
+import PropostaEditorPage from "./pages/Propostas/PropostaEditorPage";
+import PropostasCadastrosPage from "./pages/Propostas/PropostasCadastrosPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 function App() {
@@ -93,6 +95,22 @@ function App() {
         element={
           <ProtectedRoute>
             <OportunidadeDetalhePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/propostas/:prpId/editor"
+        element={
+          <ProtectedRoute>
+            <PropostaEditorPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cadastros/propostas"
+        element={
+          <ProtectedRoute>
+            <PropostasCadastrosPage />
           </ProtectedRoute>
         }
       />
