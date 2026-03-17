@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import os
 import re
 import secrets
 from typing import Optional
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlparse
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -48,6 +49,67 @@ def _utcnow() -> datetime:
 
 def _new_public_token() -> str:
     return secrets.token_urlsafe(24)
+
+
+def _get_public_path_prefix() -> str:
+    """Retorna o prefixo público do app (ex.: /crm) quando configurado em produção."""
+    public_base = (os.getenv("VITE_PUBLIC_BASE_URL") or "").strip()
+    if public_base:
+        parsed = urlparse(public_base)
+        path = (parsed.path if parsed.scheme else public_base).strip()
+        if not path.startswith("/"):
+            path = f"/{path}"
+        return path.rstrip("/")
+
+    api_base = (os.getenv("VITE_API_BASE_URL") or "").strip()
+    if api_base:
+        parsed = urlparse(api_base)
+        path = (parsed.path if parsed.scheme else api_base).strip()
+        if not path.startswith("/"):
+            path = f"/{path}"
+        path = path.rstrip("/")
+        if path.endswith("/api"):
+            path = path[:-4]
+        return path.rstrip("/")
+
+    return ""
+
+
+def _normalize_public_static_url(url: str | None) -> str:
+    raw = (url or "").strip()
+    if not raw:
+        return ""
+    if raw.startswith(("http://", "https://", "data:", "blob:", "//")):
+        return raw
+    if raw.startswith("/api/static/"):
+        raw = raw.replace("/api/static/", "/static/", 1)
+
+    prefix = _get_public_path_prefix()
+    if not prefix:
+        return raw
+    if raw.startswith(f"{prefix}/"):
+        return raw
+    if raw.startswith("/static/"):
+        return f"{prefix}{raw}"
+    return raw
+
+
+def _normalize_rendered_html_static_paths(html: str) -> str:
+    prefix = _get_public_path_prefix()
+    if not prefix:
+        return html
+
+    normalized = re.sub(
+        r'([\"\'])/(?:api/)?static/',
+        rf"\1{prefix}/static/",
+        html,
+    )
+    normalized = re.sub(
+        r"url\(/(?:api/)?static/",
+        f"url({prefix}/static/",
+        normalized,
+    )
+    return normalized
 
 
 def _default_config(tipo: str) -> dict:
@@ -505,7 +567,8 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
                     "ordem": idx + 1,
                 }
             )
-    clientes_img_url = str(clientes.get("imagemUrl") or "").strip()
+    clientes_img_url = _normalize_public_static_url(str(clientes.get("imagemUrl") or ""))
+    empresa_logo_url = _normalize_public_static_url(empresa_logo_url)
 
     cliente_nome = (proposta.prpNomeContato or "").strip()
     default_hero_title = f"Proposta Smart Data{(' | ' + cliente_nome) if cliente_nome else ''}"
@@ -549,7 +612,7 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
         apres_list_html = "<ul class=\"context-list\">" + "".join(
             f'<li><span class="benefit-icon">✓</span>{p}</li>' for p in apres_pontos
         ) + "</ul>"
-    apres_img_url = str(apresentacao.get("imagemUrl") or "").strip()
+    apres_img_url = _normalize_public_static_url(str(apresentacao.get("imagemUrl") or ""))
     badge_html = f'<span class="context-badge">{apres_badge}</span>' if apres_badge else ""
     context_image_html = (
         f'<img src="{apres_img_url}" alt="Imagem ilustrativa" class="context-image" />'
@@ -1485,7 +1548,12 @@ def get_public_html(db: Session, token: str, preview: bool = False) -> str:
         logo_url = empresa.empLogoUrl if empresa else None  # type: ignore[attr-defined]
         return _render_public_html(proposta, whatsapp_number, logo_url)
     if proposta.prpHtmlRenderizado:
-        return proposta.prpHtmlRenderizado
+        normalized_html = _normalize_rendered_html_static_paths(proposta.prpHtmlRenderizado)
+        if normalized_html != proposta.prpHtmlRenderizado:
+            proposta.prpHtmlRenderizado = normalized_html
+            db.add(proposta)
+            db.commit()
+        return normalized_html
     empresa = db.get(Empresa, proposta.prpEmpId)
     logo_url = empresa.empLogoUrl if empresa else None  # type: ignore[attr-defined]
     html = _render_public_html(proposta, whatsapp_number, logo_url)
