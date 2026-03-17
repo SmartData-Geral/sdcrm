@@ -512,6 +512,7 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
     hero_title = str(hero.get("titulo") or default_hero_title or proposta.prpTitulo)
     hero_sub = str(hero.get("subtitulo", ""))
     hero_valor = str(hero.get("frase_valor") or "").strip()
+    hero_valor_html = f'<p class="hero__valor">{hero_valor}</p>' if hero_valor else ""
     brand_html = (
         f'<div class="hero__brand-row">'
         f'<img src="{empresa_logo_url}" alt="Logo da empresa" class="hero__logo" />'
@@ -532,7 +533,7 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
         f'<button type="button" class="btn btn-primary btn-aceitar">Aceitar proposta</button>'
         f'</div>'
         f'</div>'
-        f'{"<p class=\"hero__valor\">" + hero_valor + "</p>" if hero_valor else ""}'
+        f"{hero_valor_html}"
         f"</div></section>"
         if vis.get("hero", True)
         else ""
