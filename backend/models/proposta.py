@@ -65,7 +65,11 @@ class Proposta(Base):
     prpDataAtualizacao: Mapped[datetime | None] = AuditColumnFactory.datetime_atualizacao("prpDataAtualizacao")
 
     oportunidade: Mapped["Oportunidade"] = relationship("Oportunidade", back_populates="propostas")
-    template: Mapped["PropostaTemplate | None"] = relationship("PropostaTemplate", back_populates="propostas")
+    template: Mapped["PropostaTemplate | None"] = relationship(
+        "PropostaTemplate",
+        back_populates="propostas",
+        foreign_keys=[prpTplId],
+    )
     criador: Mapped["Usuario | None"] = relationship("Usuario", foreign_keys=[prpUsuCriadorId])
     editor: Mapped["Usuario | None"] = relationship("Usuario", foreign_keys=[prpUsuEditorId])
     responsavel: Mapped["Usuario | None"] = relationship("Usuario", foreign_keys=[prpUsuResponsavelId])

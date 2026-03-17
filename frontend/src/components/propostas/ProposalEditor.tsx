@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import Modal from "../Modal";
 import ProposalPlansEditor from "./ProposalPlansEditor";
 import ProposalProjectValueEditor from "./ProposalProjectValueEditor";
 import ProposalPublicPage from "./ProposalPublicPage";
 import ProposalScopeEditor from "./ProposalScopeEditor";
 import ProposalDifferentialsEditor from "./ProposalDifferentialsEditor";
 import { PropostaEventoItem, PropostaItem, PropostaTemplateItem, PropostaVersaoItem, TipoProposta } from "./types";
-import { getStaticBaseUrl } from "../../utils/api";
+import { getPublicProposalUrl } from "../../utils/api";
 import { useAuth } from "../../contexts/AuthContext";
 
 interface UsuarioOption {
@@ -23,13 +24,31 @@ interface Props {
   responsavelOportunidadeId: number | null;
   onSave: (payload: Partial<PropostaItem>) => Promise<void>;
   onPublish: () => Promise<void>;
+  onSaveAsTemplate: (payload: {
+    ptlNome: string;
+    ptlTipoSolucao: string | null;
+    ptlTipoProposta: TipoProposta;
+    ptlAtivo: boolean;
+    ptlPadrao: boolean;
+  }) => Promise<void>;
   onCopyLink: () => Promise<void>;
 }
 
 const tabs = ["dados", "conteudo", "escopo", "valores", "preview", "publicacao"] as const;
 type EditorTab = (typeof tabs)[number];
 
-const ProposalEditor: React.FC<Props> = ({ proposta, templates, usuarios, versoes, eventos, responsavelOportunidadeId, onSave, onPublish, onCopyLink }) => {
+const ProposalEditor: React.FC<Props> = ({
+  proposta,
+  templates,
+  usuarios,
+  versoes,
+  eventos,
+  responsavelOportunidadeId,
+  onSave,
+  onPublish,
+  onSaveAsTemplate,
+  onCopyLink,
+}) => {
   const { api } = useAuth();
   const responsavelDefault = proposta.prpUsuResponsavelId ?? responsavelOportunidadeId ?? null;
   const [tab, setTab] = useState<EditorTab>("dados");
@@ -37,6 +56,14 @@ const ProposalEditor: React.FC<Props> = ({ proposta, templates, usuarios, versoe
   const [uploadingContextImage, setUploadingContextImage] = useState(false);
   const [savedJustNow, setSavedJustNow] = useState(false);
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templateForm, setTemplateForm] = useState({
+    ptlNome: "",
+    ptlTipoSolucao: "",
+    ptlTipoProposta: proposta.prpTipo as TipoProposta,
+    ptlAtivo: true,
+    ptlPadrao: false,
+  });
   const [form, setForm] = useState({
     prpTitulo: proposta.prpTitulo,
     prpTipo: proposta.prpTipo as TipoProposta,
@@ -202,6 +229,27 @@ const ProposalEditor: React.FC<Props> = ({ proposta, templates, usuarios, versoe
   const handlePublishConfirm = async () => {
     setShowPublishConfirm(false);
     await onPublish();
+  };
+  const openSaveTemplateModal = () => {
+    setTemplateForm({
+      ptlNome: `Template - ${form.prpTitulo}`,
+      ptlTipoSolucao: "",
+      ptlTipoProposta: form.prpTipo,
+      ptlAtivo: true,
+      ptlPadrao: false,
+    });
+    setShowTemplateModal(true);
+  };
+  const handleSaveTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await onSaveAsTemplate({
+      ptlNome: templateForm.ptlNome,
+      ptlTipoSolucao: templateForm.ptlTipoSolucao || null,
+      ptlTipoProposta: templateForm.ptlTipoProposta,
+      ptlAtivo: templateForm.ptlAtivo,
+      ptlPadrao: templateForm.ptlPadrao,
+    });
+    setShowTemplateModal(false);
   };
 
   return (
@@ -606,7 +654,7 @@ const ProposalEditor: React.FC<Props> = ({ proposta, templates, usuarios, versoe
                 <button type="button" onClick={onCopyLink}>
                   Copiar link
                 </button>
-                <a href={`${getStaticBaseUrl()}/public/propostas/${proposta.prpTokenPublico}`} target="_blank" rel="noreferrer">
+                <a href={getPublicProposalUrl(proposta.prpTokenPublico)} target="_blank" rel="noreferrer">
                   <button type="button">Abrir página pública</button>
                 </a>
               </div>
@@ -650,9 +698,7 @@ const ProposalEditor: React.FC<Props> = ({ proposta, templates, usuarios, versoe
                       <div className="versao-card-actions">
                         <button
                           type="button"
-                          onClick={() =>
-                            window.open(`${getStaticBaseUrl()}/public/propostas/${proposta.prpTokenPublico}`, "_blank")
-                          }
+                          onClick={() => window.open(getPublicProposalUrl(proposta.prpTokenPublico), "_blank")}
                         >
                           Ver versão
                         </button>
@@ -699,6 +745,9 @@ const ProposalEditor: React.FC<Props> = ({ proposta, templates, usuarios, versoe
           {isDirty && !savedJustNow && <span className="proposal-status proposal-status--dirty">Alterações não salvas</span>}
         </div>
         <div className="proposal-editor-actions-buttons">
+          <button type="button" onClick={openSaveTemplateModal}>
+            Salvar como template
+          </button>
           <button type="button" className="btn-primary" onClick={save} disabled={saving}>
             {saving ? "Salvando..." : "Salvar alterações"}
           </button>
@@ -732,6 +781,61 @@ const ProposalEditor: React.FC<Props> = ({ proposta, templates, usuarios, versoe
           </div>
         </div>
       )}
+      <Modal isOpen={showTemplateModal} title="Salvar como template" onClose={() => setShowTemplateModal(false)}>
+        <form className="form-vertical" onSubmit={handleSaveTemplate}>
+          <label>
+            Nome do template
+            <input
+              value={templateForm.ptlNome}
+              onChange={(e) => setTemplateForm((prev) => ({ ...prev, ptlNome: e.target.value }))}
+              required
+            />
+          </label>
+          <label>
+            Produto / solução
+            <input
+              value={templateForm.ptlTipoSolucao}
+              onChange={(e) => setTemplateForm((prev) => ({ ...prev, ptlTipoSolucao: e.target.value }))}
+              placeholder="Ex.: CRM, BI, Automação"
+            />
+          </label>
+          <label>
+            Tipo da proposta
+            <select
+              value={templateForm.ptlTipoProposta}
+              onChange={(e) => setTemplateForm((prev) => ({ ...prev, ptlTipoProposta: e.target.value as TipoProposta }))}
+            >
+              <option value="projeto">Projeto</option>
+              <option value="planos">Planos</option>
+              <option value="hibrida">Híbrida</option>
+            </select>
+          </label>
+          <label className="checkbox-inline">
+            <input
+              type="checkbox"
+              checked={templateForm.ptlAtivo}
+              onChange={(e) => setTemplateForm((prev) => ({ ...prev, ptlAtivo: e.target.checked }))}
+            />
+            Ativo
+          </label>
+          <label className="checkbox-inline">
+            <input
+              type="checkbox"
+              checked={templateForm.ptlPadrao}
+              onChange={(e) => setTemplateForm((prev) => ({ ...prev, ptlPadrao: e.target.checked }))}
+            />
+            Template padrão
+          </label>
+          <div className="modal-actions">
+            <button type="button" onClick={() => setShowTemplateModal(false)}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary">
+              Salvar template
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

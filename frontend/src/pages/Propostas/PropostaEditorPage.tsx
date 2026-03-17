@@ -12,7 +12,7 @@ import {
 } from "../../components/propostas/types";
 import { ToastContainer, ToastType } from "../../components/Toast";
 import { useAuth } from "../../contexts/AuthContext";
-import { getStaticBaseUrl } from "../../utils/api";
+import { getPublicProposalUrl } from "../../utils/api";
 
 interface UsuarioResumo {
   usuId: number;
@@ -129,8 +129,23 @@ const PropostaEditorPage: React.FC = () => {
     }
   };
 
+  const saveAsTemplate = async (payload: {
+    ptlNome: string;
+    ptlTipoSolucao: string | null;
+    ptlTipoProposta: "projeto" | "planos" | "hibrida";
+    ptlAtivo: boolean;
+    ptlPadrao: boolean;
+  }) => {
+    try {
+      await api.post(`/propostas/${id}/salvar-template`, payload);
+      addToast("Template salvo com sucesso", "success");
+    } catch {
+      addToast("Erro ao salvar template. Tente novamente.", "error");
+    }
+  };
+
   const copyLink = async () => {
-    const link = `${getStaticBaseUrl()}/public/propostas/${proposta.prpTokenPublico}`;
+    const link = getPublicProposalUrl(proposta.prpTokenPublico);
     try {
       await navigator.clipboard.writeText(link);
       addToast("Link copiado", "success");
@@ -221,6 +236,7 @@ const PropostaEditorPage: React.FC = () => {
         responsavelOportunidadeId={oportunidade?.opoUsuResponsavelId ?? null}
         onSave={save}
         onPublish={publish}
+        onSaveAsTemplate={saveAsTemplate}
         onCopyLink={copyLink}
       />
 

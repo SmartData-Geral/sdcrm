@@ -26,20 +26,11 @@ export interface PropostaTemplateItem {
   ptlNome: string;
   ptlTipoSolucao: string | null;
   ptlTipoProposta: TipoProposta;
+  ptlPrpOrigemId: number | null;
+  ptlAtivo: boolean;
   ptlPadrao: boolean;
   ptlConfigJson: Record<string, unknown> | null;
-  ptlSchemaJson: Record<string, unknown> | null;
-  ptlAtivo: boolean;
-}
-
-export interface PropostaBlocoItem {
-  pblId: number;
-  pblTipo: string;
-  pblTitulo: string | null;
-  pblSubtitulo: string | null;
-  pblOrdem: number;
-  pblVisivel: boolean;
-  pblDadosJson: Record<string, unknown> | null;
+  ptlDataCriacao?: string | null;
 }
 
 export interface PropostaVersaoItem {
@@ -55,18 +46,5 @@ export interface PropostaEventoItem {
   pevTipo: string;
   pevIp: string | null;
   pevDataEvento: string;
-}
-
-export interface PropostaBlocoPadraoItem {
-  pbpId: number;
-  pbpEmpId: number;
-  pbpPtlId: number | null;
-  pbpTipo: string;
-  pbpTitulo: string | null;
-  pbpSubtitulo: string | null;
-  pbpOrdem: number;
-  pbpVisivel: boolean;
-  pbpDadosJson: Record<string, unknown> | null;
-  pbpAtivo: boolean;
 }
 

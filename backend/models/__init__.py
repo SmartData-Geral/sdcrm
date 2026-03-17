@@ -13,5 +13,6 @@ from .proposta import Proposta  # noqa: F401
 from .proposta_versao import PropostaVersao  # noqa: F401
 from .proposta_bloco import PropostaBloco  # noqa: F401
 from .proposta_bloco_padrao import PropostaBlocoPadrao  # noqa: F401
+from .template_bloco import TemplateBloco  # noqa: F401
 from .proposta_evento import PropostaEvento  # noqa: F401
 

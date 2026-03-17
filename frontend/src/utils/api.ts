@@ -1,5 +1,15 @@
 import axios, { AxiosError, AxiosInstance } from "axios";
 
+function removeTrailingSlash(value: string): string {
+  return value.endsWith("/") ? value.slice(0, -1) : value;
+}
+
+function getConfiguredPublicBaseUrl(): string | null {
+  const configured = import.meta.env.VITE_PUBLIC_BASE_URL as string | undefined;
+  if (!configured || !configured.trim()) return null;
+  return removeTrailingSlash(configured.trim());
+}
+
 export function getApiBaseUrl(): string {
   // Se houver variável de ambiente, usamos ela (ideal para produção/homolog).
   if (import.meta.env.VITE_API_BASE_URL) {
@@ -16,8 +26,20 @@ export function getApiBaseUrl(): string {
 
 /** URL base para arquivos estáticos (avatars) servidos pelo backend. */
 export function getStaticBaseUrl(): string {
+  const configuredPublicBase = getConfiguredPublicBaseUrl();
+  if (configuredPublicBase) return configuredPublicBase;
   const base = getApiBaseUrl();
-  return base.replace(/\/api\/?$/, "") || base;
+  return removeTrailingSlash(base.replace(/\/api\/?$/, "") || base);
+}
+
+/** URL base para acesso público da proposta. */
+export function getPublicBaseUrl(): string {
+  return getStaticBaseUrl();
+}
+
+/** Monta URL pública completa para uma proposta pelo token. */
+export function getPublicProposalUrl(token: string): string {
+  return `${getPublicBaseUrl()}/public/propostas/${token}`;
 }
 
 /** Retorna a URL completa para exibir um avatar (aceita path relativo ou URL absoluta). */

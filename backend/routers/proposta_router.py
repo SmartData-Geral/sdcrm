@@ -6,10 +6,6 @@ from fastapi.responses import HTMLResponse
 from ..dependencies import CompanyIdDep, CurrentUserDep, DbSessionDep, require_user_in_company
 from ..schemas.proposta import (
     PropostaBlocoCreate,
-    PropostaBlocoPadraoCreate,
-    PropostaBlocoPadraoListResponse,
-    PropostaBlocoPadraoResponse,
-    PropostaBlocoPadraoUpdate,
     PropostaBlocoListResponse,
     PropostaBlocoReordenarRequest,
     PropostaBlocoResponse,
@@ -22,6 +18,7 @@ from ..schemas.proposta import (
     PropostaListResponse,
     PropostaPublicarRequest,
     PropostaResponse,
+    PropostaSalvarComoTemplateRequest,
     PropostaTemplateCreate,
     PropostaTemplateListResponse,
     PropostaTemplateResponse,
@@ -129,6 +126,18 @@ def duplicar_proposta(
     return proposta_service.duplicar_proposta(db, prp_id, company_id, current_user.usuId)
 
 
+@router.post("/api/propostas/{prp_id}/salvar-template", response_model=PropostaTemplateResponse, status_code=status.HTTP_201_CREATED)
+def salvar_proposta_como_template(
+    prp_id: int,
+    data: PropostaSalvarComoTemplateRequest,
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    company_id: CompanyIdDep,
+) -> PropostaTemplateResponse:
+    require_user_in_company(db=db, current_user=current_user, company_id=company_id)
+    return proposta_service.salvar_proposta_como_template(db, prp_id, data, company_id)
+
+
 @router.get("/api/oportunidades/{opo_id}/propostas", response_model=PropostaListResponse)
 def listar_propostas_da_oportunidade(
     opo_id: int,
@@ -184,7 +193,7 @@ def listar_templates(
     current_user: CurrentUserDep,
     company_id: CompanyIdDep,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=200),
     tipo_proposta: Optional[str] = Query(default=None),
 ) -> PropostaTemplateListResponse:
     require_user_in_company(db=db, current_user=current_user, company_id=company_id)
@@ -319,65 +328,6 @@ def listar_eventos(
 ) -> PropostaEventoListResponse:
     require_user_in_company(db=db, current_user=current_user, company_id=company_id)
     return proposta_service.list_eventos(db, prp_id, company_id, page, page_size)
-
-
-@router.get("/api/cadastros-proposta/blocos-padrao", response_model=PropostaBlocoPadraoListResponse)
-def listar_blocos_padroes(
-    db: DbSessionDep,
-    current_user: CurrentUserDep,
-    company_id: CompanyIdDep,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
-    ptl_id: int | None = Query(default=None),
-    tipo: str | None = Query(default=None),
-) -> PropostaBlocoPadraoListResponse:
-    require_user_in_company(db=db, current_user=current_user, company_id=company_id)
-    return proposta_service.list_blocos_padroes(db, company_id, page, page_size, ptl_id=ptl_id, tipo=tipo)
-
-
-@router.post("/api/cadastros-proposta/blocos-padrao", response_model=PropostaBlocoPadraoResponse, status_code=status.HTTP_201_CREATED)
-def criar_bloco_padrao(
-    data: PropostaBlocoPadraoCreate,
-    db: DbSessionDep,
-    current_user: CurrentUserDep,
-    company_id: CompanyIdDep,
-) -> PropostaBlocoPadraoResponse:
-    require_user_in_company(db=db, current_user=current_user, company_id=company_id)
-    return proposta_service.create_bloco_padrao(db, data, company_id)
-
-
-@router.put("/api/cadastros-proposta/blocos-padrao/{pbp_id}", response_model=PropostaBlocoPadraoResponse)
-def atualizar_bloco_padrao(
-    pbp_id: int,
-    data: PropostaBlocoPadraoUpdate,
-    db: DbSessionDep,
-    current_user: CurrentUserDep,
-    company_id: CompanyIdDep,
-) -> PropostaBlocoPadraoResponse:
-    require_user_in_company(db=db, current_user=current_user, company_id=company_id)
-    return proposta_service.update_bloco_padrao(db, pbp_id, data, company_id)
-
-
-@router.patch("/api/cadastros-proposta/blocos-padrao/{pbp_id}/ativar", response_model=PropostaBlocoPadraoResponse)
-def ativar_bloco_padrao(
-    pbp_id: int,
-    db: DbSessionDep,
-    current_user: CurrentUserDep,
-    company_id: CompanyIdDep,
-) -> PropostaBlocoPadraoResponse:
-    require_user_in_company(db=db, current_user=current_user, company_id=company_id)
-    return proposta_service.set_bloco_padrao_ativo(db, pbp_id, True, company_id)
-
-
-@router.patch("/api/cadastros-proposta/blocos-padrao/{pbp_id}/inativar", response_model=PropostaBlocoPadraoResponse)
-def inativar_bloco_padrao(
-    pbp_id: int,
-    db: DbSessionDep,
-    current_user: CurrentUserDep,
-    company_id: CompanyIdDep,
-) -> PropostaBlocoPadraoResponse:
-    require_user_in_company(db=db, current_user=current_user, company_id=company_id)
-    return proposta_service.set_bloco_padrao_ativo(db, pbp_id, False, company_id)
 
 
 @router.get("/public/propostas/{token}", response_class=HTMLResponse)

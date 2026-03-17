@@ -9,7 +9,7 @@ import ActionIconButton from "../../components/ActionIconButton";
 import AvatarSelect from "../../components/AvatarSelect";
 import TemperatureSelect from "../../components/TemperatureSelect";
 import { useAuth } from "../../contexts/AuthContext";
-import { getStaticBaseUrl } from "../../utils/api";
+import { getPublicProposalUrl } from "../../utils/api";
 
 interface OportunidadeDetail {
   opoId: number;
@@ -70,6 +70,14 @@ interface PropostaItem {
   prpDataCriacao?: string | null;
 }
 
+interface PropostaTemplateItem {
+  ptlId: number;
+  ptlNome: string;
+  ptlTipoProposta: "projeto" | "planos" | "hibrida";
+  ptlTipoSolucao: string | null;
+  ptlAtivo: boolean;
+}
+
 const OportunidadeDetalhePage: React.FC = () => {
   const { opoId } = useParams<{ opoId: string }>();
   const navigate = useNavigate();
@@ -114,6 +122,13 @@ const OportunidadeDetalhePage: React.FC = () => {
   const [editingHistoricoTexto, setEditingHistoricoTexto] = useState("");
   const [propostas, setPropostas] = useState<PropostaItem[]>([]);
   const [loadingPropostas, setLoadingPropostas] = useState(false);
+  const [templates, setTemplates] = useState<PropostaTemplateItem[]>([]);
+  const [isNovaPropostaModalOpen, setIsNovaPropostaModalOpen] = useState(false);
+  const [novaPropostaForm, setNovaPropostaForm] = useState({
+    prpTitulo: "",
+    prpTipo: "projeto" as "projeto" | "planos" | "hibrida",
+    prpTplId: "" as number | "",
+  });
 
   const id = opoId ? parseInt(opoId, 10) : NaN;
   const isFechada = oportunidade?.opoStatusFechamento && ["ganho", "perdido", "stand-by"].includes(oportunidade.opoStatusFechamento);
@@ -169,6 +184,10 @@ const OportunidadeDetalhePage: React.FC = () => {
       setUsuarios((usuariosRes.data.items ?? []).map((i) => ({ id: i.usuId, nome: i.usuNome, avatarUrl: i.usuAvatarUrl ?? null })));
       setComoConheceu((ccoRes.data.items ?? []).map((i) => ({ id: i.ccoId, nome: i.ccoNome })));
       setMotivosPerda(motivosRes.data.items ?? []);
+      const templatesRes = await api.get<{ items: PropostaTemplateItem[] }>("/templates-proposta", {
+        params: { page_size: 200 },
+      });
+      setTemplates((templatesRes.data.items ?? []).filter((t) => t.ptlAtivo));
     } catch {
       // combos opcionais
     }
@@ -338,17 +357,30 @@ const OportunidadeDetalhePage: React.FC = () => {
     await loadHistoricos();
   };
 
-  const criarProposta = async () => {
-    const payload = {
-      prpOpoId: id,
+  const criarProposta = () => {
+    setNovaPropostaForm({
       prpTitulo: `Proposta - ${oportunidade.opoTitulo}`,
       prpTipo: "projeto",
+      prpTplId: "",
+    });
+    setIsNovaPropostaModalOpen(true);
+  };
+
+  const confirmarCriarProposta = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const selectedTemplate = templates.find((t) => t.ptlId === novaPropostaForm.prpTplId);
+    const payload = {
+      prpOpoId: id,
+      prpTitulo: novaPropostaForm.prpTitulo,
+      prpTipo: selectedTemplate?.ptlTipoProposta ?? novaPropostaForm.prpTipo,
+      prpTplId: novaPropostaForm.prpTplId === "" ? null : Number(novaPropostaForm.prpTplId),
       prpNomeContato: oportunidade.opoNomeContato ?? null,
       prpEmailContato: oportunidade.opoEmail ?? null,
       prpWhatsappContato: oportunidade.opoTelefone ?? null,
       prpUsuResponsavelId: oportunidade.opoUsuResponsavelId ?? null,
     };
     const res = await api.post<PropostaItem>("/propostas", payload);
+    setIsNovaPropostaModalOpen(false);
     await loadPropostas();
     navigate(`/propostas/${res.data.prpId}/editor`);
   };
@@ -364,7 +396,7 @@ const OportunidadeDetalhePage: React.FC = () => {
   };
 
   const copiarLinkProposta = async (token: string) => {
-    const link = `${getStaticBaseUrl()}/public/propostas/${token}`;
+    const link = getPublicProposalUrl(token);
     await navigator.clipboard.writeText(link);
   };
 
@@ -640,7 +672,7 @@ const OportunidadeDetalhePage: React.FC = () => {
                             <ActionIconButton
                               icon="view"
                               label="Visualizar página pública"
-                              onClick={() => window.open(`${getStaticBaseUrl()}/public/propostas/${p.prpTokenPublico}`, "_blank")}
+                              onClick={() => window.open(getPublicProposalUrl(p.prpTokenPublico), "_blank")}
                             />
                             <ActionIconButton icon="view" label="Copiar link" onClick={() => copiarLinkProposta(p.prpTokenPublico)} />
                             <ActionIconButton icon="activate" label="Publicar" tone="success" onClick={() => publicarProposta(p.prpId)} />
@@ -820,6 +852,64 @@ const OportunidadeDetalhePage: React.FC = () => {
         onCancel={() => setIsRetornoDialogOpen(false)}
         onConfirm={confirmarRetornoParaAtivo}
       />
+      <Modal isOpen={isNovaPropostaModalOpen} title="Nova proposta" onClose={() => setIsNovaPropostaModalOpen(false)}>
+        <form className="form-vertical" onSubmit={confirmarCriarProposta}>
+          <label>
+            Título
+            <input
+              value={novaPropostaForm.prpTitulo}
+              onChange={(e) => setNovaPropostaForm((prev) => ({ ...prev, prpTitulo: e.target.value }))}
+              required
+            />
+          </label>
+          <label>
+            Tipo da proposta
+            <select
+              value={novaPropostaForm.prpTipo}
+              onChange={(e) =>
+                setNovaPropostaForm((prev) => ({
+                  ...prev,
+                  prpTipo: e.target.value as "projeto" | "planos" | "hibrida",
+                }))
+              }
+            >
+              <option value="projeto">Projeto</option>
+              <option value="planos">Planos</option>
+              <option value="hibrida">Híbrida</option>
+            </select>
+          </label>
+          <label>
+            Iniciar a partir de template (opcional)
+            <select
+              value={novaPropostaForm.prpTplId}
+              onChange={(e) =>
+                setNovaPropostaForm((prev) => ({
+                  ...prev,
+                  prpTplId: e.target.value ? Number(e.target.value) : "",
+                }))
+              }
+            >
+              <option value="">Sem template (padrão do sistema)</option>
+              {templates.map((t) => (
+                <option key={t.ptlId} value={t.ptlId}>
+                  {t.ptlNome} ({t.ptlTipoProposta})
+                </option>
+              ))}
+            </select>
+          </label>
+          {novaPropostaForm.prpTplId !== "" ? (
+            <p className="muted-text">A proposta será criada usando o snapshot completo do template selecionado.</p>
+          ) : null}
+          <div className="modal-actions">
+            <button type="button" onClick={() => setIsNovaPropostaModalOpen(false)}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary">
+              Criar proposta
+            </button>
+          </div>
+        </form>
+      </Modal>
     </Layout>
   );
 };

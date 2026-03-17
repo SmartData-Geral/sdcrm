@@ -33,7 +33,7 @@ Importante:
 Na raiz do projeto:
 
 ```powershell
-cd "C:\Users\carlo\Documents\Sistemas\sdcrm"
+cd "C:\Users\carlo\OneDrive\Documents\Sistemas\sdcrm"
 .\.venv\Scripts\Activate.ps1
 alembic -c backend\alembic.ini upgrade head
 ```
@@ -144,4 +144,81 @@ Obs.: estas credenciais sao de ambiente local/de desenvolvimento.
     - backend ativo em `http://127.0.0.1:8000`
     - schema correto em `DATABASE_URL`
     - usuario seed criado (`admin@smartdata.local`)
+
+## 11) Publicacao em producao (frontend em `/crm`)
+
+Para ambiente publicado, use estas variaveis no build do frontend:
+
+```env
+VITE_API_BASE_URL=/crm/api
+VITE_PUBLIC_BASE_URL=https://SEU_DOMINIO/crm
+```
+
+Notas:
+- `VITE_PUBLIC_BASE_URL` deve ser URL absoluta para o link externo da proposta.
+- No `docker-compose.yml`, os `build args` do frontend ja aceitam ambas as variaveis.
+
+No Nginx do frontend, mantenha o proxy para backend antes da rota SPA:
+
+```nginx
+location /crm/api/ {
+    proxy_pass http://crm-backend:8000/api/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+location /crm/static/ {
+    proxy_pass http://crm-backend:8000/static/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+location /crm/public/ {
+    proxy_pass http://crm-backend:8000/public/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+location /crm/ {
+    alias /usr/share/nginx/html/;
+    try_files $uri $uri/ /crm/index.html;
+}
+```
+
+Checklist rapido apos publicar:
+1. Upload e exibicao de avatar no cadastro de usuarios.
+2. Preview de logo da empresa no cadastro de empresas.
+3. Imagens da proposta (apresentacao/clientes) no preview e na pagina publica.
+4. Link da proposta copiado e aberto em aba anonima/dispositivo externo.
+5. Registro de visualizacao/aceite da proposta no backend.
+
+## 12) Fluxo de templates de proposta (snapshot)
+
+Fluxo oficial atual:
+
+1. Monte e edite uma proposta normalmente.
+2. Na tela do editor da proposta, use a acao **Salvar como template**.
+3. Informe:
+   - nome do template
+   - produto/solucao
+   - tipo da proposta
+   - ativo
+   - padrao (opcional)
+4. O sistema cria um template com snapshot de:
+   - `prpJsonConfiguracao` da proposta
+   - blocos da proposta
+5. Ao criar uma nova proposta e escolher um template, a proposta nasce clonada do snapshot.
+
+Regras importantes:
+
+- Template e proposta sao independentes apos a criacao.
+- Alterar proposta nao altera template.
+- Alterar template nao altera propostas ja criadas.
+- Sem template selecionado, o sistema usa os defaults internos de proposta.
 

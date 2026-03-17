@@ -264,6 +264,11 @@ const UsuariosPage: React.FC = () => {
               { key: "usuNome", header: "Nome" },
               { key: "usuEmail", header: "E-mail" },
               {
+                key: "usuWhatsapp",
+                header: "WhatsApp",
+                render: (r) => r.usuWhatsapp || "-",
+              },
+              {
                 key: "empresas",
                 header: "Empresas",
                 render: (r) =>

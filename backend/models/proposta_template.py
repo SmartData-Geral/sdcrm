@@ -20,6 +20,12 @@ class PropostaTemplate(Base):
     ptlNome: Mapped[str] = mapped_column(String(200), nullable=False)
     ptlTipoSolucao: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     ptlTipoProposta: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    ptlPrpOrigemId: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("proposta.prpId", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     ptlPadrao: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     ptlSchemaJson: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     ptlConfigJson: Mapped[dict | None] = mapped_column(JSON, nullable=True)
@@ -30,5 +36,12 @@ class PropostaTemplate(Base):
     propostas: Mapped[list["Proposta"]] = relationship(
         "Proposta",
         back_populates="template",
+        foreign_keys="Proposta.prpTplId",
+    )
+    proposta_origem: Mapped["Proposta | None"] = relationship("Proposta", foreign_keys=[ptlPrpOrigemId])
+    template_blocos: Mapped[list["TemplateBloco"]] = relationship(
+        "TemplateBloco",
+        back_populates="template",
+        cascade="all, delete-orphan",
     )
 

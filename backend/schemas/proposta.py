@@ -134,9 +134,11 @@ class PropostaTemplateBase(BaseModel):
     ptlNome: str = Field(..., max_length=200)
     ptlTipoSolucao: str | None = Field(default=None, max_length=120)
     ptlTipoProposta: TipoProposta
+    ptlAtivo: bool = True
     ptlPadrao: bool = False
     ptlSchemaJson: dict | None = None
     ptlConfigJson: dict | None = None
+    ptlPrpOrigemId: int | None = None
 
 
 class PropostaTemplateCreate(PropostaTemplateBase):
@@ -147,21 +149,29 @@ class PropostaTemplateUpdate(BaseModel):
     ptlNome: str | None = Field(default=None, max_length=200)
     ptlTipoSolucao: str | None = Field(default=None, max_length=120)
     ptlTipoProposta: TipoProposta | None = None
+    ptlAtivo: bool | None = None
     ptlPadrao: bool | None = None
     ptlSchemaJson: dict | None = None
     ptlConfigJson: dict | None = None
-    ptlAtivo: bool | None = None
+    ptlPrpOrigemId: int | None = None
 
 
 class PropostaTemplateResponse(PropostaTemplateBase):
     ptlId: int
     ptlEmpId: int
-    ptlAtivo: bool
     ptlDataCriacao: datetime
     ptlDataAtualizacao: datetime | None
 
     class Config:
         from_attributes = True
+
+
+class PropostaSalvarComoTemplateRequest(BaseModel):
+    ptlNome: str = Field(..., max_length=200)
+    ptlTipoSolucao: str | None = Field(default=None, max_length=120)
+    ptlTipoProposta: TipoProposta
+    ptlAtivo: bool = True
+    ptlPadrao: bool = False
 
 
 class PropostaTemplateListResponse(BaseModel):
@@ -261,46 +271,4 @@ class PropostaPublicaResumoResponse(BaseModel):
     prpHtmlRenderizado: str | None
     prpJsonConfiguracao: dict | None
 
-
-class PropostaBlocoPadraoBase(BaseModel):
-    pbpPtlId: int | None = None
-    pbpTipo: str = Field(..., max_length=60)
-    pbpTitulo: str | None = Field(default=None, max_length=200)
-    pbpSubtitulo: str | None = Field(default=None, max_length=300)
-    pbpOrdem: int = 0
-    pbpVisivel: bool = True
-    pbpDadosJson: dict | None = None
-
-
-class PropostaBlocoPadraoCreate(PropostaBlocoPadraoBase):
-    pass
-
-
-class PropostaBlocoPadraoUpdate(BaseModel):
-    pbpPtlId: int | None = None
-    pbpTipo: str | None = Field(default=None, max_length=60)
-    pbpTitulo: str | None = Field(default=None, max_length=200)
-    pbpSubtitulo: str | None = Field(default=None, max_length=300)
-    pbpOrdem: int | None = None
-    pbpVisivel: bool | None = None
-    pbpDadosJson: dict | None = None
-    pbpAtivo: bool | None = None
-
-
-class PropostaBlocoPadraoResponse(PropostaBlocoPadraoBase):
-    pbpId: int
-    pbpEmpId: int
-    pbpAtivo: bool
-    pbpDataCriacao: datetime
-    pbpDataAtualizacao: datetime | None
-
-    class Config:
-        from_attributes = True
-
-
-class PropostaBlocoPadraoListResponse(BaseModel):
-    items: list[PropostaBlocoPadraoResponse]
-    total: int
-    page: int
-    page_size: int
 

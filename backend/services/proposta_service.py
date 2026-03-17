@@ -14,17 +14,13 @@ from ..models.oportunidade import Oportunidade
 from ..models.empresa import Empresa
 from ..models.proposta import Proposta
 from ..models.proposta_bloco import PropostaBloco
-from ..models.proposta_bloco_padrao import PropostaBlocoPadrao
 from ..models.proposta_evento import PropostaEvento
 from ..models.proposta_template import PropostaTemplate
 from ..models.proposta_versao import PropostaVersao
+from ..models.template_bloco import TemplateBloco
 from ..models.usuario import Usuario
 from ..schemas.proposta import (
     PropostaBlocoCreate,
-    PropostaBlocoPadraoCreate,
-    PropostaBlocoPadraoListResponse,
-    PropostaBlocoPadraoResponse,
-    PropostaBlocoPadraoUpdate,
     PropostaBlocoListResponse,
     PropostaBlocoResponse,
     PropostaBlocoUpdate,
@@ -34,6 +30,7 @@ from ..schemas.proposta import (
     PropostaListResponse,
     PropostaPublicaResumoResponse,
     PropostaResponse,
+    PropostaSalvarComoTemplateRequest,
     PropostaTemplateCreate,
     PropostaTemplateListResponse,
     PropostaTemplateResponse,
@@ -53,7 +50,7 @@ def _new_public_token() -> str:
     return secrets.token_urlsafe(24)
 
 
-def _default_config(tipo: str, template: PropostaTemplate | None = None) -> dict:
+def _default_config(tipo: str) -> dict:
     base = {
         "hero": {
             "titulo": "Proposta Smart Data",
@@ -168,10 +165,6 @@ def _default_config(tipo: str, template: PropostaTemplate | None = None) -> dict
             "cta_final": True,
         },
     }
-    if template and template.ptlConfigJson:
-        merged = dict(base)
-        merged.update(template.ptlConfigJson)
-        return merged
     return base
 
 
@@ -246,31 +239,20 @@ def _get_responsavel_whatsapp(db: Session, proposta: Proposta) -> str | None:
     return usu.usuWhatsapp if usu else None
 
 
-def _get_blocos_padroes_para_proposta(db: Session, proposta: Proposta) -> list[dict]:
-    stmt = (
-        select(PropostaBlocoPadrao)
-        .where(
-            PropostaBlocoPadrao.pbpEmpId == proposta.prpEmpId,
-            PropostaBlocoPadrao.pbpAtivo.is_(True),
-            PropostaBlocoPadrao.pbpTipo.isnot(None),
-        )
-        .order_by(PropostaBlocoPadrao.pbpOrdem.asc(), PropostaBlocoPadrao.pbpId.asc())
-    )
-    if proposta.prpTplId:
-        stmt = stmt.where(
-            (PropostaBlocoPadrao.pbpPtlId == proposta.prpTplId) | (PropostaBlocoPadrao.pbpPtlId.is_(None))
-        )
-    else:
-        stmt = stmt.where(PropostaBlocoPadrao.pbpPtlId.is_(None))
-    rows = db.scalars(stmt).all()
+def _get_blocos_template_para_proposta(db: Session, template: PropostaTemplate) -> list[dict]:
+    rows = db.scalars(
+        select(TemplateBloco)
+        .where(TemplateBloco.tblPtlId == template.ptlId, TemplateBloco.tblAtivo.is_(True))
+        .order_by(TemplateBloco.tblOrdem.asc(), TemplateBloco.tblId.asc())
+    ).all()
     return [
         {
-            "pblTipo": row.pbpTipo,
-            "pblTitulo": row.pbpTitulo,
-            "pblSubtitulo": row.pbpSubtitulo,
-            "pblOrdem": row.pbpOrdem,
-            "pblVisivel": row.pbpVisivel,
-            "pblDadosJson": row.pbpDadosJson,
+            "pblTipo": row.tblTipo,
+            "pblTitulo": row.tblTitulo,
+            "pblSubtitulo": row.tblSubtitulo,
+            "pblOrdem": row.tblOrdem,
+            "pblVisivel": row.tblVisivel,
+            "pblDadosJson": row.tblDadosJson,
         }
         for row in rows
     ]
@@ -348,13 +330,35 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
     vis = cfg.get("visibilidade") or {}
     tipo = (proposta.prpTipo or "").strip().lower()
     is_hibrida = tipo == "hibrida"
-    message = quote_plus(f"Olá! Quero falar sobre a proposta: {proposta.prpTitulo}")
-    wpp_link = f"https://wa.me/{whatsapp_number}?text={message}" if whatsapp_number else "#"
+    whatsapp_clean = whatsapp_number or ""
+    wpp_message = quote_plus(
+        f"Olá! Acabei de visualizar a proposta '{proposta.prpTitulo}' da Smart Data e gostaria de conversar sobre os próximos passos."
+    )
+    has_whatsapp = bool(whatsapp_clean)
+    wpp_link = f"https://wa.me/{whatsapp_clean}?text={wpp_message}" if has_whatsapp else "#"
+    if has_whatsapp:
+        wpp_btn_primary_html = (
+            f'<a class="btn btn-primary plan-card__cta" href="{wpp_link}" target="_blank" rel="noopener">'
+            "Falar no WhatsApp</a>"
+        )
+        wpp_btn_hero_html = (
+            f'<a class="btn btn-whatsapp" href="{wpp_link}" target="_blank" rel="noopener">Falar no WhatsApp</a>'
+        )
+    else:
+        wpp_btn_primary_html = (
+            '<button type="button" class="btn btn-primary plan-card__cta btn-disabled" disabled>'
+            "WhatsApp indisponível</button>"
+        )
+        wpp_btn_hero_html = (
+            '<button type="button" class="btn btn-whatsapp btn-disabled" disabled>'
+            "WhatsApp indisponível</button>"
+        )
 
     list_planos = valores_planos.get("planos", []) or []
     has_planos = len(list_planos) > 0
-    show_planos = vis.get("valores_planos", False) or has_planos
-    show_projeto = (tipo != "planos") and vis.get("valores_projeto", False)
+    # Regras de exibição por tipo de proposta
+    show_projeto = tipo in {"projeto", "hibrida"} and vis.get("valores_projeto", False)
+    show_planos = tipo in {"planos", "hibrida"} and (vis.get("valores_planos", False) or has_planos)
 
     plan_cards = "".join(
         [
@@ -366,7 +370,7 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
               <ul class="plan-card__beneficios">{"".join([f'<li><span class="benefit-icon">✓</span>{item}</li>' for item in (p.get("beneficios") or [])])}</ul>
               <div class="plan-card__preco">{p.get('valor', '')}<small>{p.get('complemento_valor', '')}</small></div>
               <p class="plan-card__inclui">{p.get('observacao', '') or 'Inclui desenvolvimento contínuo, suporte técnico e melhorias.'}</p>
-              <a class="btn btn-primary plan-card__cta" href="{wpp_link}" target="_blank" rel="noopener">Falar no WhatsApp</a>
+              {wpp_btn_primary_html}
             </div>
             """
             for p in list_planos
@@ -385,32 +389,107 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
         ]
     )
     projeto_values = [
-        ("setup", valores_projeto.get("setup", {})),
-        ("prazo", valores_projeto.get("prazo", {})),
-        ("garantia", valores_projeto.get("garantia", {})),
-        ("manutencao_mensal", valores_projeto.get("manutencao_mensal", {})),
-        ("melhorias_opcionais", valores_projeto.get("melhorias_opcionais", {})),
+        ("setup", "Investimento inicial", valores_projeto.get("setup", {})),
+        ("prazo", "Prazo", valores_projeto.get("prazo", {})),
+        ("garantia", "Garantia", valores_projeto.get("garantia", {})),
+        ("manutencao_mensal", "Manutenção mensal", valores_projeto.get("manutencao_mensal", {})),
+        ("melhorias_opcionais", "Melhorias opcionais", valores_projeto.get("melhorias_opcionais", {})),
     ]
-    setup_data = valores_projeto.get("setup", {}) or {}
-    has_setup = bool(setup_data.get("visivel"))
-    outros_projeto = [v for (k, v) in projeto_values if k != "setup" and v.get("visivel")]
-    projeto_cards = "".join(
-        [
-            f'<div class="project-value-card" style="transition: all .2s ease;"><span class="project-value-card__label">{v.get("label", "")}</span><span class="project-value-card__valor">{v.get("valor", "")} {v.get("complemento", "")}</span></div>'
-            for _, v in projeto_values
-            if v.get("visivel")
-        ]
-    )
+    # Setup / investimento inicial
+    setup_data = (valores_projeto.get("setup") or {}) or {}
+    setup_visivel = bool(setup_data.get("visivel"))
+    setup_valor = str(setup_data.get("valor") or "").strip()
+    setup_complemento = str(setup_data.get("complemento") or "").strip()
+    has_setup_value = bool(setup_valor or setup_complemento)
+    has_setup = setup_visivel and has_setup_value
     investimento_inicial_html = ""
     if has_setup:
-        valor_setup = f"{setup_data.get('valor', '')} {setup_data.get('complemento', '')}".strip()
-        investimento_inicial_html = f'<div class="project-invest-block"><h3 class="project-invest__titulo">Investimento inicial</h3><p class="project-invest__valor">{valor_setup}</p></div>'
-    projeto_secondary_html = ""
-    if outros_projeto:
-        projeto_secondary_html = "<div class=\"project-values-grid project-values-grid--secondary\">" + "".join(
-            f'<div class="project-value-card"><span class="project-value-card__label">{v.get("label", "")}</span><span class="project-value-card__valor">{v.get("valor", "")} {v.get("complemento", "")}</span></div>'
-            for v in outros_projeto
-        ) + "</div>"
+        valor_setup = setup_valor or "Sob consulta"
+        investimento_inicial_html = (
+            '<div class="project-invest-card">'
+            '<div class="project-invest-card__header">'
+            "<span class=\"project-invest-card__eyebrow\">Investimento</span>"
+            "<h3 class=\"project-invest-card__title\">Investimento inicial</h3>"
+            "</div>"
+            f'<p class="project-invest-card__value">{valor_setup}</p>'
+            f'<p class="project-invest-card__subtitle">{setup_complemento}</p>'
+            "</div>"
+        )
+    # Demais metas (prazo, garantia, manutenção, melhorias) - coluna direita
+    meta_items_html_parts: list[str] = []
+    for key, label, data in projeto_values[1:]:
+        row = (data or {}) or {}
+        if not row.get("visivel"):
+            continue
+        valor = str(row.get("valor") or "").strip()
+        complemento = str(row.get("complemento") or "").strip()
+        if not (valor or complemento):
+            continue
+        # Ícones sutis por tipo de meta
+        if key == "prazo":
+            icon_svg = (
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor">'
+                '<circle cx="12" cy="12" r="8"></circle>'
+                '<path d="M12 8v4l2.5 2.5"></path>'
+                "</svg>"
+            )
+        elif key == "garantia":
+            icon_svg = (
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor">'
+                '<path d="M12 3l7 4v5c0 4-3 7-7 9-4-2-7-5-7-9V7z"></path>'
+                '<path d="M9.5 12.5l1.5 1.5 3.5-3.5"></path>'
+                "</svg>"
+            )
+        elif key == "manutencao_mensal":
+            icon_svg = (
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor">'
+                '<path d="M12 3a4 4 0 0 1 4 4l2.5 1.5-2 3.5-2.5-1.5a4 4 0 0 1-5.6 2.1L6 15l-2-2 2.1-2.4A4 4 0 0 1 11 4"></path>'
+                "</svg>"
+            )
+        elif key == "melhorias_opcionais":
+            icon_svg = (
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor">'
+                '<path d="M12 3v6"></path>'
+                '<path d="M12 15v6"></path>'
+                '<path d="M6 12h6"></path>'
+                '<path d="M12 12h6"></path>'
+                '<circle cx="12" cy="12" r="5"></circle>'
+                "</svg>"
+            )
+        else:
+            icon_svg = (
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor">'
+                '<circle cx="12" cy="12" r="8"></circle>'
+                "</svg>"
+            )
+        icon_html = f'<span class="project-meta-item__icon" aria-hidden="true">{icon_svg}</span>'
+        helper_html = f'<span class="project-meta-item__helper">{complemento}</span>' if complemento else ""
+        meta_items_html_parts.append(
+            '<div class="project-meta-item" style="transition: all .2s ease;">'
+            '<div class="project-meta-item__header">'
+            f"{icon_html}"
+            f'<span class="project-meta-item__label">{label}</span>'
+            "</div>"
+            f'<span class="project-meta-item__value">{valor}</span>'
+            f"{helper_html}"
+            "</div>"
+        )
+    projeto_meta_html = "".join(meta_items_html_parts)
+    # Bloco "O que está incluso" (opcional, em linha própria abaixo das colunas)
+    incluidos_raw = (valores_projeto.get("itens_inclusos") or []) or []
+    incluidos = [str(x).strip() for x in incluidos_raw if str(x).strip()]
+    incluidos_block_html = ""
+    if incluidos:
+        incluidos_block_html = (
+            '<div class="project-included-row">'
+            '<div class="project-included-card">'
+            '<h3 class="project-included-card__title">O que está incluso</h3>'
+            '<ul class="project-included-card__list">'
+            + "".join(
+                f'<li><span class="project-included-card__icon">✓</span><span>{item}</span></li>' for item in incluidos
+            )
+            + "</ul></div></div>"
+        )
 
     metodologia_itens_raw = metodologia.get("itens", []) or []
     metodologia_itens: list[dict] = []
@@ -449,7 +528,7 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
         f'<div class="hero__row">'
         f'<p class="hero__subtitulo">{hero_sub}</p>'
         f'<div class="hero__cta">'
-        f'<a class="btn btn-whatsapp" href="{wpp_link}" target="_blank" rel="noopener">Falar no WhatsApp</a>'
+        f'{wpp_btn_hero_html}'
         f'<button type="button" class="btn btn-primary btn-aceitar">Aceitar proposta</button>'
         f'</div>'
         f'</div>'
@@ -530,18 +609,32 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
         else ""
     )
     projeto_section_content = ""
-    if has_setup:
-        projeto_section_content = investimento_inicial_html + projeto_secondary_html
-    else:
-        projeto_section_content = f'<div class="project-values-grid">{projeto_cards}</div>'
+    if has_setup or projeto_meta_html or incluidos_block_html:
+        meta_block_html = (
+            f'<div class="project-meta-list">{projeto_meta_html}</div>' if projeto_meta_html else ""
+        )
+        right_col_html = (
+            '<div class="project-values-col project-values-col--right">'
+            f"{meta_block_html}"
+            "</div>"
+        )
+        projeto_section_content = (
+            '<div class="project-values-layout">'
+            '<div class="project-values-col project-values-col--left">'
+            f"{investimento_inicial_html}"
+            "</div>"
+            f"{right_col_html}"
+            "</div>"
+            f"{incluidos_block_html}"
+        )
     if is_hibrida and show_projeto:
         projeto_section = (
-            f'<section class="section"><h2 class="hybrid-option-title">Projeto sob medida</h2>'
+            f'<section class="section section--project-values"><h2 class="hybrid-option-title">Projeto sob medida</h2>'
             f'{projeto_section_content}</section>'
         )
     elif show_projeto:
         projeto_section = (
-            f'<section class="section"><h2 class="section__titulo">{str(valores_projeto.get("titulo") or "Investimento no projeto")}</h2>'
+            f'<section class="section section--project-values"><h2 class="section__titulo">{str(valores_projeto.get("titulo") or "Investimento no projeto")}</h2>'
             f'<p class="section__subtitulo">Valores, prazos e condições</p>{projeto_section_content}</section>'
         )
     else:
@@ -587,7 +680,7 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
         f'<h2 class="cta-final__titulo">{cta_titulo}</h2>'
         f'<p class="cta-final__texto">{cta_texto}</p>'
         f'<div class="cta-final__btns">'
-        f'<a class="btn btn-whatsapp" href="{wpp_link}" target="_blank" rel="noopener">Falar no WhatsApp</a>'
+        f'{wpp_btn_hero_html}'
         f'<button type="button" class="btn btn-primary btn-aceitar">Aceitar proposta</button>'
         f"</div></section>"
         if vis.get("cta_final", True)
@@ -656,14 +749,31 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
     .diff-card__icon {{ font-size: 1.35rem; }}
     .diff-card__title {{ margin: 0; font-size: 1.02rem; font-weight: 700; color: #0f172a; }}
     .diff-card__desc {{ margin: 0; font-size: 0.9rem; color: #64748b; line-height: 1.55; }}
-    .project-invest-block {{ background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); color: #fff; border-radius: 18px; padding: 32px; margin-bottom: 24px; text-align: center; }}
-    .project-invest__titulo {{ margin: 0 0 8px; font-size: 0.9rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.9; }}
-    .project-invest__valor {{ margin: 0; font-size: 2.25rem; font-weight: 800; }}
-    .project-values-grid {{ display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-top: 16px; }}
-    .project-values-grid--secondary {{ margin-top: 0; }}
-    .project-value-card {{ background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 6px; }}
-    .project-value-card__label {{ font-size: 0.8rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; }}
-    .project-value-card__valor {{ font-size: 1.2rem; font-weight: 700; color: #0f172a; }}
+    .section--project-values {{ padding-top: 40px; }}
+    .project-values-layout {{ display: grid; gap: 26px; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr); align-items: stretch; position: relative; }}
+    .project-values-layout::after {{ content: ""; position: absolute; inset-block: 10px; left: 50%; width: 1px; background: linear-gradient(to bottom, rgba(148,163,184,0.0), rgba(148,163,184,0.35), rgba(148,163,184,0.0)); pointer-events: none; }}
+    .project-values-col--left {{ position: relative; z-index: 1; }}
+    .project-values-col--right {{ position: relative; z-index: 1; display: flex; flex-direction: column; gap: 10px; }}
+    .project-invest-card {{ height: 100%; background: radial-gradient(circle at top left, #1f2937, #020617 52%, #111827 100%); color: #fff; border-radius: 20px; padding: 28px 26px 26px; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.45); display: flex; flex-direction: column; justify-content: center; }}
+    .project-invest-card__header {{ margin-bottom: 6px; }}
+    .project-invest-card__eyebrow {{ display: inline-flex; padding: 3px 9px; border-radius: 999px; background: rgba(15, 23, 42, 0.35); font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.9; }}
+    .project-invest-card__title {{ margin: 6px 0 0; font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; }}
+    .project-invest-card__value {{ margin: 14px 0 4px; font-size: 2.35rem; font-weight: 800; letter-spacing: -0.04em; }}
+    .project-invest-card__subtitle {{ margin: 0; font-size: 0.9rem; opacity: 0.92; }}
+    .project-meta-list {{ display: flex; flex-direction: column; gap: 10px; }}
+    .project-meta-item {{ background: #f9fafb; border-radius: 14px; padding: 11px 14px 10px; border: 1px solid #e5e7eb; box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04); display: flex; flex-direction: column; gap: 3px; }}
+    .project-meta-item__header {{ display: inline-flex; align-items: center; gap: 6px; margin-bottom: 1px; }}
+    .project-meta-item__icon {{ display: inline-flex; align-items: center; justify-content: center; color: #1d4ed8; opacity: 0.85; }}
+    .project-meta-item__icon svg {{ width: 15px; height: 15px; stroke-width: 1.7; }}
+    .project-meta-item__label {{ font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; }}
+    .project-meta-item__value {{ font-size: 0.98rem; font-weight: 600; color: #0f172a; }}
+    .project-meta-item__helper {{ font-size: 0.8rem; color: #6b7280; }}
+    .project-included-row {{ margin-top: 18px; }}
+    .project-included-card {{ background: #0f172a; border-radius: 18px; padding: 18px 18px 16px; color: #e5e7eb; box-shadow: 0 14px 32px rgba(15, 23, 42, 0.4); }}
+    .project-included-card__title {{ margin: 0 0 10px; font-size: 0.98rem; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #9ca3af; }}
+    .project-included-card__list {{ list-style: none; padding-left: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; font-size: 0.88rem; }}
+    .project-included-card__list li {{ display: flex; align-items: flex-start; gap: 8px; }}
+    .project-included-card__icon {{ color: #22c55e; font-size: 0.92rem; margin-top: 1px; }}
     .plan-grid {{ display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); margin-top: 28px; align-items: stretch; }}
     .plan-card {{ position: relative; background: #fff; border: 2px solid #e2e8f0; border-radius: 20px; padding: 28px; display: flex; flex-direction: column; transition: all .2s ease; min-height: 420px; }}
     .plan-card:hover {{ border-color: #cbd5e1; box-shadow: 0 10px 32px rgba(15, 23, 42, 0.08); }}
@@ -690,6 +800,7 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
     .btn {{ display: inline-flex; align-items: center; justify-content: center; padding: 6px 14px; border-radius: 999px; font-weight: 500; font-size: 0.78rem; text-decoration: none; border: none; cursor: pointer; transition: all .2s ease; }}
     .btn:active {{ transform: scale(0.98); }}
     .btn:hover {{ filter: brightness(1.06); }}
+    .btn-disabled, .btn.btn-disabled {{ opacity: 0.6; cursor: not-allowed; pointer-events: none; filter: none; }}
     .btn-primary {{ background: #2563eb; color: #fff; }}
     .btn-primary:hover {{ background: #1d4ed8; }}
     .btn-whatsapp {{ background: #22c55e; color: #fff; }}
@@ -739,8 +850,12 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
       .method-steps {{ flex-direction: column; gap: 16px; }}
       .method-step {{ flex: 1 1 auto; }}
       .method-step:not(:last-child)::after {{ display: none; }}
-      .project-invest-block {{ padding: 24px 20px; }}
-      .project-invest__valor {{ font-size: 1.75rem; }}
+      .project-values-layout {{ grid-template-columns: 1fr; }}
+      .project-values-layout::after {{ display: none; }}
+      .project-values-col--left {{ order: 1; }}
+      .project-values-col--right {{ order: 2; }}
+      .project-invest-card {{ padding: 24px 20px 20px; }}
+      .project-invest-card__value {{ font-size: 1.9rem; }}
       .clientes-grid {{ grid-template-columns: 1fr; }}
       .cta-final {{ padding: 40px 22px; border-radius: 18px; }}
       .cta-final__titulo {{ font-size: 1.4rem; }}
@@ -792,16 +907,39 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
       <div class="proposal-footer-bottom-bar"></div>
     </footer>
   </div>
+  <div id="aceite-success-overlay" style="position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(15,23,42,0.60); z-index: 50;">
+    <div style="background: #0f172a; color: #e5e7eb; padding: 28px 26px; border-radius: 18px; max-width: 420px; width: 90%; box-shadow: 0 18px 50px rgba(15,23,42,0.55); text-align: left;">
+      <h2 style="margin: 0 0 12px; font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em;">Proposta aceita com sucesso!</h2>
+      <p style="margin: 0 0 8px; font-size: 0.98rem; line-height: 1.55;">
+        Recebemos seu aceite e ficamos muito felizes em avançar com você.
+      </p>
+      <p style="margin: 0 0 18px; font-size: 0.95rem; line-height: 1.5; opacity: 0.9;">
+        Em breve, nosso time entrará em contato para alinhar os próximos passos.
+      </p>
+      <button type="button" id="aceite-success-close" class="btn btn-primary" style="margin-top: 4px; padding-inline: 18px;">
+        Fechar
+      </button>
+    </div>
+  </div>
   <script>
     (function() {{
       async function post(path) {{
         await fetch(path, {{ method: "POST", headers: {{ "Content-Type": "application/json" }}, body: JSON.stringify({{}}) }});
       }}
       post(window.location.pathname + "/visualizacao");
+      var overlay = document.getElementById("aceite-success-overlay");
+      var closeBtn = document.getElementById("aceite-success-close");
+      if (closeBtn && overlay) {{
+        closeBtn.addEventListener("click", function() {{
+          overlay.style.display = "none";
+        }});
+      }}
       document.querySelectorAll(".btn-aceitar").forEach(function(btn) {{
         btn.addEventListener("click", async function() {{
           await post(window.location.pathname + "/aceite");
-          alert("Proposta aceita com sucesso.");
+          if (overlay) {{
+            overlay.style.display = "flex";
+          }}
         }});
       }});
     }})();
@@ -914,13 +1052,18 @@ def create_proposta(db: Session, data: PropostaCreate, company_id: Optional[int]
     template = _get_template(db, data.prpTplId, company_id) if data.prpTplId else None
     responsavel_id = data.prpUsuResponsavelId or oportunidade.opoUsuResponsavelId
     responsavel = db.get(Usuario, responsavel_id) if responsavel_id else None
-    config = data.prpJsonConfiguracao or _default_config(data.prpTipo, template)
+    if template:
+        config = template.ptlConfigJson or {}
+        tipo_proposta = template.ptlTipoProposta
+    else:
+        config = data.prpJsonConfiguracao or _default_config(data.prpTipo)
+        tipo_proposta = data.prpTipo
     proposta = Proposta(
         prpEmpId=oportunidade.opoEmpId,
         prpOpoId=oportunidade.opoId,
         prpTplId=data.prpTplId,
         prpTitulo=data.prpTitulo,
-        prpTipo=data.prpTipo,
+        prpTipo=tipo_proposta,
         prpStatus="rascunho",
         prpTokenPublico=_new_public_token(),
         prpUsuCriadorId=usu_id,
@@ -935,8 +1078,9 @@ def create_proposta(db: Session, data: PropostaCreate, company_id: Optional[int]
     )
     db.add(proposta)
     db.flush()
-    blocos_base = _get_blocos_padroes_para_proposta(db, proposta)
-    if not blocos_base:
+    if template:
+        blocos_base = _get_blocos_template_para_proposta(db, template)
+    else:
         blocos_base = _default_blocos(config)
     for bloco in blocos_base:
         db.add(PropostaBloco(pblEmpId=proposta.prpEmpId, pblPrpId=proposta.prpId, **bloco))
@@ -1174,6 +1318,49 @@ def set_template_ativo(db: Session, ptl_id: int, ativo: bool, company_id: Option
     return PropostaTemplateResponse.model_validate(template)
 
 
+def salvar_proposta_como_template(
+    db: Session,
+    prp_id: int,
+    data: PropostaSalvarComoTemplateRequest,
+    company_id: Optional[int],
+) -> PropostaTemplateResponse:
+    proposta = _get_proposta(db, prp_id, company_id)
+    template = PropostaTemplate(
+        ptlEmpId=proposta.prpEmpId,
+        ptlNome=data.ptlNome,
+        ptlTipoSolucao=data.ptlTipoSolucao,
+        ptlTipoProposta=data.ptlTipoProposta,
+        ptlAtivo=data.ptlAtivo,
+        ptlPadrao=data.ptlPadrao,
+        ptlPrpOrigemId=proposta.prpId,
+        ptlConfigJson=proposta.prpJsonConfiguracao,
+        ptlSchemaJson=None,
+    )
+    db.add(template)
+    db.flush()
+    blocos = db.scalars(
+        select(PropostaBloco)
+        .where(PropostaBloco.pblPrpId == proposta.prpId, PropostaBloco.pblAtivo.is_(True))
+        .order_by(PropostaBloco.pblOrdem.asc(), PropostaBloco.pblId.asc())
+    ).all()
+    for bloco in blocos:
+        db.add(
+            TemplateBloco(
+                tblEmpId=proposta.prpEmpId,
+                tblPtlId=template.ptlId,
+                tblTipo=bloco.pblTipo,
+                tblTitulo=bloco.pblTitulo,
+                tblSubtitulo=bloco.pblSubtitulo,
+                tblOrdem=bloco.pblOrdem,
+                tblVisivel=bloco.pblVisivel,
+                tblDadosJson=bloco.pblDadosJson,
+            )
+        )
+    db.commit()
+    db.refresh(template)
+    return PropostaTemplateResponse.model_validate(template)
+
+
 def list_blocos(db: Session, prp_id: int, company_id: Optional[int], page: int, page_size: int) -> PropostaBlocoListResponse:
     proposta = _get_proposta(db, prp_id, company_id)
     stmt = select(PropostaBloco).where(PropostaBloco.pblPrpId == proposta.prpId).order_by(PropostaBloco.pblOrdem.asc())
@@ -1234,76 +1421,6 @@ def list_eventos(db: Session, prp_id: int, company_id: Optional[int], page: int,
         page=page,
         page_size=page_size,
     )
-
-
-def list_blocos_padroes(
-    db: Session,
-    company_id: Optional[int],
-    page: int,
-    page_size: int,
-    ptl_id: int | None = None,
-    tipo: str | None = None,
-) -> PropostaBlocoPadraoListResponse:
-    stmt = select(PropostaBlocoPadrao)
-    if company_id is not None:
-        stmt = stmt.where(PropostaBlocoPadrao.pbpEmpId == company_id)
-    if ptl_id is not None:
-        stmt = stmt.where(PropostaBlocoPadrao.pbpPtlId == ptl_id)
-    if tipo:
-        stmt = stmt.where(PropostaBlocoPadrao.pbpTipo == tipo)
-    stmt = stmt.order_by(PropostaBlocoPadrao.pbpOrdem.asc(), PropostaBlocoPadrao.pbpId.asc())
-    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
-    items = db.scalars(stmt.offset((page - 1) * page_size).limit(page_size)).all()
-    return PropostaBlocoPadraoListResponse(
-        items=[PropostaBlocoPadraoResponse.model_validate(i) for i in items],
-        total=total,
-        page=page,
-        page_size=page_size,
-    )
-
-
-def create_bloco_padrao(db: Session, data: PropostaBlocoPadraoCreate, company_id: Optional[int]) -> PropostaBlocoPadraoResponse:
-    if company_id is None:
-        raise BadRequestError("Empresa atual é obrigatória para criar bloco padrão")
-    if data.pbpPtlId is not None:
-        _get_template(db, data.pbpPtlId, company_id)
-    obj = PropostaBlocoPadrao(pbpEmpId=company_id, **data.model_dump())
-    db.add(obj)
-    db.commit()
-    db.refresh(obj)
-    return PropostaBlocoPadraoResponse.model_validate(obj)
-
-
-def update_bloco_padrao(
-    db: Session,
-    pbp_id: int,
-    data: PropostaBlocoPadraoUpdate,
-    company_id: Optional[int],
-) -> PropostaBlocoPadraoResponse:
-    stmt = select(PropostaBlocoPadrao).where(PropostaBlocoPadrao.pbpId == pbp_id)
-    if company_id is not None:
-        stmt = stmt.where(PropostaBlocoPadrao.pbpEmpId == company_id)
-    obj = db.scalars(stmt).first()
-    if obj is None:
-        raise NotFoundError("Bloco padrão não encontrado")
-    payload = data.model_dump(exclude_unset=True)
-    if "pbpPtlId" in payload and payload["pbpPtlId"] is not None:
-        _get_template(db, int(payload["pbpPtlId"]), company_id)
-    for k, v in payload.items():
-        setattr(obj, k, v)
-    db.add(obj)
-    db.commit()
-    db.refresh(obj)
-    return PropostaBlocoPadraoResponse.model_validate(obj)
-
-
-def set_bloco_padrao_ativo(
-    db: Session,
-    pbp_id: int,
-    ativo: bool,
-    company_id: Optional[int],
-) -> PropostaBlocoPadraoResponse:
-    return update_bloco_padrao(db, pbp_id, PropostaBlocoPadraoUpdate(pbpAtivo=ativo), company_id)
 
 
 def get_proposta_publica_por_token(db: Session, token: str) -> tuple[Proposta, PropostaPublicaResumoResponse]:
@@ -1382,6 +1499,8 @@ def build_whatsapp_link(db: Session, token: str) -> str:
     number = _normalize_whatsapp_number(_get_responsavel_whatsapp(db, proposta))
     if number is None:
         return "#"
-    message = quote_plus(f"Olá! Tenho interesse na proposta '{proposta.prpTitulo}'.")
+    message = quote_plus(
+        f"Olá! Acabei de visualizar a proposta '{proposta.prpTitulo}' da Smart Data e gostaria de conversar sobre os próximos passos."
+    )
     return f"https://wa.me/{number}?text={message}"
 

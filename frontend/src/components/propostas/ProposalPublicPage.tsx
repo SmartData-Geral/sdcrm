@@ -1,5 +1,5 @@
 import React from "react";
-import { getStaticBaseUrl } from "../../utils/api";
+import { getPublicProposalUrl } from "../../utils/api";
 
 interface Props {
   token: string;
@@ -8,7 +8,7 @@ interface Props {
 }
 
 const ProposalPublicPage: React.FC<Props> = ({ token, isPreview = false }) => {
-  const base = `${getStaticBaseUrl()}/public/propostas/${token}`;
+  const base = getPublicProposalUrl(token);
   const src = isPreview ? `${base}?preview=1` : base;
   return (
     <div className="proposal-public-wrapper">
