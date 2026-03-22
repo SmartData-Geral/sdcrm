@@ -15,4 +15,6 @@ from .proposta_bloco import PropostaBloco  # noqa: F401
 from .proposta_bloco_padrao import PropostaBlocoPadrao  # noqa: F401
 from .template_bloco import TemplateBloco  # noqa: F401
 from .proposta_evento import PropostaEvento  # noqa: F401
+from .reuniao_analise import ReuniaoAnalise  # noqa: F401
+from .llm_agente import LlmAgente  # noqa: F401
 

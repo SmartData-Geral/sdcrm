@@ -1148,6 +1148,8 @@ def create_proposta(db: Session, data: PropostaCreate, company_id: Optional[int]
         blocos_base = _default_blocos(config)
     for bloco in blocos_base:
         db.add(PropostaBloco(pblEmpId=proposta.prpEmpId, pblPrpId=proposta.prpId, **bloco))
+    oportunidade.opoPropostaEnviada = True
+    db.add(oportunidade)
     _create_event(db, proposta, "abertura_link", dados={"origem": "interno_criacao"})
     db.commit()
     db.refresh(proposta)
@@ -1215,6 +1217,10 @@ def duplicar_proposta(db: Session, prp_id: int, company_id: Optional[int], usu_i
                 pblDadosJson=b.pblDadosJson,
             )
         )
+    opo = db.get(Oportunidade, original.prpOpoId)
+    if opo is not None:
+        opo.opoPropostaEnviada = True
+        db.add(opo)
     db.commit()
     db.refresh(clone)
     return PropostaResponse.model_validate(clone)

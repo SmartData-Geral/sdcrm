@@ -12,6 +12,7 @@ import OportunidadeDetalhePage from "./pages/Oportunidades/OportunidadeDetalhePa
 import OportunidadesKanbanPage from "./pages/Oportunidades/OportunidadesKanbanPage";
 import PropostaEditorPage from "./pages/Propostas/PropostaEditorPage";
 import PropostasCadastrosPage from "./pages/Propostas/PropostasCadastrosPage";
+import LlmAgentesPage from "./pages/LlmAgentes/LlmAgentesPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 function App() {
@@ -111,6 +112,14 @@ function App() {
         element={
           <ProtectedRoute>
             <PropostasCadastrosPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cadastros/agentes-ia"
+        element={
+          <ProtectedRoute>
+            <LlmAgentesPage />
           </ProtectedRoute>
         }
       />

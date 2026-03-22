@@ -1,5 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import Modal from "../Modal";
+import {
+  OportunidadeIconButton,
+  IcoSave,
+  IcoSpinner,
+  IcoLayers,
+  IcoPublish,
+  IcoLink,
+  IcoExternalLink,
+} from "../oportunidades/OportunidadeIconButton";
 import ProposalPlansEditor from "./ProposalPlansEditor";
 import ProposalProjectValueEditor from "./ProposalProjectValueEditor";
 import ProposalPublicPage from "./ProposalPublicPage";
@@ -50,6 +59,8 @@ const ProposalEditor: React.FC<Props> = ({
   onCopyLink,
 }) => {
   const { api } = useAuth();
+  const idImgApresentacao = useId();
+  const idImgClientes = useId();
   const responsavelDefault = proposta.prpUsuResponsavelId ?? responsavelOportunidadeId ?? null;
   const [tab, setTab] = useState<EditorTab>("dados");
   const [saving, setSaving] = useState(false);
@@ -491,15 +502,26 @@ const ProposalEditor: React.FC<Props> = ({
                     }
                   />
                 </label>
-                <label>
-                  Apresentação - Upload de imagem (.png/.jpg)
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg"
-                    onChange={(e) => void handleContextImageUpload(e.target.files?.[0] ?? null)}
-                  />
-                  {uploadingContextImage ? <span className="field-hint">Enviando imagem...</span> : null}
-                </label>
+                <div className="reuniao-file-field">
+                  <span className="reuniao-file-field__label" id={`${idImgApresentacao}-lbl`}>
+                    Apresentação — upload de imagem (.png / .jpg)
+                  </span>
+                  <div className="reuniao-file-field__row" aria-labelledby={`${idImgApresentacao}-lbl`}>
+                    <input
+                      id={idImgApresentacao}
+                      type="file"
+                      accept="image/png,image/jpeg"
+                      className="reuniao-file-input-native"
+                      onChange={(e) => void handleContextImageUpload(e.target.files?.[0] ?? null)}
+                    />
+                    <label htmlFor={idImgApresentacao} className="reuniao-file-picker-btn">
+                      Escolher imagem
+                    </label>
+                    <span className="reuniao-file-field__name">
+                      {uploadingContextImage ? "Enviando…" : "PNG ou JPG"}
+                    </span>
+                  </div>
+                </div>
               </div>
             </section>
             <section className="proposal-editor-section">
@@ -557,14 +579,24 @@ const ProposalEditor: React.FC<Props> = ({
                     Use uma imagem ilustrativa ou composição com logos dos clientes, seguindo o padrão visual da landing page.
                   </span>
                 </label>
-                <label>
-                  Clientes - Upload de imagem (.png/.jpg)
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg"
-                    onChange={(e) => void handleClientesImageUpload(e.target.files?.[0] ?? null)}
-                  />
-                </label>
+                <div className="reuniao-file-field">
+                  <span className="reuniao-file-field__label" id={`${idImgClientes}-lbl`}>
+                    Clientes — upload de imagem (.png / .jpg)
+                  </span>
+                  <div className="reuniao-file-field__row" aria-labelledby={`${idImgClientes}-lbl`}>
+                    <input
+                      id={idImgClientes}
+                      type="file"
+                      accept="image/png,image/jpeg"
+                      className="reuniao-file-input-native"
+                      onChange={(e) => void handleClientesImageUpload(e.target.files?.[0] ?? null)}
+                    />
+                    <label htmlFor={idImgClientes} className="reuniao-file-picker-btn">
+                      Escolher imagem
+                    </label>
+                    <span className="reuniao-file-field__name">PNG ou JPG</span>
+                  </div>
+                </div>
               </div>
             </section>
           </>
@@ -572,6 +604,7 @@ const ProposalEditor: React.FC<Props> = ({
 
         {tab === "escopo" && (
           <ProposalScopeEditor
+            propostaId={proposta.prpId}
             value={((config.escopo_inicial as Record<string, unknown>) ?? { visivel: true, cards: [] }) as Record<string, unknown>}
             onChange={(next) => updateConfig("escopo_inicial", next)}
           />
@@ -634,7 +667,7 @@ const ProposalEditor: React.FC<Props> = ({
         {tab === "preview" && (
           <div className="proposal-preview-tab">
             <div className="proposal-preview-tab-header">
-              <h3 className="proposal-preview-tab-title">Preview da proposta</h3>
+              <h3 className="section-title section-title--panel">Preview da proposta</h3>
               <p className="proposal-preview-tab-subtitle">Assim o cliente visualizará esta página.</p>
             </div>
             <div className="proposal-preview-outer">
@@ -651,12 +684,13 @@ const ProposalEditor: React.FC<Props> = ({
               <h3 className="proposal-editor-section-title">Link da proposta</h3>
               <p className="proposal-editor-section-hint">Compartilhe o link com o cliente para visualização ou aceite.</p>
               <div className="proposal-publicacao-link-actions">
-                <button type="button" onClick={onCopyLink}>
-                  Copiar link
-                </button>
-                <a href={getPublicProposalUrl(proposta.prpTokenPublico)} target="_blank" rel="noreferrer">
-                  <button type="button">Abrir página pública</button>
-                </a>
+                <OportunidadeIconButton variant="subtle" label="Copiar link da proposta" icon={<IcoLink />} onClick={onCopyLink} />
+                <OportunidadeIconButton
+                  variant="outline-brand"
+                  label="Abrir página pública da proposta em nova aba"
+                  icon={<IcoExternalLink />}
+                  onClick={() => window.open(getPublicProposalUrl(proposta.prpTokenPublico), "_blank")}
+                />
               </div>
             </section>
             <section className="proposal-publicacao-section">
@@ -669,7 +703,10 @@ const ProposalEditor: React.FC<Props> = ({
                 <p className="muted-text" style={{ margin: 0 }}>
                   Versão atual: <strong>{proposta.prpVersaoAtual ?? "—"}</strong>
                 </p>
-                <button type="button" className="btn-primary" onClick={handlePublishClick}>
+                <button type="button" className="btn-outline-brand proposta-editor-inline-action" onClick={handlePublishClick}>
+                  <span className="proposta-editor-inline-action__ico" aria-hidden>
+                    <IcoPublish />
+                  </span>
                   Publicar proposta
                 </button>
               </div>
@@ -745,15 +782,25 @@ const ProposalEditor: React.FC<Props> = ({
           {isDirty && !savedJustNow && <span className="proposal-status proposal-status--dirty">Alterações não salvas</span>}
         </div>
         <div className="proposal-editor-actions-buttons">
-          <button type="button" onClick={openSaveTemplateModal}>
+          <button type="button" className="btn-subtle proposta-editor-text-action" onClick={openSaveTemplateModal}>
+            <span className="proposta-editor-text-action__ico" aria-hidden>
+              <IcoLayers />
+            </span>
             Salvar como template
           </button>
-          <button type="button" className="btn-primary" onClick={save} disabled={saving}>
-            {saving ? "Salvando..." : "Salvar alterações"}
-          </button>
-          <button type="button" className="btn-primary" onClick={handlePublishClick}>
-            Publicar proposta
-          </button>
+          <OportunidadeIconButton
+            variant="outline-brand"
+            label={saving ? "Salvando proposta" : "Salvar alterações da proposta"}
+            icon={saving ? <IcoSpinner /> : <IcoSave />}
+            onClick={() => void save()}
+            disabled={saving}
+          />
+          <OportunidadeIconButton
+            variant="outline-brand"
+            label="Publicar proposta"
+            icon={<IcoPublish />}
+            onClick={handlePublishClick}
+          />
         </div>
       </div>
 

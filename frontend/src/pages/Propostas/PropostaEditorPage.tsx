@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Layout from "../../components/Layout";
 import Loader from "../../components/Loader";
+import { OportunidadeIconButton, IcoArrowLeft } from "../../components/oportunidades/OportunidadeIconButton";
 import ProposalEditor from "../../components/propostas/ProposalEditor";
 import ProposalPublicPage from "../../components/propostas/ProposalPublicPage";
 import {
@@ -188,15 +189,20 @@ const PropostaEditorPage: React.FC = () => {
 
   return (
     <Layout>
-      <div className="page-header page-header--wrap">
-        <div className="page-header-main">
-          <button type="button" className="btn-link" style={{ padding: 0, marginBottom: "0.25rem" }} onClick={() => navigate(`/oportunidades/${proposta.prpOpoId}`)}>
-            ← Voltar para oportunidade
-          </button>
-          <h2>{proposta.prpTitulo}</h2>
-          <p className="muted-text">Editor interno de proposta</p>
+      <div className="proposta-editor-page">
+      <header className="proposta-editor-page__header">
+        <OportunidadeIconButton
+          variant="ghost"
+          label="Voltar para a oportunidade"
+          icon={<IcoArrowLeft />}
+          onClick={() => navigate(`/oportunidades/${proposta.prpOpoId}`)}
+        />
+        <div className="proposta-editor-page__header-main">
+          <div className="proposta-editor-breadcrumb">CRM &gt; Propostas &gt; Editor</div>
+          <h1 className="proposta-editor-page__title">{proposta.prpTitulo}</h1>
+          <p className="muted-text proposta-editor-page__subtitle">Editor interno de proposta</p>
         </div>
-      </div>
+      </header>
 
       <div className="proposal-context-bar surface-card">
         <div className="proposal-context-grid">
@@ -241,6 +247,7 @@ const PropostaEditorPage: React.FC = () => {
       />
 
       <ToastContainer toasts={toasts} removeToast={removeToast} />
+      </div>
     </Layout>
   );
 };

@@ -8,6 +8,8 @@ interface OptionalTextareaFieldProps {
   value: string;
   onChange: (next: string) => void;
   placeholder?: string;
+  /** Ícone opcional à esquerda do rótulo quando o bloco está fechado */
+  toggleLeadingIcon?: React.ReactNode;
 }
 
 const OptionalTextareaField: React.FC<OptionalTextareaFieldProps> = ({
@@ -18,11 +20,17 @@ const OptionalTextareaField: React.FC<OptionalTextareaFieldProps> = ({
   value,
   onChange,
   placeholder,
+  toggleLeadingIcon,
 }) => {
   return (
     <div className="optional-field">
       {!isOpen ? (
-        <button type="button" className="optional-field-toggle" onClick={onToggle}>
+        <button
+          type="button"
+          className={`optional-field-toggle${toggleLeadingIcon ? " optional-field-toggle--with-icon" : ""}`}
+          onClick={onToggle}
+        >
+          {toggleLeadingIcon ? <span className="optional-field-toggle__icon">{toggleLeadingIcon}</span> : null}
           {buttonLabel}
         </button>
       ) : (

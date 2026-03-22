@@ -94,6 +94,13 @@ function getHeaderData(pathname: string): HeaderData {
       description: "Gerencie templates e itens base para propostas comerciais.",
     };
   }
+  if (pathname.startsWith("/cadastros/agentes-ia")) {
+    return {
+      breadcrumb: ["Dashboard", "Cadastros", "Agentes"],
+      title: "Agentes de IA",
+      description: "Configure prompts de sistema, provider e modelo LLM por fluxo.",
+    };
+  }
   if (pathname.startsWith("/oportunidades")) {
     return {
       breadcrumb: ["Dashboard", "CRM", "Oportunidades"],
@@ -202,6 +209,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           path.startsWith("/produtos") ||
           path.startsWith("/etapas-kanban") ||
           path.startsWith("/cadastros/propostas") ||
+          path.startsWith("/cadastros/agentes-ia") ||
           path.startsWith("/empresas")) &&
         !prev.cadastros
       ) {
@@ -304,6 +312,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 </NavLink>
                 <NavLink to="/cadastros/propostas" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
                   Propostas
+                </NavLink>
+                <NavLink to="/cadastros/agentes-ia" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
+                  Agentes
                 </NavLink>
                 {user?.usuAdmin && (
                   <NavLink to="/empresas" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>

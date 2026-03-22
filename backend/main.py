@@ -10,14 +10,18 @@ from .routers import (
     auth_router,
     como_conheceu_router,
     crm_dashboard_router,
+    escopo_ai_router,
     empresa_router,
     etapa_kanban_router,
     health_router,
     historico_oportunidade_router,
+    llm_agente_router,
     motivo_cancelamento_router,
     oportunidade_router,
     proposta_router,
+    proposta_escopo_sugestao_router,
     produto_router,
+    reuniao_analise_router,
     usuario_router,
 )
 
@@ -60,9 +64,13 @@ app.include_router(produto_router.router)
 app.include_router(etapa_kanban_router.router)
 app.include_router(oportunidade_router.router)
 app.include_router(proposta_router.router)
+app.include_router(proposta_escopo_sugestao_router.router)
 app.include_router(historico_oportunidade_router.router)
+app.include_router(llm_agente_router.router)
 app.include_router(usuario_router.router)
 app.include_router(crm_dashboard_router.router)
+app.include_router(escopo_ai_router.router)
+app.include_router(reuniao_analise_router.router)
 
 # Pasta de uploads (avatars) e rota estática
 UPLOADS_DIR = Path(__file__).resolve().parent / "uploads"

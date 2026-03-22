@@ -13,6 +13,7 @@ from ..schemas.empresa import (
     EmpresaResponse,
     EmpresaUpdate,
 )
+from .llm_agente_service import seed_agents_for_new_company
 
 
 def list_empresas_for_user(db: Session, user_id: int) -> EmpresaListResponse:
@@ -80,6 +81,7 @@ def create_empresa(db: Session, data: EmpresaCreate) -> EmpresaResponse:
     db.add(obj)
     db.commit()
     db.refresh(obj)
+    seed_agents_for_new_company(db, obj.empId)
     return EmpresaResponse.model_validate(obj)
 
 

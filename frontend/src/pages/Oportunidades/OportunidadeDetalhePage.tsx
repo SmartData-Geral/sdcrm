@@ -8,6 +8,21 @@ import OptionalTextareaField from "../../components/OptionalTextareaField";
 import ActionIconButton from "../../components/ActionIconButton";
 import AvatarSelect from "../../components/AvatarSelect";
 import TemperatureSelect from "../../components/TemperatureSelect";
+import ReuniaoIaSection from "../../components/oportunidades/ReuniaoIaSection";
+import {
+  OportunidadeIconButton,
+  IcoSave,
+  IcoPlus,
+  IcoFilePlus,
+  IcoX,
+  IcoCheck,
+  IcoArrowLeft,
+  IcoCheckCircle,
+  IcoXCircle,
+  IcoPause,
+  IcoRotateCcw,
+  IcoSpinner,
+} from "../../components/oportunidades/OportunidadeIconButton";
 import { useAuth } from "../../contexts/AuthContext";
 import { getPublicProposalUrl } from "../../utils/api";
 
@@ -78,6 +93,8 @@ interface PropostaTemplateItem {
   ptlAtivo: boolean;
 }
 
+type OportunidadeDetailTab = "geral" | "reunioes" | "propostas";
+
 const OportunidadeDetalhePage: React.FC = () => {
   const { opoId } = useParams<{ opoId: string }>();
   const navigate = useNavigate();
@@ -129,6 +146,7 @@ const OportunidadeDetalhePage: React.FC = () => {
     prpTipo: "projeto" as "projeto" | "planos" | "hibrida",
     prpTplId: "" as number | "",
   });
+  const [detailTab, setDetailTab] = useState<OportunidadeDetailTab>("geral");
 
   const id = opoId ? parseInt(opoId, 10) : NaN;
   const isFechada = oportunidade?.opoStatusFechamento && ["ganho", "perdido", "stand-by"].includes(oportunidade.opoStatusFechamento);
@@ -431,6 +449,7 @@ const OportunidadeDetalhePage: React.FC = () => {
 
   return (
     <Layout>
+      <div className="oportunidade-page">
       <section className="surface-card oportunidade-context">
         <div className="oportunidade-context-top">
           <div className="oportunidade-breadcrumb">Dashboard &gt; CRM &gt; Oportunidades</div>
@@ -446,25 +465,40 @@ const OportunidadeDetalhePage: React.FC = () => {
             <div className="page-header-actions page-header-actions--wrap oportunidade-actions">
               {!isFechada && (
                 <>
-                  <button type="button" className="success" onClick={ganhar}>
+                  <button type="button" className="success oportunidade-header-action" onClick={ganhar}>
+                    <span className="oportunidade-header-action__ico" aria-hidden>
+                      <IcoCheckCircle />
+                    </span>
                     Ganhar
                   </button>
-                  <button type="button" className="danger" onClick={perder}>
+                  <button type="button" className="danger oportunidade-header-action" onClick={perder}>
+                    <span className="oportunidade-header-action__ico" aria-hidden>
+                      <IcoXCircle />
+                    </span>
                     Perder
                   </button>
-                  <button type="button" className="warning" onClick={standBy}>
+                  <button type="button" className="warning oportunidade-header-action" onClick={standBy}>
+                    <span className="oportunidade-header-action__ico" aria-hidden>
+                      <IcoPause />
+                    </span>
                     Stand-by
                   </button>
                 </>
               )}
               {podeRetornarAtivo && (
-                <button type="button" className="btn-primary" onClick={() => setIsRetornoDialogOpen(true)}>
+                <button type="button" className="btn-primary oportunidade-header-action" onClick={() => setIsRetornoDialogOpen(true)}>
+                  <span className="oportunidade-header-action__ico" aria-hidden>
+                    <IcoRotateCcw />
+                  </span>
                   Retornar para ativo
                 </button>
               )}
-              <button type="button" onClick={() => navigate("/oportunidades")}>
-                Voltar
-              </button>
+              <OportunidadeIconButton
+                variant="ghost"
+                label="Voltar à lista de oportunidades"
+                icon={<IcoArrowLeft />}
+                onClick={() => navigate("/oportunidades")}
+              />
             </div>
           </div>
           <div className="oportunidade-context-line">
@@ -479,7 +513,7 @@ const OportunidadeDetalhePage: React.FC = () => {
               />
             </label>
             <label className="context-item inline-edit-field">
-              <span>Temperatura:</span>
+              <span className="context-field-label">Temperatura</span>
               <TemperatureSelect
                 value={oportunidade.opoTemperatura ?? ""}
                 placeholder="-"
@@ -489,7 +523,7 @@ const OportunidadeDetalhePage: React.FC = () => {
               />
             </label>
             <label className="context-item inline-edit-field">
-              <span>Lead Score:</span>
+              <span className="context-field-label">Lead score</span>
               <select
                 value={leadScoreDraft}
                 onChange={async (e) => {
@@ -507,7 +541,7 @@ const OportunidadeDetalhePage: React.FC = () => {
               </select>
             </label>
             <label className="context-item inline-toggle">
-              <span>Reunião</span>
+              <span className="context-field-label">Reunião</span>
               <input
                 type="checkbox"
                 checked={reuniaoDraft}
@@ -519,7 +553,7 @@ const OportunidadeDetalhePage: React.FC = () => {
               />
             </label>
             <label className="context-item inline-toggle">
-              <span>Proposta</span>
+              <span className="context-field-label">Proposta</span>
               <input
                 type="checkbox"
                 checked={propostaDraft}
@@ -535,228 +569,322 @@ const OportunidadeDetalhePage: React.FC = () => {
         </div>
       </section>
 
-      <div className="detail-columns">
-        <div className="detail-left">
-          <section className="surface-card details-card">
-            <h2 className="section-title">Detalhes da oportunidade</h2>
-            <div className="info-grid">
-              <div className="info-item">
-                <span className="info-label">Solução</span>
-                <select
-                  className="detail-inline-input"
-                  value={detalheProId ?? ""}
-                  onChange={(e) => setDetalheProId(e.target.value ? Number(e.target.value) : null)}
-                >
-                  <option value="">Selecione</option>
-                  {produtos.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nome}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Nome contato</span>
-                <input
-                  className="detail-inline-input"
-                  value={detalheNomeContato}
-                  onChange={(e) => setDetalheNomeContato(e.target.value)}
-                  placeholder="Nome do contato"
-                />
-              </div>
-              <div className="info-item">
-                <span className="info-label">Como conheceu</span>
-                <select
-                  className="detail-inline-input"
-                  value={detalheCcoId ?? ""}
-                  onChange={(e) => setDetalheCcoId(e.target.value ? Number(e.target.value) : null)}
-                >
-                  <option value="">Selecione</option>
-                  {comoConheceu.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nome}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Telefone</span>
-                <input
-                  className="detail-inline-input"
-                  value={detalheTelefone}
-                  onChange={(e) => setDetalheTelefone(e.target.value)}
-                  placeholder="(00) 00000-0000"
-                />
-              </div>
-              <div className="info-item">
-                <span className="info-label">Data de recebimento</span>
-                <input
-                  type="date"
-                  className="detail-inline-input"
-                  value={detalheDataRecebimento}
-                  onChange={(e) => setDetalheDataRecebimento(e.target.value)}
-                />
-              </div>
-              <div className="info-item">
-                <span className="info-label">Valor oportunidade</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="detail-inline-input"
-                  value={detalheValorOportunidade}
-                  onChange={(e) => setDetalheValorOportunidade(e.target.value ? Number(e.target.value) : "")}
-                  placeholder="0,00"
-                />
-              </div>
+      <div className="oportunidade-detail-tabs-wrap surface-card">
+        <nav className="oportunidade-detail-tabs" role="tablist" aria-label="Seções da oportunidade">
+          <button
+            type="button"
+            role="tab"
+            id="tab-oportunidade-geral"
+            aria-selected={detailTab === "geral"}
+            aria-controls="panel-oportunidade-geral"
+            className="oportunidade-detail-tab"
+            onClick={() => setDetailTab("geral")}
+          >
+            Geral
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="tab-oportunidade-reunioes"
+            aria-selected={detailTab === "reunioes"}
+            aria-controls="panel-oportunidade-reunioes"
+            className="oportunidade-detail-tab"
+            onClick={() => setDetailTab("reunioes")}
+          >
+            Reuniões
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="tab-oportunidade-propostas"
+            aria-selected={detailTab === "propostas"}
+            aria-controls="panel-oportunidade-propostas"
+            className="oportunidade-detail-tab"
+            onClick={() => setDetailTab("propostas")}
+          >
+            Propostas
+            {propostas.length > 0 ? (
+              <span className="oportunidade-detail-tab-badge" aria-hidden>
+                {propostas.length}
+              </span>
+            ) : null}
+          </button>
+        </nav>
+      </div>
+
+      <div className="oportunidade-detail-panels">
+        {detailTab === "geral" && (
+          <div
+            id="panel-oportunidade-geral"
+            role="tabpanel"
+            aria-labelledby="tab-oportunidade-geral"
+            className="detail-columns"
+          >
+            <div className="detail-left">
+              <section className="surface-card details-card">
+                <h2 className="section-title section-title--panel">Detalhes da oportunidade</h2>
+                <div className="info-grid">
+                  <div className="info-item">
+                    <span className="info-label">Solução</span>
+                    <select
+                      className="detail-inline-input"
+                      value={detalheProId ?? ""}
+                      onChange={(e) => setDetalheProId(e.target.value ? Number(e.target.value) : null)}
+                    >
+                      <option value="">Selecione</option>
+                      {produtos.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">Nome contato</span>
+                    <input
+                      className="detail-inline-input"
+                      value={detalheNomeContato}
+                      onChange={(e) => setDetalheNomeContato(e.target.value)}
+                      placeholder="Nome do contato"
+                    />
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">Como conheceu</span>
+                    <select
+                      className="detail-inline-input"
+                      value={detalheCcoId ?? ""}
+                      onChange={(e) => setDetalheCcoId(e.target.value ? Number(e.target.value) : null)}
+                    >
+                      <option value="">Selecione</option>
+                      {comoConheceu.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">Telefone</span>
+                    <input
+                      className="detail-inline-input"
+                      value={detalheTelefone}
+                      onChange={(e) => setDetalheTelefone(e.target.value)}
+                      placeholder="(00) 00000-0000"
+                    />
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">Data de recebimento</span>
+                    <input
+                      type="date"
+                      className="detail-inline-input"
+                      value={detalheDataRecebimento}
+                      onChange={(e) => setDetalheDataRecebimento(e.target.value)}
+                    />
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">Valor oportunidade</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="detail-inline-input"
+                      value={detalheValorOportunidade}
+                      onChange={(e) => setDetalheValorOportunidade(e.target.value ? Number(e.target.value) : "")}
+                      placeholder="0,00"
+                    />
+                  </div>
+                </div>
+                <div className="details-expandables">
+                  <OptionalTextareaField
+                    isOpen={showDores}
+                    onToggle={() => setShowDores((v) => !v)}
+                    buttonLabel="Adicionar dores / motivadores"
+                    label="Dores / Motivadores"
+                    value={dores}
+                    onChange={setDores}
+                    toggleLeadingIcon={
+                      <span className="oportunidade-inline-ico">
+                        <IcoPlus />
+                      </span>
+                    }
+                  />
+                  <OptionalTextareaField
+                    isOpen={showComentarios}
+                    onToggle={() => setShowComentarios((v) => !v)}
+                    buttonLabel="Adicionar comentários"
+                    label="Comentários"
+                    value={comentarios}
+                    onChange={setComentarios}
+                    toggleLeadingIcon={
+                      <span className="oportunidade-inline-ico">
+                        <IcoPlus />
+                      </span>
+                    }
+                  />
+                  <div className="details-expandables-actions">
+                    <OportunidadeIconButton
+                      variant="outline-brand"
+                      label={loadingSave ? "Salvando alterações" : "Salvar alterações da oportunidade"}
+                      icon={loadingSave ? <IcoSpinner /> : <IcoSave />}
+                      onClick={() => void saveComplementares()}
+                      disabled={loadingSave}
+                    />
+                  </div>
+                </div>
+              </section>
             </div>
-            <div className="details-expandables">
-              <OptionalTextareaField
-                isOpen={showDores}
-                onToggle={() => setShowDores((v) => !v)}
-                buttonLabel="Clique para adicionar dores / motivadores"
-                label="Dores / Motivadores"
-                value={dores}
-                onChange={setDores}
-              />
-              <OptionalTextareaField
-                isOpen={showComentarios}
-                onToggle={() => setShowComentarios((v) => !v)}
-                buttonLabel="Clique para adicionar comentários"
-                label="Comentários"
-                value={comentarios}
-                onChange={setComentarios}
-              />
-              <div className="details-expandables-actions">
-                <button type="button" className="btn-primary" onClick={saveComplementares} disabled={loadingSave}>
-                  {loadingSave ? "Salvando..." : "Salvar alterações"}
-                </button>
-              </div>
-            </div>
-          </section>
-          <section className="surface-card details-card">
-            <div className="proposal-section-header">
-              <h2 className="section-title">Propostas</h2>
-              <button type="button" className="btn-primary" onClick={criarProposta}>
-                Nova proposta
-              </button>
-            </div>
-            {loadingPropostas ? (
-              <Loader />
-            ) : propostas.length === 0 ? (
-              <p className="muted-text">Nenhuma proposta cadastrada para esta oportunidade.</p>
-            ) : (
-              <div className="proposal-table-wrapper">
-                <table className="datatable">
-                  <thead>
-                    <tr>
-                      <th>Título</th>
-                      <th>Tipo</th>
-                      <th>Status</th>
-                      <th>Versão</th>
-                      <th>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {propostas.map((p) => (
-                      <tr key={p.prpId}>
-                        <td>{p.prpTitulo}</td>
-                        <td>{p.prpTipo}</td>
-                        <td>
-                          <span className="status-badge status-badge--open">{p.prpStatus}</span>
-                        </td>
-                        <td>{p.prpVersaoAtual ?? "-"}</td>
-                        <td>
-                          <div className="actions">
-                            <ActionIconButton icon="edit" label="Editar" onClick={() => navigate(`/propostas/${p.prpId}/editor`)} />
-                            <ActionIconButton
-                              icon="view"
-                              label="Visualizar página pública"
-                              onClick={() => window.open(getPublicProposalUrl(p.prpTokenPublico), "_blank")}
-                            />
-                            <ActionIconButton icon="view" label="Copiar link" onClick={() => copiarLinkProposta(p.prpTokenPublico)} />
-                            <ActionIconButton icon="activate" label="Publicar" tone="success" onClick={() => publicarProposta(p.prpId)} />
-                            <ActionIconButton icon="edit" label="Duplicar" onClick={() => duplicarProposta(p.prpId)} />
+            <aside className="detail-right oportunidade-history-column">
+              <section className="surface-card details-card">
+                <h2 className="section-title section-title--panel">Histórico</h2>
+                <form className="history-add-form" onSubmit={addHistorico}>
+                  <label className="form-field">
+                    <span className="form-label">Data do registro</span>
+                    <input type="date" value={dataHistorico} onChange={(e) => setDataHistorico(e.target.value)} />
+                  </label>
+                  <label className="form-field form-field--full">
+                    <span className="form-label">Conteúdo</span>
+                    <textarea
+                      value={novoHistorico}
+                      onChange={(e) => setNovoHistorico(e.target.value)}
+                      rows={3}
+                      required
+                      placeholder="Registre o que aconteceu..."
+                    />
+                  </label>
+                  <div className="history-add-actions">
+                    <OportunidadeIconButton type="submit" variant="outline-brand" label="Adicionar ao histórico" icon={<IcoPlus />} />
+                  </div>
+                </form>
+
+                {loadingHist ? (
+                  <Loader />
+                ) : historicos.length === 0 ? (
+                  <p className="muted-text">Nenhum registro de histórico.</p>
+                ) : (
+                  <ul className="history-list timeline-list">
+                    {historicos.map((h) => (
+                      <li key={h.ophId} className="history-item timeline-item">
+                        <div className="history-item-top">
+                          <div className="history-meta-inline">
+                            <span className="history-date">{new Date(h.ophDataRegistro).toLocaleString("pt-BR")}</span>
+                            <span className="history-author">Por: {h.ophUsuId ? getNome(usuarios, h.ophUsuId) : "Sistema"}</span>
                           </div>
-                        </td>
-                      </tr>
+                          {editingHistoricoId !== h.ophId && (
+                            <div className="history-item-actions history-item-actions--top">
+                              <ActionIconButton icon="edit" label="Editar histórico" onClick={() => startEditHistorico(h)} />
+                            </div>
+                          )}
+                        </div>
+                        {editingHistoricoId === h.ophId ? (
+                          <>
+                            <textarea
+                              value={editingHistoricoTexto}
+                              onChange={(e) => setEditingHistoricoTexto(e.target.value)}
+                              rows={3}
+                            />
+                            <div className="history-item-actions">
+                              <OportunidadeIconButton
+                                variant="subtle"
+                                label="Cancelar edição do histórico"
+                                icon={<IcoX />}
+                                onClick={() => setEditingHistoricoId(null)}
+                              />
+                              <OportunidadeIconButton
+                                variant="outline-brand"
+                                label="Salvar alterações no histórico"
+                                icon={<IcoCheck />}
+                                onClick={() => void saveEditHistorico()}
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <div className="pre-wrap">{h.ophConteudo ?? "-"}</div>
+                        )}
+                      </li>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        </div>
+                  </ul>
+                )}
+              </section>
+            </aside>
+          </div>
+        )}
 
-        <aside className="detail-right">
-          <section className="surface-card details-card">
-            <h2 className="section-title">Histórico</h2>
-            <form className="history-add-form" onSubmit={addHistorico}>
-              <label className="form-field">
-                <span className="form-label">Data do registro</span>
-                <input type="date" value={dataHistorico} onChange={(e) => setDataHistorico(e.target.value)} />
-              </label>
-              <label className="form-field form-field--full">
-                <span className="form-label">Conteúdo</span>
-                <textarea
-                  value={novoHistorico}
-                  onChange={(e) => setNovoHistorico(e.target.value)}
-                  rows={3}
-                  required
-                  placeholder="Registre o que aconteceu..."
+        {detailTab === "reunioes" && (
+          <div
+            id="panel-oportunidade-reunioes"
+            role="tabpanel"
+            aria-labelledby="tab-oportunidade-reunioes"
+            className="oportunidade-detail-stack"
+          >
+            <ReuniaoIaSection opoId={id} onOpportunityRefresh={loadOportunidade} />
+          </div>
+        )}
+
+        {detailTab === "propostas" && (
+          <div
+            id="panel-oportunidade-propostas"
+            role="tabpanel"
+            aria-labelledby="tab-oportunidade-propostas"
+            className="oportunidade-detail-stack"
+          >
+            <section className="surface-card details-card">
+              <div className="proposal-section-header">
+                <h2 className="section-title section-title--panel">Propostas</h2>
+                <OportunidadeIconButton
+                  variant="outline-brand"
+                  label="Nova proposta"
+                  icon={<IcoFilePlus />}
+                  onClick={criarProposta}
                 />
-              </label>
-              <div className="history-add-actions">
-                <button type="submit" className="btn-primary">
-                  Adicionar histórico
-                </button>
               </div>
-            </form>
-
-            {loadingHist ? (
-              <Loader />
-            ) : historicos.length === 0 ? (
-              <p className="muted-text">Nenhum registro de histórico.</p>
-            ) : (
-              <ul className="history-list timeline-list">
-                {historicos.map((h) => (
-                  <li key={h.ophId} className="history-item timeline-item">
-                    <div className="history-item-top">
-                      <div className="history-meta-inline">
-                        <span className="history-date">{new Date(h.ophDataRegistro).toLocaleString("pt-BR")}</span>
-                        <span className="history-author">Por: {h.ophUsuId ? getNome(usuarios, h.ophUsuId) : "Sistema"}</span>
-                      </div>
-                      {editingHistoricoId !== h.ophId && (
-                        <div className="history-item-actions history-item-actions--top">
-                          <ActionIconButton icon="edit" label="Editar histórico" onClick={() => startEditHistorico(h)} />
-                        </div>
-                      )}
-                    </div>
-                    {editingHistoricoId === h.ophId ? (
-                      <>
-                        <textarea
-                          value={editingHistoricoTexto}
-                          onChange={(e) => setEditingHistoricoTexto(e.target.value)}
-                          rows={3}
-                        />
-                        <div className="history-item-actions">
-                          <button type="button" onClick={() => setEditingHistoricoId(null)}>
-                            Cancelar
-                          </button>
-                          <button type="button" className="btn-primary" onClick={saveEditHistorico}>
-                            Salvar
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="pre-wrap">{h.ophConteudo ?? "-"}</div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </aside>
+              {loadingPropostas ? (
+                <Loader />
+              ) : propostas.length === 0 ? (
+                <p className="muted-text">Nenhuma proposta cadastrada para esta oportunidade.</p>
+              ) : (
+                <div className="proposal-table-wrapper">
+                  <table className="datatable">
+                    <thead>
+                      <tr>
+                        <th>Título</th>
+                        <th>Tipo</th>
+                        <th>Status</th>
+                        <th>Versão</th>
+                        <th>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {propostas.map((p) => (
+                        <tr key={p.prpId}>
+                          <td>{p.prpTitulo}</td>
+                          <td>{p.prpTipo}</td>
+                          <td>
+                            <span className="status-badge status-badge--open">{p.prpStatus}</span>
+                          </td>
+                          <td>{p.prpVersaoAtual ?? "-"}</td>
+                          <td>
+                            <div className="actions">
+                              <ActionIconButton icon="edit" label="Editar" onClick={() => navigate(`/propostas/${p.prpId}/editor`)} />
+                              <ActionIconButton
+                                icon="view"
+                                label="Visualizar página pública"
+                                onClick={() => window.open(getPublicProposalUrl(p.prpTokenPublico), "_blank")}
+                              />
+                              <ActionIconButton icon="view" label="Copiar link" onClick={() => copiarLinkProposta(p.prpTokenPublico)} />
+                              <ActionIconButton icon="activate" label="Publicar" tone="success" onClick={() => publicarProposta(p.prpId)} />
+                              <ActionIconButton icon="edit" label="Duplicar" onClick={() => duplicarProposta(p.prpId)} />
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+      </div>
       </div>
       <Modal isOpen={isPerderModalOpen} title="Marcar como perdida" onClose={() => setIsPerderModalOpen(false)}>
         <form className="form-vertical" onSubmit={confirmarPerda}>
