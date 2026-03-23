@@ -64,6 +64,15 @@ interface ComoConheceuItem {
   ccoNome: string;
 }
 
+type AbaStatus = "ativo" | "ganho" | "perdido" | "stand-by";
+
+const ABA_CONFIG: { value: AbaStatus; label: string; tabClass: string }[] = [
+  { value: "ativo", label: "Ativo", tabClass: "tab--ativo" },
+  { value: "ganho", label: "Ganho", tabClass: "tab--ganho" },
+  { value: "perdido", label: "Perdido", tabClass: "tab--perdido" },
+  { value: "stand-by", label: "Stand-by", tabClass: "tab--standby" },
+];
+
 const OportunidadesPage: React.FC = () => {
   const { api, user } = useAuth();
   const navigate = useNavigate();
@@ -73,6 +82,7 @@ const OportunidadesPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(25);
   const [total, setTotal] = useState(0);
+  const [tabCounts, setTabCounts] = useState<Record<string, number>>({});
   const [responsavelFiltroDraft, setResponsavelFiltroDraft] = useState<number | null>(null);
   const [solucaoFiltroDraft, setSolucaoFiltroDraft] = useState<number | null>(null);
   const [dataUltimoContatoInicioDraft, setDataUltimoContatoInicioDraft] = useState("");
@@ -81,7 +91,7 @@ const OportunidadesPage: React.FC = () => {
   const [solucaoFiltro, setSolucaoFiltro] = useState<number | null>(null);
   const [dataUltimoContatoInicio, setDataUltimoContatoInicio] = useState("");
   const [dataUltimoContatoFim, setDataUltimoContatoFim] = useState("");
-  const [abaStatus, setAbaStatus] = useState<"ativo" | "ganho" | "perdido" | "stand-by">("ativo");
+  const [abaStatus, setAbaStatus] = useState<AbaStatus>("ativo");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [etapas, setEtapas] = useState<EtapaItem[]>([]);
   const [produtos, setProdutos] = useState<ProdutoItem[]>([]);
@@ -133,6 +143,26 @@ const OportunidadesPage: React.FC = () => {
     }
   };
 
+  const loadTabCounts = async () => {
+    try {
+      const statuses: AbaStatus[] = ["ativo", "ganho", "perdido", "stand-by"];
+      const results = await Promise.all(
+        statuses.map((s) =>
+          api.get<ListResponse>("/oportunidades", {
+            params: { status: "ativos", status_fechamento: s, page_size: 1, page: 1 },
+          })
+        )
+      );
+      const counts: Record<string, number> = {};
+      statuses.forEach((s, i) => {
+        counts[s] = results[i].data.total ?? 0;
+      });
+      setTabCounts(counts);
+    } catch {
+      // counts são opcionais
+    }
+  };
+
   const loadCombos = async () => {
     try {
       const [etapasRes, produtosRes, usuariosRes, ccoRes] = await Promise.all([
@@ -160,6 +190,7 @@ const OportunidadesPage: React.FC = () => {
 
   useEffect(() => {
     void loadCombos();
+    void loadTabCounts();
   }, []);
 
   useEffect(() => {
@@ -236,6 +267,7 @@ const OportunidadesPage: React.FC = () => {
     }
     setIsModalOpen(false);
     await loadOportunidades();
+    void loadTabCounts();
   };
 
   const abrirRetornoParaAtivo = (row: OportunidadeItem) => {
@@ -249,22 +281,31 @@ const OportunidadesPage: React.FC = () => {
     setIsRetornoDialogOpen(false);
     setSelectedRetorno(null);
     await loadOportunidades();
+    void loadTabCounts();
   };
 
   const etapaNome = (etkId: number | null) => etapas.find((e) => e.etkId === etkId)?.etkNome ?? "-";
   const produtoNome = (proId: number | null, fallback: string | null) =>
     produtos.find((p) => p.proId === proId)?.proNome ?? fallback ?? "-";
   const usuarioNome = (usuId: number | null) => usuarios.find((u) => u.usuId === usuId)?.usuNome ?? "-";
+
   const formatDateTime = (value: string | null) => {
     if (!value) return "-";
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "-";
-    return date.toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
+    return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
   };
+
+  const getAgingClass = (dateStr: string | null): string => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) return "";
+    const daysSince = Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysSince > 30) return "date-aging--danger";
+    if (daysSince > 15) return "date-aging--warning";
+    return "";
+  };
+
   const temperaturaLabel = (value: string | null) => {
     if (!value) return "-";
     const normalized = value.trim().toLowerCase();
@@ -273,12 +314,36 @@ const OportunidadesPage: React.FC = () => {
     if (normalized === "quente") return "Quente";
     return value;
   };
+
   const temperaturaClass = (value: string | null) => {
     const normalized = (value ?? "").trim().toLowerCase();
     if (normalized === "frio") return "oportunidade-label oportunidade-label--frio";
     if (normalized === "morno") return "oportunidade-label oportunidade-label--morno";
     if (normalized === "quente") return "oportunidade-label oportunidade-label--quente";
     return "oportunidade-label oportunidade-label--default";
+  };
+
+  const renderTempIcon = (temperatura: string | null) => {
+    const t = (temperatura ?? "").trim().toLowerCase();
+    if (t === "frio") {
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07" />
+        </svg>
+      );
+    }
+    if (t === "quente") {
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <path d="M12 22c2.5 0 4-2 4-4 0-3-2.5-4.5-2.5-8C13 8 14 6 14 4c-1 1-2 3-2 5 0-2-1.5-3.5-1.5-5C9 6 8 8 8 10c0 2 2 3 2 5 0 1-.5 2-1 2.5.5-1 .5-2.5-.5-3.5C7.5 16 8 18 8 18c0 2 1.5 4 4 4z" />
+        </svg>
+      );
+    }
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden>
+        <path d="M14 14.76V5a2 2 0 10-4 0v9.76a4 4 0 104 0z" />
+      </svg>
+    );
   };
 
   const filteredItems = useMemo(() => {
@@ -306,12 +371,10 @@ const OportunidadesPage: React.FC = () => {
       },
       {
         key: "opoTemperatura",
-        header: "",
+        header: "Temp.",
         render: (r: OportunidadeItem) => (
           <span className={temperaturaClass(r.opoTemperatura)} aria-label={temperaturaLabel(r.opoTemperatura)}>
-            <svg viewBox="0 0 24 24" aria-hidden>
-              <path d="M14 14.76V5a2 2 0 10-4 0v9.76a4 4 0 104 0z" />
-            </svg>
+            {renderTempIcon(r.opoTemperatura)}
           </span>
         ),
       },
@@ -322,27 +385,30 @@ const OportunidadesPage: React.FC = () => {
       },
     ];
 
-    const comumResponsavelEUltimoContato = [
-      {
-        key: "opoUsuResponsavelId",
-        header: "Responsável",
-        render: (r: OportunidadeItem) => {
-          const usuario = usuarios.find((u) => u.usuId === r.opoUsuResponsavelId);
-          if (!usuario) return "-";
-          return (
-            <span className="oportunidades-responsavel-cell">
-              <UserAvatar name={usuario.usuNome} avatarUrl={usuario.usuAvatarUrl ?? null} size="sm" />
-              <span className="oportunidades-responsavel-nome">{usuario.usuNome}</span>
-            </span>
-          );
-        },
+    const responsavelCol = {
+      key: "opoUsuResponsavelId",
+      header: "Responsável",
+      render: (r: OportunidadeItem) => {
+        const usuario = usuarios.find((u) => u.usuId === r.opoUsuResponsavelId);
+        if (!usuario) return "-";
+        return (
+          <span className="oportunidades-responsavel-cell">
+            <UserAvatar name={usuario.usuNome} avatarUrl={usuario.usuAvatarUrl ?? null} size="sm" />
+            <span className="oportunidades-responsavel-nome">{usuario.usuNome}</span>
+          </span>
+        );
       },
-      {
-        key: "opoDataUltimoContato",
-        header: "Último contato",
-        render: (r: OportunidadeItem) => formatDateTime(r.opoDataUltimoContato),
-      },
-    ];
+    };
+
+    const ultimoContatoCol = {
+      key: "opoDataUltimoContato",
+      header: "Último contato",
+      render: (r: OportunidadeItem) => (
+        <span className={abaStatus === "ativo" ? getAgingClass(r.opoDataUltimoContato) : ""}>
+          {formatDateTime(r.opoDataUltimoContato)}
+        </span>
+      ),
+    };
 
     const açõesCol = {
       key: "opoId",
@@ -371,14 +437,11 @@ const OportunidadesPage: React.FC = () => {
           header: "Valor fechado",
           render: (r: OportunidadeItem) =>
             r.opoValorFechado != null
-              ? r.opoValorFechado.toLocaleString("pt-BR", {
-                  style: "currency",
-                  currency: "BRL",
-                  minimumFractionDigits: 2,
-                })
+              ? r.opoValorFechado.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 })
               : "-",
         },
-        ...comumResponsavelEUltimoContato,
+        responsavelCol,
+        ultimoContatoCol,
         açõesCol,
       ];
     }
@@ -391,23 +454,48 @@ const OportunidadesPage: React.FC = () => {
           header: "Data retorno",
           render: (r: OportunidadeItem) => formatDateTime(r.opoDataUltimoContato),
         },
-        ...comumResponsavelEUltimoContato,
+        responsavelCol,
+        ultimoContatoCol,
         açõesCol,
       ];
     }
 
-    // ativo / perdido usam coluna Status
+    if (abaStatus === "ativo") {
+      return [
+        ...baseCols,
+        {
+          key: "opoEtkId",
+          header: "Etapa",
+          render: (r: OportunidadeItem) => <span className="status-badge status-badge--open">{etapaNome(r.opoEtkId)}</span>,
+        },
+        {
+          key: "opoValorOportunidade",
+          header: "Valor",
+          render: (r: OportunidadeItem) =>
+            r.opoValorOportunidade != null
+              ? r.opoValorOportunidade.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 0 })
+              : "-",
+        },
+        responsavelCol,
+        ultimoContatoCol,
+        açõesCol,
+      ];
+    }
+
+    // perdido
     return [
       ...baseCols,
       {
         key: "opoEtkId",
-        header: "Status",
+        header: "Etapa",
         render: (r: OportunidadeItem) => <span className="status-badge status-badge--open">{etapaNome(r.opoEtkId)}</span>,
       },
-      ...comumResponsavelEUltimoContato,
+      responsavelCol,
+      ultimoContatoCol,
       açõesCol,
     ];
   }, [abaStatus, abrirRetornoParaAtivo, navigate, usuarios, produtos, etapas, search, items]);
+
   const aplicarFiltros = () => {
     setPage(1);
     setResponsavelFiltro(responsavelFiltroDraft);
@@ -415,6 +503,7 @@ const OportunidadesPage: React.FC = () => {
     setDataUltimoContatoInicio(dataUltimoContatoInicioDraft);
     setDataUltimoContatoFim(dataUltimoContatoFimDraft);
   };
+
   const limparFiltros = () => {
     setPage(1);
     setResponsavelFiltroDraft(null);
@@ -427,13 +516,6 @@ const OportunidadesPage: React.FC = () => {
     setDataUltimoContatoFim("");
   };
 
-  const abaLabel = (value: "ativo" | "ganho" | "perdido" | "stand-by") => {
-    if (value === "ativo") return "Ativo";
-    if (value === "ganho") return "Ganho";
-    if (value === "perdido") return "Perdido";
-    return "Stand-by";
-  };
-
   return (
     <Layout>
       <ListingToolbar
@@ -444,12 +526,17 @@ const OportunidadesPage: React.FC = () => {
         }
         filters={
           <div className="oportunidades-filtros">
-            <input
-              type="text"
-              placeholder="Buscar por cliente, contato ou responsável"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+            <div className="search-field-wrapper">
+              <svg className="search-field-icon" viewBox="0 0 24 24" aria-hidden>
+                <path d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Buscar por cliente, contato ou responsável"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
             <select
               value={responsavelFiltroDraft ?? ""}
               onChange={(e) => setResponsavelFiltroDraft(e.target.value ? Number(e.target.value) : null)}
@@ -461,7 +548,10 @@ const OportunidadesPage: React.FC = () => {
                 </option>
               ))}
             </select>
-            <select value={solucaoFiltroDraft ?? ""} onChange={(e) => setSolucaoFiltroDraft(e.target.value ? Number(e.target.value) : null)}>
+            <select
+              value={solucaoFiltroDraft ?? ""}
+              onChange={(e) => setSolucaoFiltroDraft(e.target.value ? Number(e.target.value) : null)}
+            >
               <option value="">Solução</option>
               {produtos.map((p) => (
                 <option key={p.proId} value={p.proId}>
@@ -469,58 +559,65 @@ const OportunidadesPage: React.FC = () => {
                 </option>
               ))}
             </select>
-            <input
-              type="date"
-              aria-label="Data de último contato inicial"
-              value={dataUltimoContatoInicioDraft}
-              onChange={(e) => setDataUltimoContatoInicioDraft(e.target.value)}
-            />
-            <span className="oportunidades-filtros-separador">até</span>
-            <input
-              type="date"
-              aria-label="Data de último contato final"
-              value={dataUltimoContatoFimDraft}
-              onChange={(e) => setDataUltimoContatoFimDraft(e.target.value)}
-            />
+            <div className="filter-group">
+              <span className="filter-group-label">Último contato</span>
+              <div className="filter-group-inputs">
+                <input
+                  type="date"
+                  aria-label="Data de último contato inicial"
+                  value={dataUltimoContatoInicioDraft}
+                  onChange={(e) => setDataUltimoContatoInicioDraft(e.target.value)}
+                />
+                <span className="oportunidades-filtros-separador">até</span>
+                <input
+                  type="date"
+                  aria-label="Data de último contato final"
+                  value={dataUltimoContatoFimDraft}
+                  onChange={(e) => setDataUltimoContatoFimDraft(e.target.value)}
+                />
+              </div>
+            </div>
             <button type="button" className="btn-primary" onClick={aplicarFiltros}>
               Filtrar
             </button>
             <button type="button" onClick={limparFiltros}>
-              Limpar filtros
+              Limpar
             </button>
           </div>
         }
       />
+
       <div className="oportunidades-status-tabs" role="tablist" aria-label="Status do fechamento">
-        {(["ativo", "ganho", "perdido", "stand-by"] as const).map((status) => (
+        {ABA_CONFIG.map(({ value, label, tabClass }) => (
           <button
-            key={status}
+            key={value}
             type="button"
             role="tab"
-            aria-selected={abaStatus === status}
-            className={`oportunidades-status-tab${abaStatus === status ? " is-active" : ""}`}
+            aria-selected={abaStatus === value}
+            className={`oportunidades-status-tab ${tabClass}${abaStatus === value ? " is-active" : ""}`}
             onClick={() => {
               setPage(1);
-              setAbaStatus(status);
+              setAbaStatus(value);
             }}
           >
-            {abaLabel(status)}
+            {label}
+            {tabCounts[value] !== undefined && (
+              <span className="tab-count">{tabCounts[value]}</span>
+            )}
           </button>
         ))}
       </div>
+
       {loading ? (
         <Loader />
       ) : (
         <ListingTableCard
           footer={<PaginationBar page={page} pageSize={pageSize} total={total} onPageChange={(next) => setPage(next)} />}
         >
-          <DataTable
-            keyField="opoId"
-            data={filteredItems}
-            columns={columns}
-          />
+          <DataTable keyField="opoId" data={filteredItems} columns={columns} />
         </ListingTableCard>
       )}
+
       <Modal
         isOpen={isModalOpen}
         title={selected ? "Editar oportunidade" : "Nova oportunidade"}
@@ -687,6 +784,7 @@ const OportunidadesPage: React.FC = () => {
           </div>
         </form>
       </Modal>
+
       <ConfirmDialog
         isOpen={isRetornoDialogOpen}
         title="Retornar para ativo"

@@ -61,6 +61,13 @@ interface CrmDashboardResponse {
 
 type StatusFiltro = "todas" | "ganhas" | "perdidas" | "ativas";
 
+const STATUS_TABS: { value: StatusFiltro; label: string; tabClass: string }[] = [
+  { value: "todas", label: "Todas", tabClass: "" },
+  { value: "ganhas", label: "Ganhas", tabClass: "tab--ganhas" },
+  { value: "perdidas", label: "Perdidas", tabClass: "tab--perdidas" },
+  { value: "ativas", label: "Ativas", tabClass: "tab--ativas" },
+];
+
 const DashboardPage: React.FC = () => {
   const { api } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -87,9 +94,7 @@ const DashboardPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const params: Record<string, unknown> = {
-        status,
-      };
+      const params: Record<string, unknown> = { status };
       if (dataInicial) params.data_inicial = dataInicial;
       if (dataFinal) params.data_final = dataFinal;
       if (responsavel != null) params.responsavel_id = responsavel;
@@ -154,11 +159,12 @@ const DashboardPage: React.FC = () => {
 
   const formatMesLabel = (item: CrmDashboardGraficoPorMesItem) => {
     const month = String(item.mes).padStart(2, "0");
-    return `${month}/${item.ano}`;
+    return `${month}/${String(item.ano).slice(2)}`;
   };
 
   return (
     <Layout>
+      {/* Filters */}
       <section className="dashboard-filters">
         <div className="surface-card dashboard-filters-inner">
           <div className="form-row">
@@ -180,6 +186,7 @@ const DashboardPage: React.FC = () => {
                 />
               </div>
             </label>
+
             <label className="form-field">
               <span className="form-label">Responsável</span>
               <select
@@ -197,28 +204,23 @@ const DashboardPage: React.FC = () => {
                 ))}
               </select>
             </label>
-            <fieldset className="form-field">
-              <legend className="form-label">Status</legend>
-              <div className="radio-group">
-                {(["todas", "ganhas", "perdidas", "ativas"] as const).map((value) => (
-                  <label key={value} className="radio-option">
-                    <input
-                      type="radio"
-                      name="statusDashboard"
-                      value={value}
-                      checked={statusDraft === value}
-                      onChange={() => setStatusDraft(value)}
-                    />
-                    <span>
-                      {value === "todas" && "Todas"}
-                      {value === "ganhas" && "Ganhas"}
-                      {value === "perdidas" && "Perdidas"}
-                      {value === "ativas" && "Ativas"}
-                    </span>
-                  </label>
+
+            <div className="form-field">
+              <span className="form-label">Status</span>
+              <div className="status-tabs" role="group" aria-label="Filtrar por status">
+                {STATUS_TABS.map(({ value, label, tabClass }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`status-tab ${tabClass} ${statusDraft === value ? "active" : ""}`}
+                    onClick={() => setStatusDraft(value)}
+                  >
+                    {label}
+                  </button>
                 ))}
               </div>
-            </fieldset>
+            </div>
+
             <div className="form-actions">
               <button type="button" className="btn-primary" onClick={aplicarFiltros}>
                 Filtrar
@@ -240,10 +242,11 @@ const DashboardPage: React.FC = () => {
 
       {!loading && !error && cards && (
         <>
+          {/* KPI Cards */}
           <section className="dashboard-cards-row">
             <div className="dashboard-card dashboard-card--blue">
               <div className="dashboard-card-header">
-                <span className="dashboard-card-icon dashboard-card-icon--recebidas" aria-hidden>
+                <span className="dashboard-card-icon" aria-hidden>
                   <svg viewBox="0 0 24 24">
                     <path d="M4 4h16v4H4zM4 10h10v4H4zM4 16h7v4H4z" />
                   </svg>
@@ -251,13 +254,16 @@ const DashboardPage: React.FC = () => {
                 <strong className="dashboard-card-value">{cards.recebidas}</strong>
               </div>
               <span className="dashboard-card-label">Oportunidades Recebidas</span>
-              <span className="dashboard-card-subvalue">12M: {cards.recebidas12m}</span>
-              <span className="dashboard-card-subvalue">Últ. mês: {cards.recebidasUltimoMes}</span>
-              <span className="dashboard-card-subvalue">Mês atual: {cards.recebidasMesCorrente}</span>
+              <div className="dashboard-card-subvalues">
+                <span className="dashboard-card-subvalue"><span>12 meses</span><span>{cards.recebidas12m}</span></span>
+                <span className="dashboard-card-subvalue"><span>Últ. mês</span><span>{cards.recebidasUltimoMes}</span></span>
+                <span className="dashboard-card-subvalue"><span>Mês atual</span><span>{cards.recebidasMesCorrente}</span></span>
+              </div>
             </div>
+
             <div className="dashboard-card dashboard-card--green">
               <div className="dashboard-card-header">
-                <span className="dashboard-card-icon dashboard-card-icon--ganhas" aria-hidden>
+                <span className="dashboard-card-icon" aria-hidden>
                   <svg viewBox="0 0 24 24">
                     <path d="M5 13l4 4L19 7" />
                   </svg>
@@ -265,13 +271,16 @@ const DashboardPage: React.FC = () => {
                 <strong className="dashboard-card-value">{cards.ganhas}</strong>
               </div>
               <span className="dashboard-card-label">Oportunidades Ganhas</span>
-              <span className="dashboard-card-subvalue">12M: {cards.ganhas12m}</span>
-              <span className="dashboard-card-subvalue">Últ. mês: {cards.ganhasUltimoMes}</span>
-              <span className="dashboard-card-subvalue">Mês atual: {cards.ganhasMesCorrente}</span>
+              <div className="dashboard-card-subvalues">
+                <span className="dashboard-card-subvalue"><span>12 meses</span><span>{cards.ganhas12m}</span></span>
+                <span className="dashboard-card-subvalue"><span>Últ. mês</span><span>{cards.ganhasUltimoMes}</span></span>
+                <span className="dashboard-card-subvalue"><span>Mês atual</span><span>{cards.ganhasMesCorrente}</span></span>
+              </div>
             </div>
+
             <div className="dashboard-card dashboard-card--red">
               <div className="dashboard-card-header">
-                <span className="dashboard-card-icon dashboard-card-icon--perdidas" aria-hidden>
+                <span className="dashboard-card-icon" aria-hidden>
                   <svg viewBox="0 0 24 24">
                     <path d="M6 6l12 12M18 6L6 18" />
                   </svg>
@@ -279,13 +288,16 @@ const DashboardPage: React.FC = () => {
                 <strong className="dashboard-card-value">{cards.perdidas}</strong>
               </div>
               <span className="dashboard-card-label">Oportunidades Perdidas</span>
-              <span className="dashboard-card-subvalue">12M: {cards.perdidas12m}</span>
-              <span className="dashboard-card-subvalue">Últ. mês: {cards.perdidasUltimoMes}</span>
-              <span className="dashboard-card-subvalue">Mês atual: {cards.perdidasMesCorrente}</span>
+              <div className="dashboard-card-subvalues">
+                <span className="dashboard-card-subvalue"><span>12 meses</span><span>{cards.perdidas12m}</span></span>
+                <span className="dashboard-card-subvalue"><span>Últ. mês</span><span>{cards.perdidasUltimoMes}</span></span>
+                <span className="dashboard-card-subvalue"><span>Mês atual</span><span>{cards.perdidasMesCorrente}</span></span>
+              </div>
             </div>
+
             <div className="dashboard-card dashboard-card--purple">
               <div className="dashboard-card-header">
-                <span className="dashboard-card-icon dashboard-card-icon--taxa" aria-hidden>
+                <span className="dashboard-card-icon" aria-hidden>
                   <svg viewBox="0 0 24 24">
                     <path d="M4 19h16M5 15l4-4 4 4 6-6" />
                   </svg>
@@ -293,22 +305,21 @@ const DashboardPage: React.FC = () => {
                 <strong className="dashboard-card-value">{formatPercent(cards.taxaConversao)}</strong>
               </div>
               <span className="dashboard-card-label">Taxa de Conversão</span>
-            </div>
-            <div className="dashboard-card dashboard-card--cyan">
-              <div className="dashboard-card-header">
-                <span className="dashboard-card-icon dashboard-card-icon--ativas" aria-hidden>
-                  <svg viewBox="0 0 24 24">
-                    <path d="M4 12h4l2-4 4 8 2-4h4" />
-                  </svg>
+              <div className="dashboard-card-subvalues">
+                <span className="dashboard-card-subvalue">
+                  <span>Oportunidades ativas</span>
+                  <span>{cards.ativas}</span>
                 </span>
-                <strong className="dashboard-card-value">{cards.ativas}</strong>
+                <span className="dashboard-card-subvalue">
+                  <span>Valor pipeline</span>
+                  <span>{formatCurrencyBRL(cards.valorAtivas)}</span>
+                </span>
               </div>
-              <span className="dashboard-card-label">Oportunidades Ativas</span>
-              <span className="dashboard-card-subvalue">{formatCurrencyBRL(cards.valorAtivas)}</span>
             </div>
+
             <div className="dashboard-card dashboard-card--orange">
               <div className="dashboard-card-header">
-                <span className="dashboard-card-icon dashboard-card-icon--mrr" aria-hidden>
+                <span className="dashboard-card-icon" aria-hidden>
                   <svg viewBox="0 0 24 24">
                     <path d="M4 18h16V6H4zm4-5h2.5a2 2 0 100-4H9m0 8h2.5a2 2 0 100-4H9" />
                   </svg>
@@ -316,133 +327,146 @@ const DashboardPage: React.FC = () => {
                 <strong className="dashboard-card-value">{formatCurrencyBRL(cards.mrrIncremental)}</strong>
               </div>
               <span className="dashboard-card-label">MRR Incremental</span>
-              <span className="dashboard-card-subvalue">
-                12M: {formatCurrencyBRL(cards.mrrIncremental12m)}
-              </span>
-              <span className="dashboard-card-subvalue">
-                Últ. mês: {formatCurrencyBRL(cards.mrrIncrementalUltimoMes)}
-              </span>
-              <span className="dashboard-card-subvalue">
-                Mês atual: {formatCurrencyBRL(cards.mrrIncrementalMesCorrente)}
-              </span>
+              <div className="dashboard-card-subvalues">
+                <span className="dashboard-card-subvalue"><span>12 meses</span><span>{formatCurrencyBRL(cards.mrrIncremental12m)}</span></span>
+                <span className="dashboard-card-subvalue"><span>Últ. mês</span><span>{formatCurrencyBRL(cards.mrrIncrementalUltimoMes)}</span></span>
+                <span className="dashboard-card-subvalue"><span>Mês atual</span><span>{formatCurrencyBRL(cards.mrrIncrementalMesCorrente)}</span></span>
+              </div>
             </div>
           </section>
 
+          {/* Charts */}
           <section className="dashboard-charts-grid">
-            <article className="surface-card">
-              <h2>Oportunidades por Mês</h2>
-              {porMes.length === 0 ? (
-                <p className="empty-state-text">Nenhum dado encontrado para o período.</p>
-              ) : (
-                <div className="chart chart--bars-vertical">
-                  {porMes.map((item) => {
-                    const basePercent = maxPorMes > 0 ? (item.quantidade / maxPorMes) * 100 : 0;
-                    const heightPercent = basePercent > 0 ? 20 + basePercent * 0.75 : 0;
-                    return (
-                      <div key={`${item.ano}-${item.mes}`} className="chart-bar-vertical">
-                        <div className="chart-bar-vertical-bar" style={{ height: `${heightPercent}%` }}>
-                          <span className="chart-bar-vertical-value">{item.quantidade}</span>
+            <article className="surface-card chart-card">
+              <div className="chart-card-header">
+                <h2>Oportunidades por Mês</h2>
+              </div>
+              <div className="chart-card-body">
+                {porMes.length === 0 ? (
+                  <p className="empty-state-text">Nenhum dado encontrado para o período.</p>
+                ) : (
+                  <div className="chart chart--bars-vertical">
+                    {porMes.map((item) => {
+                      const basePercent = maxPorMes > 0 ? (item.quantidade / maxPorMes) * 100 : 0;
+                      const heightPercent = basePercent > 0 ? 20 + basePercent * 0.75 : 0;
+                      return (
+                        <div key={`${item.ano}-${item.mes}`} className="chart-bar-vertical">
+                          <div className="chart-bar-vertical-bar" style={{ height: `${heightPercent}%` }}>
+                            <span className="chart-bar-vertical-value">{item.quantidade}</span>
+                          </div>
+                          <span className="chart-bar-vertical-label">{formatMesLabel(item)}</span>
                         </div>
-                        <span className="chart-bar-vertical-label">{formatMesLabel(item)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </article>
-
-            <article className="surface-card">
-              <h2>Oportunidades por Fonte</h2>
-              {porFonte.length === 0 ? (
-                <p className="empty-state-text">Nenhum dado encontrado para o período.</p>
-              ) : (
-                <div className="chart chart--bars-horizontal">
-                  {porFonte.map((item) => {
-                    const widthPercent = maxHorizontal > 0 ? (item.quantidade / maxHorizontal) * 100 : 0;
-                    return (
-                      <div key={item.fonte} className="chart-bar-horizontal">
-                        <span className="chart-bar-horizontal-label">{item.fonte}</span>
-                        <div className="chart-bar-horizontal-track">
-                          <div className="chart-bar-horizontal-bar" style={{ width: `${widthPercent}%` }} />
-                        </div>
-                        <span className="chart-bar-horizontal-value">{item.quantidade}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </article>
-
-            <article className="surface-card">
-              <h2>Oportunidades por Solução</h2>
-              {porSolucao.length === 0 ? (
-                <p className="empty-state-text">Nenhum dado encontrado para o período.</p>
-              ) : (
-                <div className="chart chart--bars-horizontal">
-                  {porSolucao.map((item) => {
-                    const widthPercent = maxHorizontal > 0 ? (item.quantidade / maxHorizontal) * 100 : 0;
-                    return (
-                      <div key={item.solucao} className="chart-bar-horizontal">
-                        <span className="chart-bar-horizontal-label">{item.solucao}</span>
-                        <div className="chart-bar-horizontal-track">
-                          <div className="chart-bar-horizontal-bar chart-bar-horizontal-bar--secondary" style={{ width: `${widthPercent}%` }} />
-                        </div>
-                        <span className="chart-bar-horizontal-value">{item.quantidade}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </article>
-
-            <article className="surface-card">
-              <h2>Oportunidades Ativas por Responsável</h2>
-              {totalAtivasResponsavel === 0 ? (
-                <p className="empty-state-text">Nenhum dado encontrado para o período.</p>
-              ) : (
-                <div className="chart-donut-wrapper">
-                  <svg
-                    className="chart-donut"
-                    viewBox="0 0 42 42"
-                    role="img"
-                    aria-label="Distribuição de oportunidades ativas por responsável"
-                  >
-                    <circle className="chart-donut-bg" cx="21" cy="21" r="15.91549430918954" />
-                    {ativasPorResponsavel.reduce<JSX.Element[]>((acc, item, index) => {
-                      const previousTotal = ativasPorResponsavel
-                        .slice(0, index)
-                        .reduce((sum, curr) => sum + curr.quantidade, 0);
-                      const startOffset = (previousTotal / totalAtivasResponsavel) * 100;
-                      const length = (item.quantidade / totalAtivasResponsavel) * 100;
-                      const dashArray = `${length} ${100 - length}`;
-                      const colorClass = `chart-donut-segment chart-donut-segment--${index % 5}`;
-                      acc.push(
-                        <circle
-                          key={item.responsavel}
-                          className={colorClass}
-                          cx="21"
-                          cy="21"
-                          r="15.91549430918954"
-                          strokeDasharray={dashArray}
-                          strokeDashoffset={25 - startOffset}
-                        />
                       );
-                      return acc;
-                    }, [])}
-                  </svg>
-                  <div className="chart-donut-legend">
-                    {ativasPorResponsavel.map((item, index) => (
-                      <div key={item.responsavel} className="chart-donut-legend-item">
-                        <span className={`chart-donut-legend-color chart-donut-legend-color--${index % 5}`} />
-                        <span className="chart-donut-legend-label">{item.responsavel}</span>
-                        <span className="chart-donut-legend-value">
-                          {item.quantidade} ({formatPercent((item.quantidade / totalAtivasResponsavel) * 100)})
-                        </span>
-                      </div>
-                    ))}
+                    })}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+            </article>
+
+            <article className="surface-card chart-card">
+              <div className="chart-card-header">
+                <h2>Oportunidades por Fonte</h2>
+              </div>
+              <div className="chart-card-body">
+                {porFonte.length === 0 ? (
+                  <p className="empty-state-text">Nenhum dado encontrado para o período.</p>
+                ) : (
+                  <div className="chart chart--bars-horizontal">
+                    {porFonte.map((item) => {
+                      const widthPercent = maxHorizontal > 0 ? (item.quantidade / maxHorizontal) * 100 : 0;
+                      return (
+                        <div key={item.fonte} className="chart-bar-horizontal">
+                          <span className="chart-bar-horizontal-label">{item.fonte}</span>
+                          <div className="chart-bar-horizontal-track">
+                            <div className="chart-bar-horizontal-bar" style={{ width: `${widthPercent}%` }} />
+                          </div>
+                          <span className="chart-bar-horizontal-value">{item.quantidade}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </article>
+
+            <article className="surface-card chart-card">
+              <div className="chart-card-header">
+                <h2>Oportunidades por Solução</h2>
+              </div>
+              <div className="chart-card-body">
+                {porSolucao.length === 0 ? (
+                  <p className="empty-state-text">Nenhum dado encontrado para o período.</p>
+                ) : (
+                  <div className="chart chart--bars-horizontal">
+                    {porSolucao.map((item) => {
+                      const widthPercent = maxHorizontal > 0 ? (item.quantidade / maxHorizontal) * 100 : 0;
+                      return (
+                        <div key={item.solucao} className="chart-bar-horizontal">
+                          <span className="chart-bar-horizontal-label">{item.solucao}</span>
+                          <div className="chart-bar-horizontal-track">
+                            <div className="chart-bar-horizontal-bar chart-bar-horizontal-bar--secondary" style={{ width: `${widthPercent}%` }} />
+                          </div>
+                          <span className="chart-bar-horizontal-value">{item.quantidade}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </article>
+
+            <article className="surface-card chart-card">
+              <div className="chart-card-header">
+                <h2>Ativas por Responsável</h2>
+              </div>
+              <div className="chart-card-body">
+                {totalAtivasResponsavel === 0 ? (
+                  <p className="empty-state-text">Nenhum dado encontrado para o período.</p>
+                ) : (
+                  <div className="chart-donut-wrapper">
+                    <svg
+                      className="chart-donut"
+                      viewBox="0 0 42 42"
+                      role="img"
+                      aria-label="Distribuição de oportunidades ativas por responsável"
+                    >
+                      <circle className="chart-donut-bg" cx="21" cy="21" r="15.91549430918954" />
+                      {ativasPorResponsavel.reduce<JSX.Element[]>((acc, item, index) => {
+                        const previousTotal = ativasPorResponsavel
+                          .slice(0, index)
+                          .reduce((sum, curr) => sum + curr.quantidade, 0);
+                        const startOffset = (previousTotal / totalAtivasResponsavel) * 100;
+                        const length = (item.quantidade / totalAtivasResponsavel) * 100;
+                        const dashArray = `${length} ${100 - length}`;
+                        const colorClass = `chart-donut-segment chart-donut-segment--${index % 5}`;
+                        acc.push(
+                          <circle
+                            key={item.responsavel}
+                            className={colorClass}
+                            cx="21"
+                            cy="21"
+                            r="15.91549430918954"
+                            strokeDasharray={dashArray}
+                            strokeDashoffset={25 - startOffset}
+                          />
+                        );
+                        return acc;
+                      }, [])}
+                    </svg>
+                    <div className="chart-donut-legend">
+                      {ativasPorResponsavel.map((item, index) => (
+                        <div key={item.responsavel} className="chart-donut-legend-item">
+                          <span className={`chart-donut-legend-color chart-donut-legend-color--${index % 5}`} />
+                          <span className="chart-donut-legend-label">{item.responsavel}</span>
+                          <span className="chart-donut-legend-value">
+                            {item.quantidade} ({formatPercent((item.quantidade / totalAtivasResponsavel) * 100)})
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </article>
           </section>
         </>
@@ -452,4 +476,3 @@ const DashboardPage: React.FC = () => {
 };
 
 export default DashboardPage;
-

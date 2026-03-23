@@ -758,6 +758,7 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{proposta.prpTitulo}</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap');
     *, *::before, *::after {{ box-sizing: border-box; }}
     body {{ margin: 0; font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #e2e8f0; color: #0f172a; line-height: 1.5; -webkit-font-smoothing: antialiased; }}
     .wrap {{ max-width: 1280px; margin: 0 auto; padding: 32px 40px 56px; }}
@@ -767,11 +768,11 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
     .hero__brand-row {{ display: flex; align-items: center; justify-content: flex-start; gap: 0.85rem; margin: 0 0 20px; }}
     .hero__logo {{ max-height: 56px; max-width: 220px; object-fit: contain; display: block; }}
     .hero__brand-text {{ margin: 0; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.95; text-shadow: 0 1px 2px rgba(0,0,0,.2); }}
-    .hero__titulo {{ margin: 0; font-size: 34px; font-weight: 800; line-height: 1.2; letter-spacing: -0.02em; text-shadow: 0 2px 4px rgba(0,0,0,.2); }}
+    .hero__titulo {{ margin: 0; font-size: 34px; font-weight: 800; line-height: 1.2; letter-spacing: -0.02em; text-shadow: 0 2px 4px rgba(0,0,0,.2); font-family: "Plus Jakarta Sans", "Inter", sans-serif; }}
     .hero__row {{ display: flex; align-items: center; gap: 12px; margin-top: 8px; }}
     .hero__subtitulo {{ margin: 0; font-size: 1.02rem; opacity: 0.95; line-height: 1.4; flex: 1; }}
     .hero__valor {{ margin: 4px 0 20px; font-size: 0.95rem; opacity: 0.9; line-height: 1.45; }}
-    .hero__cta {{ display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; align-items: center; }}
+    .hero__cta {{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-start; align-items: center; }}
     .section {{ background: #fff; border-radius: 18px; padding: 32px 28px; margin-bottom: 32px; box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06); border: 1px solid rgba(226, 232, 240, 0.9); transition: box-shadow .2s ease; }}
     .section:hover {{ box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08); }}
     .section--alt {{ background: #f8fafc; border-color: #e2e8f0; }}
@@ -779,7 +780,7 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
     .section--pricing {{ padding: 40px 28px; }}
     .section__inner {{ max-width: 100%; }}
     .section__inner--read {{ max-width: 58ch; }}
-    .section__titulo {{ margin: 0 0 10px; font-size: 1.5rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }}
+    .section__titulo {{ margin: 0 0 10px; font-size: 1.5rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; font-family: "Plus Jakarta Sans", "Inter", sans-serif; }}
     .section__subtitulo {{ margin: 0 0 24px; font-size: 0.95rem; color: #64748b; line-height: 1.4; }}
     .section__lead {{ margin: 0; font-size: 1.05rem; color: #334155; line-height: 1.7; }}
     .section__lead-p {{ margin: 0 0 1em; }}
@@ -804,12 +805,14 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
     .scope-card--phase {{ padding: 30px; }}
     .scope-card__titulo {{ margin: 0 0 10px; font-size: 1.12rem; font-weight: 700; color: #0f172a; }}
     .scope-card__subtitulo {{ margin: 0 0 16px; font-size: 0.9rem; color: #64748b; line-height: 1.45; }}
-    .scope-card__itens {{ margin: 0; padding-left: 1.25rem; font-size: 0.92rem; color: #475569; line-height: 1.65; }}
+    .scope-card__itens {{ margin: 0; padding-left: 0; list-style: none; font-size: 0.92rem; color: #475569; line-height: 1.65; }}
+    .scope-card__itens li {{ position: relative; padding-left: 1.25rem; margin-bottom: 0.3em; }}
+    .scope-card__itens li::before {{ content: "✓"; position: absolute; left: 0; color: #1d4ed8; font-weight: 700; font-size: 0.85rem; }}
     .section--differentials {{ padding: 40px 30px; }}
     .section--differentials .section__subtitulo {{ margin-bottom: 22px; }}
-    .diff-grid {{ display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); margin-top: 12px; }}
+    .diff-grid {{ display: grid; gap: 20px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 12px; }}
     .diff-card {{ background: #fff; border-radius: 18px; border: 1px solid #e2e8f0; padding: 22px 20px; box-shadow: 0 6px 22px rgba(15, 23, 42, 0.06); display: flex; flex-direction: column; gap: 8px; }}
-    .diff-card__icon-wrap {{ width: 44px; height: 44px; border-radius: 14px; background: linear-gradient(145deg, #fee2e2, #fef3c7); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 4px; }}
+    .diff-card__icon-wrap {{ width: 44px; height: 44px; border-radius: 14px; background: linear-gradient(145deg, #eff6ff, #dbeafe); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 4px; }}
     .diff-card__icon {{ font-size: 1.35rem; }}
     .diff-card__title {{ margin: 0; font-size: 1.02rem; font-weight: 700; color: #0f172a; }}
     .diff-card__desc {{ margin: 0; font-size: 0.9rem; color: #64748b; line-height: 1.55; }}
@@ -843,8 +846,8 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
     .plan-card:hover {{ border-color: #cbd5e1; box-shadow: 0 10px 32px rgba(15, 23, 42, 0.08); }}
     .plan-card.destaque {{ border-color: #1d4ed8; box-shadow: 0 16px 48px rgba(29, 78, 216, 0.2); background: linear-gradient(180deg, #fff 0%, #f0f7ff 100%); transform: scale(1.02); }}
     .plan-card.destaque:hover {{ box-shadow: 0 20px 52px rgba(29, 78, 216, 0.24); }}
-    .plan-card__badge {{ position: absolute; top: 16px; right: 16px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: #1d4ed8; color: #fff; padding: 6px 12px; border-radius: 20px; }}
-    .plan-card__nome {{ margin: 0 0 8px; font-size: 1.3rem; font-weight: 700; color: #0f172a; }}
+    .plan-card__badge {{ position: absolute; top: 16px; right: 16px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; background: #1d4ed8; color: #fff; padding: 5px 12px; border-radius: 20px; box-shadow: 0 2px 10px rgba(29,78,216,0.4); }}
+    .plan-card__nome {{ margin: 0 0 8px; font-size: 1.3rem; font-weight: 700; color: #0f172a; font-family: "Plus Jakarta Sans", "Inter", sans-serif; }}
     .plan-card__sub {{ margin: 0 0 18px; font-size: 0.88rem; color: #64748b; }}
     .plan-card__beneficios {{ margin: 0 0 20px; padding-left: 0; list-style: none; font-size: 0.92rem; color: #475569; line-height: 1.65; flex: 1; }}
     .plan-card__beneficios li {{ display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }}
@@ -858,10 +861,10 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
     .clientes-image {{ display: block; width: 100%; height: auto; object-fit: contain; }}
     .clientes-image--placeholder {{ margin-top: 16px; height: 260px; border-radius: 18px; background: radial-gradient(circle at top left, #1d4ed8, #0f172a); box-shadow: 0 14px 40px rgba(15, 23, 42, 0.18); }}
     .cta-final {{ text-align: center; padding: 52px 32px; background: linear-gradient(145deg, #0f172a 0%, #1e3a5f 100%); color: #fff; border: none; border-radius: 20px; }}
-    .cta-final__titulo {{ margin: 0 0 14px; font-size: 1.75rem; font-weight: 800; color: #fff; letter-spacing: -0.02em; }}
+    .cta-final__titulo {{ margin: 0 0 14px; font-size: 1.75rem; font-weight: 800; color: #fff; letter-spacing: -0.02em; font-family: "Plus Jakarta Sans", "Inter", sans-serif; }}
     .cta-final__texto {{ margin: 0 0 32px; opacity: 0.94; font-size: 1.05rem; max-width: 440px; margin-left: auto; margin-right: auto; line-height: 1.55; }}
     .cta-final__btns {{ display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }}
-    .btn {{ display: inline-flex; align-items: center; justify-content: center; padding: 6px 14px; border-radius: 999px; font-weight: 500; font-size: 0.78rem; text-decoration: none; border: none; cursor: pointer; transition: all .2s ease; }}
+    .btn {{ display: inline-flex; align-items: center; justify-content: center; padding: 11px 24px; border-radius: 999px; font-weight: 600; font-size: 0.9rem; text-decoration: none; border: none; cursor: pointer; transition: all .2s ease; letter-spacing: 0.01em; }}
     .btn:active {{ transform: scale(0.98); }}
     .btn:hover {{ filter: brightness(1.06); }}
     .btn-disabled, .btn.btn-disabled {{ opacity: 0.6; cursor: not-allowed; pointer-events: none; filter: none; }}
@@ -885,6 +888,7 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
       .scope-grid {{ grid-template-columns: repeat(3, 1fr); }}
     }}
     @media (max-width: 899px) {{
+      .diff-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .method-step:not(:last-child)::after {{ display: none; }}
     }}
     @media (max-width: 899px) and (min-width: 641px) {{

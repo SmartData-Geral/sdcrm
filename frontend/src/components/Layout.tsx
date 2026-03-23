@@ -231,6 +231,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     <div className="app-layout">
       <aside className="sidebar">
         <div className="brand-block">
+          <span className="brand-logo" aria-hidden>
+            <svg viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="3" width="8" height="8" rx="2" fill="#3b82f6" />
+              <rect x="13" y="3" width="8" height="5" rx="2" fill="#60a5fa" />
+              <rect x="13" y="10" width="8" height="11" rx="2" fill="#93c5fd" />
+              <rect x="3" y="13" width="8" height="8" rx="2" fill="#bfdbfe" />
+            </svg>
+          </span>
           <strong className="brand-title">Smart CRM</strong>
         </div>
         {empresas.length > 0 && (
@@ -335,9 +343,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           )}
         </nav>
         <div className="sidebar-footer">
-          <span className="user-name">{user?.usuNome}</span>
-          <button type="button" onClick={logout}>
-            Sair
+          <div className="sidebar-footer-info">
+            <span className="user-name">{user?.usuNome}</span>
+            <span className="user-role">{user?.usuAdmin ? "Administrador" : "Usuário"}</span>
+          </div>
+          <button type="button" className="sidebar-footer-btn" onClick={logout} title="Sair">
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
+            </svg>
           </button>
         </div>
       </aside>

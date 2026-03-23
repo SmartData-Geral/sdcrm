@@ -270,6 +270,30 @@ const OportunidadesKanbanPage: React.FC = () => {
     return temperatura;
   };
 
+  const renderTemperaturaIcon = (temperatura: string | null) => {
+    const t = temperatura?.trim().toLowerCase();
+    if (t === "frio") {
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07" />
+        </svg>
+      );
+    }
+    if (t === "quente") {
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <path d="M12 22c2.5 0 4-2 4-4 0-3-2.5-4.5-2.5-8C13 8 14 6 14 4c-1 1-2 3-2 5 0-2-1.5-3.5-1.5-5C9 6 8 8 8 10c0 2 2 3 2 5 0 1-.5 2-1 2.5.5-1 .5-2.5-.5-3.5C7.5 16 8 18 8 18c0 2 1.5 4 4 4z" />
+        </svg>
+      );
+    }
+    // morno ou sem temperatura
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden>
+        <path d="M14 14.76V5a2 2 0 10-4 0v9.76a4 4 0 104 0z" />
+      </svg>
+    );
+  };
+
   const renderCard = (opo: OportunidadeItem) => {
     const responsavel = opo.opoUsuResponsavelId != null ? usuariosById.get(opo.opoUsuResponsavelId) : undefined;
     const produto = opo.opoProId != null ? produtosById.get(opo.opoProId) : undefined;
@@ -312,9 +336,7 @@ const OportunidadesKanbanPage: React.FC = () => {
               title={`Temperatura: ${getTemperaturaLabel(opo.opoTemperatura)}`}
               aria-label={`Temperatura: ${getTemperaturaLabel(opo.opoTemperatura)}`}
             >
-              <svg viewBox="0 0 24 24" aria-hidden>
-                <path d="M14 14.76V5a2 2 0 10-4 0v9.76a4 4 0 104 0z" />
-              </svg>
+              {renderTemperaturaIcon(opo.opoTemperatura)}
             </span>
           </div>
         </div>
@@ -427,7 +449,7 @@ const OportunidadesKanbanPage: React.FC = () => {
             </button>
             <button
               type="button"
-              className="icon-btn"
+              className="icon-btn icon-btn--primary"
               aria-label="Nova oportunidade"
               title="Nova oportunidade"
               onClick={openCreate}
@@ -459,10 +481,20 @@ const OportunidadesKanbanPage: React.FC = () => {
       />
 
       <div className="kanban-summary">
-        <span className="kanban-summary-item">Oportunidades: {oportunidadesVisiveis.length}</span>
         <span className="kanban-summary-item">
+          <svg viewBox="0 0 24 24">
+            <path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h11a2 2 0 012 2v3M13 21h8M17 17v8M3 10h13" />
+          </svg>
+          Pipeline: <strong>{oportunidadesVisiveis.length}</strong>
+        </span>
+        <span className="kanban-summary-item">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2a10 10 0 100 20A10 10 0 0012 2zM12 6v6l4 2" />
+          </svg>
           Valor total:{" "}
-          {totalValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 })}
+          <strong>
+            {totalValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 })}
+          </strong>
         </span>
       </div>
 
@@ -512,6 +544,15 @@ const OportunidadesKanbanPage: React.FC = () => {
                     <div className="kanban-card-meta">Solte aqui para mover</div>
                   </div>
                 )}
+              {byEtapa(etapa.etkId).length === 0 && !draggingOportunidade && (
+                <div className="kanban-column-empty" aria-hidden>
+                  <svg viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <path d="M12 8v8M8 12h8" />
+                  </svg>
+                  <span>Nenhuma oportunidade</span>
+                </div>
+              )}
               {byEtapa(etapa.etkId).map((opo) => renderCard(opo))}
             </div>
           </div>
@@ -534,6 +575,15 @@ const OportunidadesKanbanPage: React.FC = () => {
               </div>
             </div>
             <div className="kanban-column-cards">
+              {byEtapa(null).length === 0 && !draggingOportunidade && (
+                <div className="kanban-column-empty" aria-hidden>
+                  <svg viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <path d="M12 8v8M8 12h8" />
+                  </svg>
+                  <span>Nenhuma oportunidade</span>
+                </div>
+              )}
               {byEtapa(null).map((opo) => renderCard(opo))}
             </div>
           </div>
