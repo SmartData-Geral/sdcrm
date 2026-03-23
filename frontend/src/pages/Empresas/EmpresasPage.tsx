@@ -9,7 +9,7 @@ import ListingToolbar from "../../components/ListingToolbar";
 import ListingTableCard from "../../components/ListingTableCard";
 import PaginationBar from "../../components/PaginationBar";
 import { useAuth } from "../../contexts/AuthContext";
-import { getAvatarSrc } from "../../utils/api";
+import { getMediaSrc } from "../../utils/api";
 
 interface EmpresaItem {
   empId: number;
@@ -215,7 +215,7 @@ const EmpresasPage: React.FC = () => {
           {form.empLogoUrl && (
             <div className="empresa-logo-preview">
               <p className="muted-text">Pré-visualização:</p>
-              <img src={getAvatarSrc(form.empLogoUrl) || ""} alt="Logo da empresa" />
+              <img src={getMediaSrc(form.empLogoUrl, "company-logos") || ""} alt="Logo da empresa" />
             </div>
           )}
           <div className="modal-actions">

@@ -81,6 +81,17 @@ def _normalize_public_static_url(url: str | None) -> str:
         return ""
     if raw.startswith(("http://", "https://", "data:", "blob:", "//")):
         return raw
+    if raw.startswith("api/static/"):
+        raw = f"/{raw}"
+    if raw.startswith("static/"):
+        raw = f"/{raw}"
+    if raw.startswith("/uploads/"):
+        raw = f"/static/{raw.removeprefix('/uploads/')}"
+    if raw.startswith("uploads/"):
+        raw = f"/static/{raw.removeprefix('uploads/')}"
+    if "/" not in raw and re.search(r"\.(?:png|jpe?g|webp|gif|svg)$", raw, re.IGNORECASE):
+        # Compatibilidade com registros antigos que persistiram apenas o nome do arquivo.
+        raw = f"/static/proposal-images/{raw}"
     if raw.startswith("/api/static/"):
         raw = raw.replace("/api/static/", "/static/", 1)
 
@@ -116,31 +127,38 @@ def _default_config(tipo: str) -> dict:
     base = {
         "hero": {
             "titulo": "Proposta Smart Data",
-            "subtitulo": "Transformacao digital orientada por dados",
+            "subtitulo": "Impulsionando Resultados com Soluções Inteligentes",
         },
         "apresentacao": {
-            "titulo": "Contexto",
-            "texto": "Estruturamos uma proposta objetiva, visual e adaptada ao seu momento.",
+            "titulo": "A Smart Data",
+            "texto": (
+                "Smart Data é o parceiro ideal para empresas que buscam inovação e eficiência.\n"
+                "Desde 2020, nos destacamos com soluções avançadas em Business Intelligence e Dados e também no desenvolvimento\n"
+                "personalizado de softwares que atendem às necessidades específicas de cada cliente.\n"
+                "Nossa abordagem combina tecnologia com um profundo entendimento dos desafios empresariais, permitindo que nossos clientes "
+                "otimizem processos e alcancem resultados superiores."
+            ),
+            "imagemUrl": "/static/proposal-images/998d57eee88841cfa83b918e75a27d2f.png",
         },
         "metodologia": {
-            "titulo": "Por que escolher a Smart Data",
-            "subtitulo": "Soluções pensadas para gerar eficiência, integração e resultado real para a sua operação.",
+            "titulo": "Por que empresas como a sua confiam na Smart Data?",
+            "subtitulo": "+100 empresas atendidas | +15 segmentos | Projetos em Dados, Softwares, RPA e IA",
             "itens": [
                 {
-                    "titulo": "Experiência multissetorial",
+                    "titulo": "Experiência Multissetorial",
                     "descricao": "Já automatizamos rotinas em mais de 15 segmentos, entendendo a fundo os desafios de cada tipo de operação.",
                     "icone": "experiencia",
                     "ordem": 1,
                 },
                 {
-                    "titulo": "Soluções personalizadas",
-                    "descricao": "Desenvolvemos sistemas sob medida para o seu processo, sem depender de planilhas genéricas.",
+                    "titulo": "100% Personalizados",
+                    "descricao": "Desenvolvemos sistemas do zero para o seu processo, sem limitar sua empresa a templates prontos ou funcionalidades genéricas.",
                     "icone": "personalizacao",
                     "ordem": 2,
                 },
                 {
-                    "titulo": "Integrações completas",
-                    "descricao": "Conectamos seu CRM, ERP e demais sistemas em um fluxo único de dados, reduzindo retrabalho.",
+                    "titulo": "Integrações Completas",
+                    "descricao": "Unimos seu novo sistema com o que você já usa: ERP, CRM, planilhas ou outras ferramentas. Tudo se conecta, sem retrabalho.",
                     "icone": "integracoes",
                     "ordem": 3,
                 },
@@ -154,8 +172,8 @@ def _default_config(tipo: str) -> dict:
         },
         "clientes": {
             "titulo": "Clientes",
-            "subtitulo": "Empresas que escolheram dados e processo para crescer",
-            "imagemUrl": None,
+            "subtitulo": "Empresas que já confiam e crescem com a Smart Data",
+            "imagemUrl": "/static/proposal-images/db19573ee526402cb15dc7668043a173.png",
         },
         "cta_final": {
             "titulo": "Vamos colocar isso em prática?",
@@ -572,15 +590,18 @@ def _render_public_html(proposta: Proposta, whatsapp_number: str | None, empresa
 
     cliente_nome = (proposta.prpNomeContato or "").strip()
     default_hero_title = f"Proposta Smart Data{(' | ' + cliente_nome) if cliente_nome else ''}"
+    hero_logo_cfg = _normalize_public_static_url(str(hero.get("logoUrl") or ""))
+    fallback_logo = _normalize_public_static_url("/static/proposal-images/smart-data-logo-branca-vertical.png")
+    hero_logo_final = hero_logo_cfg or empresa_logo_url or fallback_logo
     hero_title = str(hero.get("titulo") or default_hero_title or proposta.prpTitulo)
     hero_sub = str(hero.get("subtitulo", ""))
     hero_valor = str(hero.get("frase_valor") or "").strip()
     hero_valor_html = f'<p class="hero__valor">{hero_valor}</p>' if hero_valor else ""
     brand_html = (
         f'<div class="hero__brand-row">'
-        f'<img src="{empresa_logo_url}" alt="Logo da empresa" class="hero__logo" />'
+        f'<img src="{hero_logo_final}" alt="Logo da empresa" class="hero__logo" />'
         f'</div>'
-        if empresa_logo_url
+        if hero_logo_final
         else '<p class="hero__brand-text">SMART DATA · PROPOSTA COMERCIAL</p>'
     )
     hero_section = (
@@ -1125,6 +1146,12 @@ def create_proposta(db: Session, data: PropostaCreate, company_id: Optional[int]
         tipo_proposta = template.ptlTipoProposta
     else:
         config = data.prpJsonConfiguracao or _default_config(data.prpTipo)
+        hero_cfg = (config.get("hero") or {}) if isinstance(config, dict) else {}
+        if isinstance(hero_cfg, dict):
+            opportunity_name = (oportunidade.opoTitulo or "").strip()
+            if opportunity_name:
+                hero_cfg["titulo"] = f"Proposta Smart Data | {opportunity_name}"
+            config["hero"] = hero_cfg
         tipo_proposta = data.prpTipo
     proposta = Proposta(
         prpEmpId=oportunidade.opoEmpId,

@@ -1,3 +1,5 @@
+import os
+import shutil
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
@@ -72,14 +74,47 @@ app.include_router(crm_dashboard_router.router)
 app.include_router(escopo_ai_router.router)
 app.include_router(reuniao_analise_router.router)
 
-# Pasta de uploads (avatars) e rota estática
-UPLOADS_DIR = Path(__file__).resolve().parent / "uploads"
+def _resolve_uploads_dir() -> Path:
+    configured = (os.getenv("SDCRM_UPLOADS_DIR") or os.getenv("UPLOADS_DIR") or "").strip()
+    if configured:
+        return Path(configured).expanduser().resolve()
+    return Path(__file__).resolve().parent / "uploads"
+
+
+# Pasta de uploads (avatars/logos/imagens) e rota estática.
+# Em produção, configure SDCRM_UPLOADS_DIR para usar um volume persistente.
+UPLOADS_DIR = _resolve_uploads_dir()
 AVATARS_DIR = UPLOADS_DIR / "avatars"
 LOGOS_DIR = UPLOADS_DIR / "company-logos"
 PROPOSAL_IMAGES_DIR = UPLOADS_DIR / "proposal-images"
 AVATARS_DIR.mkdir(parents=True, exist_ok=True)
 LOGOS_DIR.mkdir(parents=True, exist_ok=True)
 PROPOSAL_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _seed_default_proposal_images() -> None:
+    """
+    Copia imagens padrão versionadas no repositório para /static/proposal-images.
+    Isso evita necessidade de reupload para os defaults da proposta base.
+    """
+    project_root = Path(__file__).resolve().parent.parent
+    source_dir = project_root / "images"
+    if not source_dir.exists():
+        return
+
+    seed_map = {
+        "Grupo SD (3).png": "998d57eee88841cfa83b918e75a27d2f.png",
+        "Clientes.png": "db19573ee526402cb15dc7668043a173.png",
+        "Logo Branca Vertical.png": "smart-data-logo-branca-vertical.png",
+    }
+    for source_name, target_name in seed_map.items():
+        source_path = source_dir / source_name
+        target_path = PROPOSAL_IMAGES_DIR / target_name
+        if source_path.exists() and not target_path.exists():
+            shutil.copy2(source_path, target_path)
+
+
+_seed_default_proposal_images()
 # Servimos arquivos estáticos (avatars) em dois caminhos:
 # - /static        -> uso atual
 # - /api/static    -> compatibilidade com URLs antigas gravadas no banco

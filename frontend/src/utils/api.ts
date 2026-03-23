@@ -42,11 +42,42 @@ export function getPublicProposalUrl(token: string): string {
   return `${getPublicBaseUrl()}/public/propostas/${token}`;
 }
 
-/** Retorna a URL completa para exibir um avatar (aceita path relativo ou URL absoluta). */
+function looksLikeImageFileName(value: string): boolean {
+  return !value.includes("/") && /\.(png|jpe?g|webp|gif|svg)$/i.test(value);
+}
+
+function normalizeStaticMediaPath(value: string, fallbackFolder?: "avatars" | "company-logos" | "proposal-images"): string {
+  let path = value.trim();
+  if (!path) return "";
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:") || path.startsWith("blob:") || path.startsWith("//")) {
+    return path;
+  }
+  if (path.startsWith("/api/static/")) path = path.replace("/api/static/", "/static/");
+  if (path.startsWith("api/static/")) path = `/${path.replace(/^api\/static\//, "static/")}`;
+  if (path.startsWith("static/")) path = `/${path}`;
+  if (path.startsWith("/uploads/")) path = `/static/${path.slice("/uploads/".length)}`;
+  if (path.startsWith("uploads/")) path = `/static/${path.slice("uploads/".length)}`;
+  if (fallbackFolder && looksLikeImageFileName(path)) path = `/static/${fallbackFolder}/${path}`;
+  if (!path.startsWith("/") && !path.startsWith("http")) path = `/${path}`;
+  return path;
+}
+
+export function getMediaSrc(
+  mediaUrl: string | null | undefined,
+  fallbackFolder?: "avatars" | "company-logos" | "proposal-images"
+): string | undefined {
+  if (!mediaUrl) return undefined;
+  const normalized = normalizeStaticMediaPath(mediaUrl, fallbackFolder);
+  if (!normalized) return undefined;
+  if (normalized.startsWith("http://") || normalized.startsWith("https://") || normalized.startsWith("data:") || normalized.startsWith("blob:") || normalized.startsWith("//")) {
+    return normalized;
+  }
+  return getStaticBaseUrl() + normalized;
+}
+
+/** Retorna a URL completa para exibir avatar, inclusive formatos antigos de path. */
 export function getAvatarSrc(avatarUrl: string | null | undefined): string | undefined {
-  if (!avatarUrl) return undefined;
-  if (avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://")) return avatarUrl;
-  return getStaticBaseUrl() + (avatarUrl.startsWith("/") ? avatarUrl : "/" + avatarUrl);
+  return getMediaSrc(avatarUrl, "avatars");
 }
 
 export function createApiClient(
