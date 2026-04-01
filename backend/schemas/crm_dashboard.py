@@ -29,6 +29,7 @@ class CrmDashboardCards(BaseModel):
     taxaConversao: float
     ativas: int
     valorAtivas: float
+    forecastAtivas: float
     mrrIncremental: float
     mrrIncremental12m: float
     mrrIncrementalUltimoMes: float

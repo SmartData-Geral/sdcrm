@@ -42,6 +42,11 @@ export function getPublicProposalUrl(token: string): string {
   return `${getPublicBaseUrl()}/public/propostas/${token}`;
 }
 
+/** Monta URL pública completa para um contrato pelo token. */
+export function getPublicContractUrl(token: string): string {
+  return `${getPublicBaseUrl()}/public/contratos/${token}`;
+}
+
 function looksLikeImageFileName(value: string): boolean {
   return !value.includes("/") && /\.(png|jpe?g|webp|gif|svg)$/i.test(value);
 }

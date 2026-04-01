@@ -28,3 +28,14 @@ class Empresa(Base):
         back_populates="empresa",
     )
 
+    contratos_modelo: Mapped[list["ContratoModelo"]] = relationship(
+        "ContratoModelo",
+        back_populates="empresa",
+        cascade="all, delete-orphan",
+    )
+    contratos: Mapped[list["Contrato"]] = relationship(
+        "Contrato",
+        back_populates="empresa",
+        cascade="all, delete-orphan",
+    )
+

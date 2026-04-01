@@ -20,6 +20,38 @@ from ..schemas.crm_dashboard import (
 )
 
 
+def _forecast_temperature_multiplier(temperatura: str | None) -> float:
+    value = (temperatura or "").strip().lower()
+    if value == "quente":
+        return 0.75
+    if value == "morno":
+        return 0.50
+    if value == "frio":
+        return 0.25
+    return 0.0
+
+
+def _forecast_score_multiplier(score: int | None) -> float:
+    if score is None:
+        return 0.0
+    normalized_score = max(0, min(score, 10))
+    return normalized_score / 10
+
+
+def _calculate_forecast_value(
+    valor_oportunidade: float | None,
+    temperatura: str | None,
+    lead_score: int | None,
+) -> float:
+    if valor_oportunidade is None or valor_oportunidade <= 0:
+        return 0.0
+    return (
+        float(valor_oportunidade)
+        * _forecast_temperature_multiplier(temperatura)
+        * _forecast_score_multiplier(lead_score)
+    )
+
+
 def _build_status_filter(status: str | None):
     if status is None or status == "todas":
         return None
@@ -337,6 +369,23 @@ def _query_cards(
     ativas_row = db.execute(ativas_stmt).first()
     ativas_total = int(ativas_row.qtd) if ativas_row is not None else 0  # type: ignore[attr-defined]
     valor_ativas_total = float(ativas_row.valor) if ativas_row is not None else 0.0  # type: ignore[attr-defined]
+    forecast_stmt = select(
+        Oportunidade.opoValorOportunidade,
+        Oportunidade.opoTemperatura,
+        Oportunidade.opoLeadScore,
+    ).where(
+        *ativas_conditions,
+        Oportunidade.opoAtivo.is_(True),
+    )
+    forecast_rows = db.execute(forecast_stmt).all()
+    forecast_ativas_total = sum(
+        _calculate_forecast_value(
+            row.opoValorOportunidade,
+            row.opoTemperatura,
+            row.opoLeadScore,
+        )
+        for row in forecast_rows
+    )
 
     # MRR incremental: oportunidades fechadas com opoFechadoRecorrencia <> 1
     mrr_conditions = list(fechadas_conditions)
@@ -441,6 +490,7 @@ def _query_cards(
         taxaConversao=round(taxa_conversao, 2),
         ativas=ativas_total,
         valorAtivas=float(round(valor_ativas_total, 2)),
+        forecastAtivas=float(round(forecast_ativas_total, 2)),
         mrrIncremental=float(round(mrr_total, 2)),
         mrrIncremental12m=float(round(mrr_12m, 2)),
         mrrIncrementalUltimoMes=float(round(mrr_ultimo_mes, 2)),

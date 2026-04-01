@@ -10,6 +10,7 @@ from .config import settings
 from .dependencies import CurrentUserDep, require_admin
 from .routers import (
     auth_router,
+    contrato_router,
     como_conheceu_router,
     crm_dashboard_router,
     escopo_ai_router,
@@ -32,30 +33,27 @@ app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG)
 allow_origins = [str(o) for o in settings.ALLOW_ORIGINS]
 
 # Facilita desenvolvimento local (localhost/127 e webviews com origin "null")
-for local_origin in ("http://127.0.0.1:5173", "http://localhost:5173"):
+for local_origin in (
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+    "http://127.0.0.1:5174",
+    "http://localhost:5174",
+):
     if local_origin not in allow_origins:
         allow_origins.append(local_origin)
 if settings.DEBUG and "null" not in allow_origins:
     allow_origins.append("null")
 
-if settings.DEBUG:
-    # Ambiente de desenvolvimento: liberar totalmente CORS para facilitar integração local.
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-else:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=allow_origins,
-        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?$",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+app.add_middleware(
+    CORSMiddleware,
+    # Importante: com allow_credentials=True, não podemos usar allow_origins=["*"].
+    # Em dev, garantimos localhost/127.0.0.1 acima; em prod, use ALLOW_ORIGINS no .env.
+    allow_origins=allow_origins,
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(health_router.router)
 app.include_router(auth_router.router)
@@ -66,6 +64,7 @@ app.include_router(produto_router.router)
 app.include_router(etapa_kanban_router.router)
 app.include_router(oportunidade_router.router)
 app.include_router(proposta_router.router)
+app.include_router(contrato_router.router)
 app.include_router(proposta_escopo_sugestao_router.router)
 app.include_router(historico_oportunidade_router.router)
 app.include_router(llm_agente_router.router)
@@ -87,9 +86,11 @@ UPLOADS_DIR = _resolve_uploads_dir()
 AVATARS_DIR = UPLOADS_DIR / "avatars"
 LOGOS_DIR = UPLOADS_DIR / "company-logos"
 PROPOSAL_IMAGES_DIR = UPLOADS_DIR / "proposal-images"
+CONTRATOS_PDFS_DIR = UPLOADS_DIR / "contratos-pdfs"
 AVATARS_DIR.mkdir(parents=True, exist_ok=True)
 LOGOS_DIR.mkdir(parents=True, exist_ok=True)
 PROPOSAL_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+CONTRATOS_PDFS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _seed_default_proposal_images() -> None:

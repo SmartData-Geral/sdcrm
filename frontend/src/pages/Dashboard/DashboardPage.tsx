@@ -19,6 +19,7 @@ interface CrmDashboardCards {
   taxaConversao: number;
   ativas: number;
   valorAtivas: number;
+  forecastAtivas: number;
   mrrIncremental: number;
   mrrIncremental12m: number;
   mrrIncrementalUltimoMes: number;
@@ -313,6 +314,10 @@ const DashboardPage: React.FC = () => {
                 <span className="dashboard-card-subvalue">
                   <span>Valor pipeline</span>
                   <span>{formatCurrencyBRL(cards.valorAtivas)}</span>
+                </span>
+                <span className="dashboard-card-subvalue">
+                  <span>Forecast</span>
+                  <span>{formatCurrencyBRL(cards.forecastAtivas)}</span>
                 </span>
               </div>
             </div>

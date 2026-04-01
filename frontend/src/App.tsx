@@ -13,6 +13,9 @@ import OportunidadesKanbanPage from "./pages/Oportunidades/OportunidadesKanbanPa
 import PropostaEditorPage from "./pages/Propostas/PropostaEditorPage";
 import PropostasCadastrosPage from "./pages/Propostas/PropostasCadastrosPage";
 import LlmAgentesPage from "./pages/LlmAgentes/LlmAgentesPage";
+import ContratosCadastrosPage from "./pages/Contratos/ContratosCadastrosPage";
+import ContratoNovoPage from "./pages/Contratos/ContratoNovoPage";
+import ContratoEditorPage from "./pages/Contratos/ContratoEditorPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 function App() {
@@ -120,6 +123,38 @@ function App() {
         element={
           <ProtectedRoute>
             <LlmAgentesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cadastros/contratos"
+        element={
+          <ProtectedRoute>
+            <ContratosCadastrosPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/contratos/novo"
+        element={
+          <ProtectedRoute>
+            <ContratoNovoPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/oportunidades/:opoId/contrato/novo"
+        element={
+          <ProtectedRoute>
+            <ContratoNovoPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/contratos/:ctrId/editor"
+        element={
+          <ProtectedRoute>
+            <ContratoEditorPage />
           </ProtectedRoute>
         }
       />

@@ -4606,3 +4606,63 @@ label {
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================
+   Contratos - UX clausulas
+   ========================= */
+
+.clause-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.clause-card {
+  background: var(--surface);
+  border: 1px solid rgba(229, 231, 235, 0.95);
+  border-radius: var(--radius-lg);
+  padding: 14px 14px;
+  box-shadow: var(--shadow-soft);
+}
+
+.clause-card--inactive {
+  background: var(--surface-soft);
+  opacity: 0.78;
+}
+
+.clause-card[draggable="true"] {
+  cursor: grab;
+}
+
+.clause-card:active[draggable="true"] {
+  cursor: grabbing;
+}
+
+.clause-order-badge {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  font-weight: 800;
+  color: var(--brand-dark);
+  flex-shrink: 0;
+}
+
+.variation-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 10px;
+  border: 1px solid rgba(229, 231, 235, 0.95);
+  border-radius: 12px;
+  background: var(--surface);
+  margin-bottom: 8px;
+}
+
+.variation-row:last-child {
+  margin-bottom: 0;
+}

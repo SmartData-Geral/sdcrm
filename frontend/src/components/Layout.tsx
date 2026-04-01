@@ -101,6 +101,13 @@ function getHeaderData(pathname: string): HeaderData {
       description: "Configure prompts de sistema, provider e modelo LLM por fluxo.",
     };
   }
+  if (pathname.startsWith("/cadastros/contratos")) {
+    return {
+      breadcrumb: ["Dashboard", "Cadastros", "Contratos"],
+      title: "Cadastros de Contratos",
+      description: "Gerencie modelos base, cláusulas e variações para geração de contratos.",
+    };
+  }
   if (pathname.startsWith("/oportunidades")) {
     return {
       breadcrumb: ["Dashboard", "CRM", "Oportunidades"],
@@ -113,6 +120,20 @@ function getHeaderData(pathname: string): HeaderData {
       breadcrumb: ["Dashboard", "CRM", "Empresas"],
       title: "Empresas",
       description: "Gerencie as empresas habilitadas no ambiente.",
+    };
+  }
+  if (pathname.startsWith("/contratos/novo")) {
+    return {
+      breadcrumb: ["Dashboard", "CRM", "Contratos"],
+      title: "Novo contrato (avulso)",
+      description: "Crie um contrato avulso a partir de um modelo base.",
+    };
+  }
+  if (pathname.startsWith("/contratos/")) {
+    return {
+      breadcrumb: ["Dashboard", "CRM", "Contratos"],
+      title: "Contrato",
+      description: "Edite o contrato e prepare o preview.",
     };
   }
   if (pathname.startsWith("/usuarios")) {
@@ -203,6 +224,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         next = { ...prev, crm: true };
         setStoredOpen(next);
       }
+      if (path.startsWith("/contratos") && !prev.crm) {
+        next = { ...prev, crm: true };
+        setStoredOpen(next);
+      }
       if (
         (path.startsWith("/como-conheceu") ||
           path.startsWith("/motivos-cancelamento") ||
@@ -210,6 +235,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           path.startsWith("/etapas-kanban") ||
           path.startsWith("/cadastros/propostas") ||
           path.startsWith("/cadastros/agentes-ia") ||
+          path.startsWith("/cadastros/contratos") ||
           path.startsWith("/empresas")) &&
         !prev.cadastros
       ) {
@@ -287,6 +313,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 <NavLink to="/oportunidades-kanban" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
                   Kanban
                 </NavLink>
+                <NavLink to="/contratos/novo" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
+                  Contratos (avulso)
+                </NavLink>
               </div>
             )}
           </div>
@@ -320,6 +349,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 </NavLink>
                 <NavLink to="/cadastros/propostas" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
                   Propostas
+                </NavLink>
+                <NavLink to="/cadastros/contratos" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
+                  Contratos
                 </NavLink>
                 <NavLink to="/cadastros/agentes-ia" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
                   Agentes

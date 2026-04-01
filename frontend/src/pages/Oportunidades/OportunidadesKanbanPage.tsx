@@ -8,6 +8,7 @@ import ListingToolbar from "../../components/ListingToolbar";
 import AvatarSelect from "../../components/AvatarSelect";
 import UserAvatar from "../../components/UserAvatar";
 import { useAuth } from "../../contexts/AuthContext";
+import { calculateForecastValue } from "../../utils/forecast";
 
 interface OportunidadeItem {
   opoId: number;
@@ -208,6 +209,15 @@ const OportunidadesKanbanPage: React.FC = () => {
 
   const totalValor = useMemo(
     () => oportunidadesVisiveis.reduce((acc, o) => acc + (o.opoValorOportunidade ?? 0), 0),
+    [oportunidadesVisiveis]
+  );
+
+  const totalForecast = useMemo(
+    () =>
+      oportunidadesVisiveis.reduce(
+        (acc, o) => acc + calculateForecastValue(o.opoValorOportunidade, o.opoTemperatura, o.opoLeadScore),
+        0
+      ),
     [oportunidadesVisiveis]
   );
 
@@ -494,6 +504,15 @@ const OportunidadesKanbanPage: React.FC = () => {
           Valor total:{" "}
           <strong>
             {totalValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 })}
+          </strong>
+        </span>
+        <span className="kanban-summary-item">
+          <svg viewBox="0 0 24 24">
+            <path d="M4 19h16M7 15l3-3 3 2 4-5" />
+          </svg>
+          Forecast:{" "}
+          <strong>
+            {totalForecast.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 })}
           </strong>
         </span>
       </div>

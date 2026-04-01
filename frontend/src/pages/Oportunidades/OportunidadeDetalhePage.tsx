@@ -25,6 +25,7 @@ import {
 } from "../../components/oportunidades/OportunidadeIconButton";
 import { useAuth } from "../../contexts/AuthContext";
 import { getPublicProposalUrl } from "../../utils/api";
+import { ContratoItem } from "../../components/contratos/wizardTypes";
 
 interface OportunidadeDetail {
   opoId: number;
@@ -93,7 +94,7 @@ interface PropostaTemplateItem {
   ptlAtivo: boolean;
 }
 
-type OportunidadeDetailTab = "geral" | "reunioes" | "propostas";
+type OportunidadeDetailTab = "geral" | "reunioes" | "propostas" | "contrato";
 
 const OportunidadeDetalhePage: React.FC = () => {
   const { opoId } = useParams<{ opoId: string }>();
@@ -140,6 +141,8 @@ const OportunidadeDetalhePage: React.FC = () => {
   const [propostas, setPropostas] = useState<PropostaItem[]>([]);
   const [loadingPropostas, setLoadingPropostas] = useState(false);
   const [templates, setTemplates] = useState<PropostaTemplateItem[]>([]);
+  const [contrato, setContrato] = useState<ContratoItem | null>(null);
+  const [loadingContrato, setLoadingContrato] = useState(false);
   const [isNovaPropostaModalOpen, setIsNovaPropostaModalOpen] = useState(false);
   const [novaPropostaForm, setNovaPropostaForm] = useState({
     prpTitulo: "",
@@ -223,6 +226,24 @@ const OportunidadeDetalhePage: React.FC = () => {
 
   useEffect(() => {
     if (oportunidade) void loadPropostas();
+  }, [oportunidade?.opoId]);
+
+  const loadContrato = async () => {
+    if (!id || isNaN(id)) return;
+    setLoadingContrato(true);
+    try {
+      const res = await api.get<ContratoItem>(`/oportunidades/${id}/contrato`);
+      setContrato(res.data);
+    } catch {
+      setContrato(null);
+    } finally {
+      setLoadingContrato(false);
+    }
+  };
+
+  useEffect(() => {
+    if (oportunidade) void loadContrato();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [oportunidade?.opoId]);
 
   useEffect(() => {
@@ -609,6 +630,22 @@ const OportunidadeDetalhePage: React.FC = () => {
               </span>
             ) : null}
           </button>
+          <button
+            type="button"
+            role="tab"
+            id="tab-oportunidade-contrato"
+            aria-selected={detailTab === "contrato"}
+            aria-controls="panel-oportunidade-contrato"
+            className="oportunidade-detail-tab"
+            onClick={() => setDetailTab("contrato")}
+          >
+            Contrato
+            {contrato ? (
+              <span className="oportunidade-detail-tab-badge" aria-hidden>
+                1
+              </span>
+            ) : null}
+          </button>
         </nav>
       </div>
 
@@ -879,6 +916,50 @@ const OportunidadeDetalhePage: React.FC = () => {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+        {detailTab === "contrato" && (
+          <div
+            id="panel-oportunidade-contrato"
+            role="tabpanel"
+            aria-labelledby="tab-oportunidade-contrato"
+            className="oportunidade-detail-stack"
+          >
+            <section className="surface-card details-card">
+              <div className="proposal-section-header">
+                <h2 className="section-title section-title--panel">Contrato</h2>
+              </div>
+
+              {loadingContrato ? (
+                <Loader />
+              ) : contrato ? (
+                <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+                  <div>
+                    <p className="muted-text" style={{ margin: 0 }}>
+                      Status: <strong>{contrato.ctrStatus}</strong>
+                    </p>
+                    <p className="muted-text" style={{ marginTop: 6 }}>
+                      Dados do contrato já estão no snapshot.
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <button type="button" className="btn-primary" onClick={() => navigate(`/contratos/${contrato.ctrId}/editor`)}>
+                      Abrir contrato
+                    </button>
+                    <button type="button" className="btn-primary" disabled title="ETAPA 6: implementar preview/PDF">
+                      Preview/PDF (em breve)
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p className="muted-text">Nenhum contrato criado para esta oportunidade.</p>
+                  <button type="button" className="btn-primary" onClick={() => navigate(`/oportunidades/${id}/contrato/novo`)}>
+                    Criar contrato
+                  </button>
                 </div>
               )}
             </section>

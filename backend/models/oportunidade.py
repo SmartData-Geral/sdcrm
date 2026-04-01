@@ -86,3 +86,9 @@ class Oportunidade(Base):
         back_populates="oportunidade",
         cascade="all, delete-orphan",
     )
+
+    contratos: Mapped[list["Contrato"]] = relationship(
+        "Contrato",
+        back_populates="oportunidade",
+        cascade="all, delete-orphan",
+    )
