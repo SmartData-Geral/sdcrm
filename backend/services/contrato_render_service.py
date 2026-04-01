@@ -141,7 +141,8 @@ def _render_text_to_html_paragraphs(rendered_text_escaped: str) -> str:
                 items.append(f"<li>{content}</li>")
             parts.append(f"<ul>{''.join(items)}</ul>")
         else:
-            parts.append(f"<p>{p.replace('\n', '<br/>')}</p>")
+            paragraph_html = p.replace("\n", "<br/>")
+            parts.append(f"<p>{paragraph_html}</p>")
     return "".join(parts)
 
 

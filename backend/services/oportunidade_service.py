@@ -4,7 +4,7 @@ from typing import Literal, Optional
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..exceptions import NotFoundError
+from ..exceptions import BadRequestError, NotFoundError
 from ..models.etapa_kanban import EtapaKanban
 from ..models.oportunidade import Oportunidade
 from ..models.oportunidade_historico import OportunidadeHistorico
@@ -44,6 +44,38 @@ def _get_nome_etapa(db: Session, etapa_id: int | None, company_id: Optional[int]
     return nome or f"Etapa #{etapa_id}"
 
 
+def _get_etapa(db: Session, etapa_id: int, company_id: Optional[int]) -> EtapaKanban | None:
+    stmt = select(EtapaKanban).where(EtapaKanban.etkId == etapa_id)
+    if company_id is not None:
+        stmt = stmt.where(EtapaKanban.etkEmpId == company_id)
+    return db.scalars(stmt).first()
+
+
+def _get_pipeline_from_etapa_id(db: Session, etapa_id: int | None, company_id: Optional[int]) -> str | None:
+    if etapa_id is None:
+        return None
+    etapa = _get_etapa(db, etapa_id, company_id)
+    if etapa is None:
+        raise BadRequestError("Etapa informada não pertence à empresa selecionada.")
+    return etapa.etkPipeline
+
+
+def _validar_etapa_do_funil(
+    db: Session,
+    etapa_id: int | None,
+    company_id: Optional[int],
+    pipeline_esperado: str | None = None,
+) -> str | None:
+    if etapa_id is None:
+        return pipeline_esperado
+    etapa = _get_etapa(db, etapa_id, company_id)
+    if etapa is None:
+        raise BadRequestError("Etapa informada não pertence à empresa selecionada.")
+    if pipeline_esperado is not None and etapa.etkPipeline != pipeline_esperado:
+        raise BadRequestError("A etapa informada pertence a outro pipeline.")
+    return etapa.etkPipeline
+
+
 def _reativar_standby_vencidos(db: Session, oportunidades: list[Oportunidade]) -> bool:
     today = date.today()
     houve_alteracao = False
@@ -71,6 +103,7 @@ def list_oportunidades(
     db: Session,
     company_id: Optional[int] = None,
     titulo: Optional[str] = None,
+    pipeline: Optional[str] = None,
     status: Literal["ativos", "inativos", "todos"] = "ativos",
     etapa_id: Optional[int] = None,
     responsavel_id: Optional[int] = None,
@@ -82,10 +115,16 @@ def list_oportunidades(
     page_size: int = 20,
 ) -> OportunidadeListResponse:
     stmt = select(Oportunidade)
+    if pipeline:
+        stmt = stmt.join(EtapaKanban, EtapaKanban.etkId == Oportunidade.opoEtkId)
     if company_id is not None:
         stmt = stmt.where(Oportunidade.opoEmpId == company_id)
+        if pipeline:
+            stmt = stmt.where(EtapaKanban.etkEmpId == company_id)
     if titulo:
         stmt = stmt.where(Oportunidade.opoTitulo.ilike(f"%{titulo}%"))
+    if pipeline:
+        stmt = stmt.where(EtapaKanban.etkPipeline == pipeline)
     if status == "ativos":
         stmt = stmt.where(Oportunidade.opoAtivo.is_(True))
     elif status == "inativos":
@@ -141,6 +180,7 @@ def create_oportunidade(
     data: OportunidadeCreate,
     company_id: Optional[int] = None,
 ) -> OportunidadeResponse:
+    _validar_etapa_do_funil(db, data.opoEtkId, company_id)
     obj = Oportunidade(opoEmpId=company_id, **data.model_dump())
     db.add(obj)
     db.flush()
@@ -157,7 +197,11 @@ def update_oportunidade(
     company_id: Optional[int] = None,
 ) -> OportunidadeResponse:
     obj = get_oportunidade(db, opo_id, company_id)
-    for k, v in data.model_dump(exclude_unset=True).items():
+    etapa_atual_pipeline = _get_pipeline_from_etapa_id(db, obj.opoEtkId, company_id)
+    valores = data.model_dump(exclude_unset=True)
+    if "opoEtkId" in valores:
+        _validar_etapa_do_funil(db, valores["opoEtkId"], company_id, etapa_atual_pipeline)
+    for k, v in valores.items():
         setattr(obj, k, v)
     db.add(obj)
     db.commit()
@@ -250,6 +294,8 @@ def mover_etapa(
 ) -> OportunidadeResponse:
     obj = get_oportunidade(db, opo_id, company_id)
     etapa_anterior = obj.opoEtkId
+    pipeline_atual = _get_pipeline_from_etapa_id(db, etapa_anterior, company_id)
+    _validar_etapa_do_funil(db, data.opoEtkId, company_id, pipeline_atual)
     obj.opoEtkId = data.opoEtkId
     if etapa_anterior != data.opoEtkId:
         nome_etapa_anterior = _get_nome_etapa(db, etapa_anterior, company_id)

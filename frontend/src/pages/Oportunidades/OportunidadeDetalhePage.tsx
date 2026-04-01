@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Layout from "../../components/Layout";
 import Loader from "../../components/Loader";
 import Modal from "../../components/Modal";
@@ -25,6 +25,7 @@ import {
 } from "../../components/oportunidades/OportunidadeIconButton";
 import { useAuth } from "../../contexts/AuthContext";
 import { getPublicProposalUrl } from "../../utils/api";
+import { getOportunidadePipelineContext } from "../../utils/oportunidadePipeline";
 import { ContratoItem } from "../../components/contratos/wizardTypes";
 
 interface OportunidadeDetail {
@@ -99,6 +100,8 @@ type OportunidadeDetailTab = "geral" | "reunioes" | "propostas" | "contrato";
 const OportunidadeDetalhePage: React.FC = () => {
   const { opoId } = useParams<{ opoId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const pipelineContext = useMemo(() => getOportunidadePipelineContext(location.pathname), [location.pathname]);
   const { api } = useAuth();
   const [oportunidade, setOportunidade] = useState<OportunidadeDetail | null>(null);
   const [historicos, setHistoricos] = useState<HistoricoItem[]>([]);
@@ -461,7 +464,7 @@ const OportunidadeDetalhePage: React.FC = () => {
     return (
       <Layout>
         <p>Oportunidade não encontrada.</p>
-        <button type="button" onClick={() => navigate("/oportunidades")}>
+        <button type="button" onClick={() => navigate(pipelineContext.listPath)}>
           Voltar
         </button>
       </Layout>
@@ -473,7 +476,7 @@ const OportunidadeDetalhePage: React.FC = () => {
       <div className="oportunidade-page">
       <section className="surface-card oportunidade-context">
         <div className="oportunidade-context-top">
-          <div className="oportunidade-breadcrumb">Dashboard &gt; CRM &gt; Oportunidades</div>
+          <div className="oportunidade-breadcrumb">Dashboard &gt; {pipelineContext.sectionLabel} &gt; Oportunidades</div>
           <div className="oportunidade-title-row">
             <div className="oportunidade-title-edit">
               <input
@@ -518,7 +521,7 @@ const OportunidadeDetalhePage: React.FC = () => {
                 variant="ghost"
                 label="Voltar à lista de oportunidades"
                 icon={<IcoArrowLeft />}
-                onClick={() => navigate("/oportunidades")}
+                onClick={() => navigate(pipelineContext.listPath)}
               />
             </div>
           </div>
@@ -957,7 +960,7 @@ const OportunidadeDetalhePage: React.FC = () => {
               ) : (
                 <div>
                   <p className="muted-text">Nenhum contrato criado para esta oportunidade.</p>
-                  <button type="button" className="btn-primary" onClick={() => navigate(`/oportunidades/${id}/contrato/novo`)}>
+                  <button type="button" className="btn-primary" onClick={() => navigate(pipelineContext.contractNewPath(id))}>
                     Criar contrato
                   </button>
                 </div>

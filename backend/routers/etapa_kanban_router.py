@@ -17,11 +17,18 @@ def listar(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     nome: Optional[str] = Query(default=None),
+    pipeline: Optional[str] = Query(default=None),
     status: Literal["ativos", "inativos", "todos"] = Query(default="ativos"),
 ) -> EtapaKanbanListResponse:
     require_user_in_company(db=db, current_user=current_user, company_id=company_id)
     return etapa_kanban_service.list_etapas_kanban(
-        db, company_id=company_id, nome=nome, status=status, page=page, page_size=page_size
+        db,
+        company_id=company_id,
+        nome=nome,
+        pipeline=pipeline,
+        status=status,
+        page=page,
+        page_size=page_size,
     )
 
 

@@ -95,7 +95,31 @@ function App() {
         }
       />
       <Route
+        path="/upsell/oportunidades"
+        element={
+          <ProtectedRoute>
+            <OportunidadesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/upsell/oportunidades-kanban"
+        element={
+          <ProtectedRoute>
+            <OportunidadesKanbanPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/oportunidades/:opoId"
+        element={
+          <ProtectedRoute>
+            <OportunidadeDetalhePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/upsell/oportunidades/:opoId"
         element={
           <ProtectedRoute>
             <OportunidadeDetalhePage />
@@ -144,6 +168,14 @@ function App() {
       />
       <Route
         path="/oportunidades/:opoId/contrato/novo"
+        element={
+          <ProtectedRoute>
+            <ContratoNovoPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/upsell/oportunidades/:opoId/contrato/novo"
         element={
           <ProtectedRoute>
             <ContratoNovoPage />

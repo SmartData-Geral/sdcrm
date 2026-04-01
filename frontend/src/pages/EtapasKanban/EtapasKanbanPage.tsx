@@ -34,6 +34,7 @@ const EtapasKanbanPage: React.FC = () => {
   const [pageSize] = useState(10);
   const [total, setTotal] = useState(0);
   const [nomeFiltro, setNomeFiltro] = useState("");
+  const [pipelineFiltro, setPipelineFiltro] = useState("");
   const [statusFiltro, setStatusFiltro] = useState<"todos" | "ativos" | "inativos">("ativos");
   const [selected, setSelected] = useState<EtapaKanbanItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -45,6 +46,7 @@ const EtapasKanbanPage: React.FC = () => {
     try {
       const params: Record<string, unknown> = { page, page_size: pageSize, status: statusFiltro };
       if (nomeFiltro.trim()) params.nome = nomeFiltro.trim();
+      if (pipelineFiltro) params.pipeline = pipelineFiltro;
       const res = await api.get<ListResponse>("/etapas-kanban", { params });
       setItems(res.data.items);
       setTotal(res.data.total);
@@ -55,7 +57,7 @@ const EtapasKanbanPage: React.FC = () => {
 
   useEffect(() => {
     void load();
-  }, [page, nomeFiltro, statusFiltro]);
+  }, [page, nomeFiltro, pipelineFiltro, statusFiltro]);
 
   const openCreate = () => {
     setSelected(null);
@@ -128,6 +130,17 @@ const EtapasKanbanPage: React.FC = () => {
                 setNomeFiltro(e.target.value);
               }}
             />
+            <select
+              value={pipelineFiltro}
+              onChange={(e) => {
+                setPage(1);
+                setPipelineFiltro(e.target.value);
+              }}
+            >
+              <option value="">Todos os pipelines</option>
+              <option value="default">CRM padrão</option>
+              <option value="upsell">Upsell</option>
+            </select>
             <select
               value={statusFiltro}
               onChange={(e) => {

@@ -12,6 +12,7 @@ import PaginationBar from "../../components/PaginationBar";
 import OptionalTextareaField from "../../components/OptionalTextareaField";
 import UserAvatar from "../../components/UserAvatar";
 import { useAuth } from "../../contexts/AuthContext";
+import { getOportunidadePipelineContext } from "../../utils/oportunidadePipeline";
 
 interface OportunidadeItem {
   opoId: number;
@@ -77,6 +78,7 @@ const OportunidadesPage: React.FC = () => {
   const { api, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const pipelineContext = useMemo(() => getOportunidadePipelineContext(location.pathname), [location.pathname]);
   const [items, setItems] = useState<OportunidadeItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -129,7 +131,7 @@ const OportunidadesPage: React.FC = () => {
   const loadOportunidades = async () => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page, page_size: pageSize, status: "ativos" };
+      const params: Record<string, unknown> = { page, page_size: pageSize, status: "ativos", pipeline: pipelineContext.pipeline };
       params.status_fechamento = abaStatus;
       if (responsavelFiltro !== null) params.responsavel_id = responsavelFiltro;
       if (solucaoFiltro !== null) params.pro_id = solucaoFiltro;
@@ -149,7 +151,7 @@ const OportunidadesPage: React.FC = () => {
       const results = await Promise.all(
         statuses.map((s) =>
           api.get<ListResponse>("/oportunidades", {
-            params: { status: "ativos", status_fechamento: s, page_size: 1, page: 1 },
+            params: { status: "ativos", status_fechamento: s, page_size: 1, page: 1, pipeline: pipelineContext.pipeline },
           })
         )
       );
@@ -166,7 +168,9 @@ const OportunidadesPage: React.FC = () => {
   const loadCombos = async () => {
     try {
       const [etapasRes, produtosRes, usuariosRes, ccoRes] = await Promise.all([
-        api.get<{ items: EtapaItem[] }>("/etapas-kanban", { params: { page_size: 100, status: "ativos" } }),
+        api.get<{ items: EtapaItem[] }>("/etapas-kanban", {
+          params: { page_size: 100, status: "ativos", pipeline: pipelineContext.pipeline },
+        }),
         api.get<{ items: ProdutoItem[] }>("/produtos", { params: { page_size: 100, status: "ativos" } }),
         api.get<{ items: Array<{ usuId: number; usuNome: string; usuAvatarUrl?: string | null }> }>("/usuarios", {
           params: { page_size: 100, status: "ativos" },
@@ -191,19 +195,19 @@ const OportunidadesPage: React.FC = () => {
   useEffect(() => {
     void loadCombos();
     void loadTabCounts();
-  }, []);
+  }, [pipelineContext.pipeline]);
 
   useEffect(() => {
     void loadOportunidades();
-  }, [page, responsavelFiltro, solucaoFiltro, dataUltimoContatoInicio, dataUltimoContatoFim, abaStatus]);
+  }, [page, responsavelFiltro, solucaoFiltro, dataUltimoContatoInicio, dataUltimoContatoFim, abaStatus, pipelineContext.pipeline]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get("nova") !== "1") return;
     openCreate();
-    navigate("/oportunidades", { replace: true });
+    navigate(pipelineContext.newFromQueryPath, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.search, navigate]);
+  }, [location.search, navigate, pipelineContext.newFromQueryPath]);
 
   const openCreate = () => {
     setSelected(null);
@@ -415,7 +419,7 @@ const OportunidadesPage: React.FC = () => {
       header: "Ações",
       render: (r: OportunidadeItem) => (
         <div className="actions">
-          <ActionIconButton icon="view" label="Visualizar" onClick={() => navigate(`/oportunidades/${r.opoId}`)} />
+          <ActionIconButton icon="view" label="Visualizar" onClick={() => navigate(pipelineContext.detailPath(r.opoId))} />
           <ActionIconButton icon="edit" label="Editar" onClick={() => openEdit(r)} />
           {(r.opoStatusFechamento === "perdido" || r.opoStatusFechamento === "stand-by") && (
             <ActionIconButton
@@ -494,7 +498,7 @@ const OportunidadesPage: React.FC = () => {
       ultimoContatoCol,
       açõesCol,
     ];
-  }, [abaStatus, abrirRetornoParaAtivo, navigate, usuarios, produtos, etapas, search, items]);
+  }, [abaStatus, abrirRetornoParaAtivo, navigate, usuarios, produtos, etapas, search, items, pipelineContext]);
 
   const aplicarFiltros = () => {
     setPage(1);

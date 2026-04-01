@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import Layout from "../../components/Layout";
 import Loader from "../../components/Loader";
 import Modal from "../../components/Modal";
@@ -9,6 +9,7 @@ import AvatarSelect from "../../components/AvatarSelect";
 import UserAvatar from "../../components/UserAvatar";
 import { useAuth } from "../../contexts/AuthContext";
 import { calculateForecastValue } from "../../utils/forecast";
+import { getOportunidadePipelineContext } from "../../utils/oportunidadePipeline";
 
 interface OportunidadeItem {
   opoId: number;
@@ -61,6 +62,8 @@ interface ComoConheceuItem {
 const OportunidadesKanbanPage: React.FC = () => {
   const { api, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const pipelineContext = useMemo(() => getOportunidadePipelineContext(location.pathname), [location.pathname]);
   const [etapas, setEtapas] = useState<EtapaItem[]>([]);
   const [usuarios, setUsuarios] = useState<UsuarioItem[]>([]);
   const [produtos, setProdutos] = useState<ProdutoItem[]>([]);
@@ -106,7 +109,7 @@ const OportunidadesKanbanPage: React.FC = () => {
 
     do {
       const res = await api.get<OportunidadeListResponse>("/oportunidades", {
-        params: { status: "ativos", page_size: pageSize, page },
+        params: { status: "ativos", page_size: pageSize, page, pipeline: pipelineContext.pipeline },
       });
       const items = res.data.items ?? [];
       total = res.data.total ?? items.length;
@@ -116,14 +119,14 @@ const OportunidadesKanbanPage: React.FC = () => {
     } while (all.length < total);
 
     return all;
-  }, [api]);
+  }, [api, pipelineContext.pipeline]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const [etapasRes, usuariosRes, produtosRes, ccoRes, opoItems] = await Promise.all([
         api.get<{ items: EtapaItem[] }>("/etapas-kanban", {
-          params: { status: "ativos", page_size: 100 },
+          params: { status: "ativos", page_size: 100, pipeline: pipelineContext.pipeline },
         }),
         api.get<{ items: UsuarioItem[] }>("/usuarios", {
           params: { status: "ativos", page_size: 100 },
@@ -148,7 +151,7 @@ const OportunidadesKanbanPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [api, loadAllOportunidades]);
+  }, [api, loadAllOportunidades, pipelineContext.pipeline]);
 
   useEffect(() => {
     void load();
@@ -335,7 +338,7 @@ const OportunidadesKanbanPage: React.FC = () => {
           <button
             type="button"
             className="kanban-card-title"
-            onClick={() => navigate(`/oportunidades/${opo.opoId}`)}
+            onClick={() => navigate(pipelineContext.detailPath(opo.opoId))}
           >
             {opo.opoTitulo}
           </button>
@@ -452,7 +455,7 @@ const OportunidadesKanbanPage: React.FC = () => {
         singleRow
         actions={
           <>
-            <button type="button" className="icon-btn" aria-label="Ver em tabela" title="Ver em tabela" onClick={() => navigate("/oportunidades")}>
+            <button type="button" className="icon-btn" aria-label="Ver em tabela" title="Ver em tabela" onClick={() => navigate(pipelineContext.listPath)}>
               <svg viewBox="0 0 24 24" aria-hidden>
                 <path d="M3 4h18v16H3zM3 10h18M9 4v16M15 4v16" />
               </svg>

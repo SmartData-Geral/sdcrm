@@ -47,7 +47,7 @@ function getStoredOpen(): Record<string, boolean> {
   } catch {
     /* ignore */
   }
-  return { crm: false, cadastros: false };
+  return { crm: false, upsell: false, cadastros: false };
 }
 
 function setStoredOpen(open: Record<string, boolean>) {
@@ -71,6 +71,34 @@ function getHeaderData(pathname: string): HeaderData {
       breadcrumb: ["Dashboard", "CRM", "Kanban"],
       title: "Kanban de Oportunidades",
       description: "Acompanhe o pipeline de oportunidades por etapa.",
+    };
+  }
+  if (pathname.startsWith("/upsell/oportunidades-kanban")) {
+    return {
+      breadcrumb: ["Dashboard", "Upsell", "Kanban"],
+      title: "Kanban de Upsell",
+      description: "Acompanhe o pipeline de upsell por etapa.",
+    };
+  }
+  if (pathname.startsWith("/upsell/oportunidades/") && pathname.includes("/contrato/novo")) {
+    return {
+      breadcrumb: ["Dashboard", "Upsell", "Oportunidades", "Contrato"],
+      title: "Novo contrato",
+      description: "Crie um contrato vinculado a uma oportunidade de upsell.",
+    };
+  }
+  if (pathname.startsWith("/upsell/oportunidades/")) {
+    return {
+      breadcrumb: ["Dashboard", "Upsell", "Oportunidades"],
+      title: "Detalhe da Oportunidade",
+      description: "Visualize informações completas e histórico da oportunidade de upsell.",
+    };
+  }
+  if (pathname.startsWith("/upsell/oportunidades")) {
+    return {
+      breadcrumb: ["Dashboard", "Upsell", "Oportunidades"],
+      title: "Upsell",
+      description: "Gerencie oportunidades do funil de upsell.",
     };
   }
   if (pathname.startsWith("/oportunidades/")) {
@@ -224,6 +252,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         next = { ...prev, crm: true };
         setStoredOpen(next);
       }
+      if ((path.startsWith("/upsell/oportunidades") || path.startsWith("/upsell/oportunidades-kanban")) && !prev.upsell) {
+        next = { ...next, upsell: true };
+        setStoredOpen(next);
+      }
       if (path.startsWith("/contratos") && !prev.crm) {
         next = { ...prev, crm: true };
         setStoredOpen(next);
@@ -315,6 +347,31 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 </NavLink>
                 <NavLink to="/contratos/novo" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
                   Contratos (avulso)
+                </NavLink>
+              </div>
+            )}
+          </div>
+
+          <div className="sidebar-group">
+            <button
+              type="button"
+              className={`sidebar-group-toggle ${openGroups.upsell ? " is-open" : ""}`}
+              onClick={() => toggleGroup("upsell")}
+              aria-expanded={openGroups.upsell}
+            >
+              <span className="sidebar-group-label">
+                <SidebarIcon kind="crm" />
+                <span>Upsell</span>
+              </span>
+              <span className="sidebar-group-icon" aria-hidden>▼</span>
+            </button>
+            {openGroups.upsell && (
+              <div className="sidebar-group-items">
+                <NavLink to="/upsell/oportunidades" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
+                  Oportunidades
+                </NavLink>
+                <NavLink to="/upsell/oportunidades-kanban" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
+                  Kanban
                 </NavLink>
               </div>
             )}

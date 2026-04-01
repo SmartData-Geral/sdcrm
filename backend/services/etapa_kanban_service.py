@@ -17,6 +17,7 @@ def list_etapas_kanban(
     db: Session,
     company_id: Optional[int] = None,
     nome: Optional[str] = None,
+    pipeline: Optional[str] = None,
     status: Literal["ativos", "inativos", "todos"] = "ativos",
     page: int = 1,
     page_size: int = 20,
@@ -26,6 +27,8 @@ def list_etapas_kanban(
         stmt = stmt.where(EtapaKanban.etkEmpId == company_id)
     if nome:
         stmt = stmt.where(EtapaKanban.etkNome.ilike(f"%{nome}%"))
+    if pipeline:
+        stmt = stmt.where(EtapaKanban.etkPipeline == pipeline)
     if status == "ativos":
         stmt = stmt.where(EtapaKanban.etkAtivo.is_(True))
     elif status == "inativos":
