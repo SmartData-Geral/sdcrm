@@ -8,14 +8,17 @@ interface CrmDashboardCards {
   recebidas12m: number;
   recebidasUltimoMes: number;
   recebidasMesCorrente: number;
+  recebidasUltimos7Dias: number;
   ganhas: number;
   ganhas12m: number;
   ganhasUltimoMes: number;
   ganhasMesCorrente: number;
+  ganhasUltimos7Dias: number;
   perdidas: number;
   perdidas12m: number;
   perdidasUltimoMes: number;
   perdidasMesCorrente: number;
+  perdidasUltimos7Dias: number;
   taxaConversao: number;
   ativas: number;
   valorAtivas: number;
@@ -24,6 +27,7 @@ interface CrmDashboardCards {
   mrrIncremental12m: number;
   mrrIncrementalUltimoMes: number;
   mrrIncrementalMesCorrente: number;
+  mrrIncrementalUltimos7Dias: number;
 }
 
 interface CrmDashboardGraficoPorMesItem {
@@ -61,6 +65,7 @@ interface CrmDashboardResponse {
 }
 
 type StatusFiltro = "todas" | "ganhas" | "perdidas" | "ativas";
+type FiltroRapidoPeriodo = "" | "mes_corrente" | "ano_corrente" | "ultimos_7_dias" | "ultimos_30_dias" | "ultimo_trimestre";
 
 const STATUS_TABS: { value: StatusFiltro; label: string; tabClass: string }[] = [
   { value: "todas", label: "Todas", tabClass: "" },
@@ -83,6 +88,7 @@ const DashboardPage: React.FC = () => {
 
   const [dataInicialDraft, setDataInicialDraft] = useState("");
   const [dataFinalDraft, setDataFinalDraft] = useState("");
+  const [periodoRapido, setPeriodoRapido] = useState<FiltroRapidoPeriodo>("");
   const [responsavelDraft, setResponsavelDraft] = useState<number | "">("");
   const [statusDraft, setStatusDraft] = useState<StatusFiltro>("todas");
 
@@ -130,6 +136,7 @@ const DashboardPage: React.FC = () => {
   const limparFiltros = () => {
     setDataInicialDraft("");
     setDataFinalDraft("");
+    setPeriodoRapido("");
     setResponsavelDraft("");
     setStatusDraft("todas");
     setDataInicial(null);
@@ -163,12 +170,65 @@ const DashboardPage: React.FC = () => {
     return `${month}/${String(item.ano).slice(2)}`;
   };
 
+  const formatDateInput = (value: Date) => {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const aplicarPeriodoRapido = (value: FiltroRapidoPeriodo) => {
+    setPeriodoRapido(value);
+    if (!value) return;
+
+    const hoje = new Date();
+    const dataFinal = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+    let dataInicial = new Date(dataFinal);
+
+    switch (value) {
+      case "mes_corrente":
+        dataInicial = new Date(dataFinal.getFullYear(), dataFinal.getMonth(), 1);
+        break;
+      case "ano_corrente":
+        dataInicial = new Date(dataFinal.getFullYear(), 0, 1);
+        break;
+      case "ultimos_7_dias":
+        dataInicial.setDate(dataInicial.getDate() - 6);
+        break;
+      case "ultimos_30_dias":
+        dataInicial.setDate(dataInicial.getDate() - 29);
+        break;
+      case "ultimo_trimestre":
+        dataInicial = new Date(dataFinal);
+        dataInicial.setMonth(dataInicial.getMonth() - 3);
+        dataInicial.setDate(dataInicial.getDate() + 1);
+        break;
+      default:
+        break;
+    }
+
+    setDataInicialDraft(formatDateInput(dataInicial));
+    setDataFinalDraft(formatDateInput(dataFinal));
+  };
+
   return (
     <Layout>
       {/* Filters */}
       <section className="dashboard-filters">
         <div className="surface-card dashboard-filters-inner">
           <div className="form-row">
+            <label className="form-field">
+              <span className="form-label">Filtro rápido</span>
+              <select value={periodoRapido} onChange={(e) => aplicarPeriodoRapido(e.target.value as FiltroRapidoPeriodo)}>
+                <option value="">Selecione...</option>
+                <option value="mes_corrente">Mês Corrente</option>
+                <option value="ano_corrente">Ano Corrente</option>
+                <option value="ultimos_7_dias">Últimos 7 Dias</option>
+                <option value="ultimos_30_dias">Últimos 30 dias</option>
+                <option value="ultimo_trimestre">Último trimestre</option>
+              </select>
+            </label>
+
             <label className="form-field">
               <span className="form-label">Período</span>
               <div className="form-inline">
@@ -259,6 +319,7 @@ const DashboardPage: React.FC = () => {
                 <span className="dashboard-card-subvalue"><span>12 meses</span><span>{cards.recebidas12m}</span></span>
                 <span className="dashboard-card-subvalue"><span>Últ. mês</span><span>{cards.recebidasUltimoMes}</span></span>
                 <span className="dashboard-card-subvalue"><span>Mês atual</span><span>{cards.recebidasMesCorrente}</span></span>
+                <span className="dashboard-card-subvalue"><span>Últ. 7 dias</span><span>{cards.recebidasUltimos7Dias}</span></span>
               </div>
             </div>
 
@@ -276,6 +337,7 @@ const DashboardPage: React.FC = () => {
                 <span className="dashboard-card-subvalue"><span>12 meses</span><span>{cards.ganhas12m}</span></span>
                 <span className="dashboard-card-subvalue"><span>Últ. mês</span><span>{cards.ganhasUltimoMes}</span></span>
                 <span className="dashboard-card-subvalue"><span>Mês atual</span><span>{cards.ganhasMesCorrente}</span></span>
+                <span className="dashboard-card-subvalue"><span>Últ. 7 dias</span><span>{cards.ganhasUltimos7Dias}</span></span>
               </div>
             </div>
 
@@ -293,6 +355,7 @@ const DashboardPage: React.FC = () => {
                 <span className="dashboard-card-subvalue"><span>12 meses</span><span>{cards.perdidas12m}</span></span>
                 <span className="dashboard-card-subvalue"><span>Últ. mês</span><span>{cards.perdidasUltimoMes}</span></span>
                 <span className="dashboard-card-subvalue"><span>Mês atual</span><span>{cards.perdidasMesCorrente}</span></span>
+                <span className="dashboard-card-subvalue"><span>Últ. 7 dias</span><span>{cards.perdidasUltimos7Dias}</span></span>
               </div>
             </div>
 
@@ -336,6 +399,7 @@ const DashboardPage: React.FC = () => {
                 <span className="dashboard-card-subvalue"><span>12 meses</span><span>{formatCurrencyBRL(cards.mrrIncremental12m)}</span></span>
                 <span className="dashboard-card-subvalue"><span>Últ. mês</span><span>{formatCurrencyBRL(cards.mrrIncrementalUltimoMes)}</span></span>
                 <span className="dashboard-card-subvalue"><span>Mês atual</span><span>{formatCurrencyBRL(cards.mrrIncrementalMesCorrente)}</span></span>
+                <span className="dashboard-card-subvalue"><span>Últ. 7 dias</span><span>{formatCurrencyBRL(cards.mrrIncrementalUltimos7Dias)}</span></span>
               </div>
             </div>
           </section>

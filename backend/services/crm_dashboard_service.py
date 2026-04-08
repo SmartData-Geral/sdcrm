@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 from sqlalchemy import and_, case, func, select
@@ -101,6 +101,7 @@ def _query_cards(
 
     today = date.today()
     primeiro_dia_mes_corrente = today.replace(day=1)
+    inicio_ultimos_7_dias = today - timedelta(days=6)
     if primeiro_dia_mes_corrente.month == 1:
         primeiro_dia_mes_anterior = primeiro_dia_mes_corrente.replace(year=primeiro_dia_mes_corrente.year - 1, month=12)
     else:
@@ -182,6 +183,21 @@ def _query_cards(
                 ),
                 0,
             ).label("total_mes_corrente"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            and_(
+                                Oportunidade.opoDataRecebimento >= inicio_ultimos_7_dias,
+                                Oportunidade.opoDataRecebimento <= today,
+                            ),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("total_ultimos_7_dias"),
         )
         .where(
             *[
@@ -196,6 +212,7 @@ def _query_cards(
     recebidas_12m = int(recebidas_periodos.total_12m) if recebidas_periodos is not None else 0  # type: ignore[attr-defined]
     recebidas_ultimo_mes = int(recebidas_periodos.total_ultimo_mes) if recebidas_periodos is not None else 0  # type: ignore[attr-defined]
     recebidas_mes_corrente = int(recebidas_periodos.total_mes_corrente) if recebidas_periodos is not None else 0  # type: ignore[attr-defined]
+    recebidas_ultimos_7_dias = int(recebidas_periodos.total_ultimos_7_dias) if recebidas_periodos is not None else 0  # type: ignore[attr-defined]
 
     # Ganhas / Perdidas / MRR: oportunidades fechadas no período (data fechamento)
     fechadas_conditions = _build_base_filters(company_id, filtros)
@@ -272,6 +289,22 @@ def _query_cards(
                 ),
                 0,
             ).label("total_mes_corrente"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            and_(
+                                Oportunidade.opoDataFechamento >= inicio_ultimos_7_dias,
+                                Oportunidade.opoDataFechamento <= today,
+                                Oportunidade.opoStatusFechamento == "ganho",
+                            ),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("total_ultimos_7_dias"),
         )
         .where(
             *fechadas_conditions,
@@ -283,6 +316,7 @@ def _query_cards(
     ganhas_12m = int(ganhas_periodos.total_12m) if ganhas_periodos is not None else 0  # type: ignore[attr-defined]
     ganhas_ultimo_mes = int(ganhas_periodos.total_ultimo_mes) if ganhas_periodos is not None else 0  # type: ignore[attr-defined]
     ganhas_mes_corrente = int(ganhas_periodos.total_mes_corrente) if ganhas_periodos is not None else 0  # type: ignore[attr-defined]
+    ganhas_ultimos_7_dias = int(ganhas_periodos.total_ultimos_7_dias) if ganhas_periodos is not None else 0  # type: ignore[attr-defined]
 
     # Perdidas 12m / último mês / mês corrente
     # Regra solicitada: se não houver data de fechamento, usar data de recebimento (entrada do lead).
@@ -340,6 +374,22 @@ def _query_cards(
                 ),
                 0,
             ).label("total_mes_corrente"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            and_(
+                                data_referencia_perdida >= inicio_ultimos_7_dias,
+                                data_referencia_perdida <= today,
+                                Oportunidade.opoStatusFechamento == "perdido",
+                            ),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("total_ultimos_7_dias"),
         )
         .where(
             *fechadas_conditions,
@@ -350,6 +400,7 @@ def _query_cards(
     perdidas_12m = int(perdidas_periodos.total_12m) if perdidas_periodos is not None else 0  # type: ignore[attr-defined]
     perdidas_ultimo_mes = int(perdidas_periodos.total_ultimo_mes) if perdidas_periodos is not None else 0  # type: ignore[attr-defined]
     perdidas_mes_corrente = int(perdidas_periodos.total_mes_corrente) if perdidas_periodos is not None else 0  # type: ignore[attr-defined]
+    perdidas_ultimos_7_dias = int(perdidas_periodos.total_ultimos_7_dias) if perdidas_periodos is not None else 0  # type: ignore[attr-defined]
 
     # Ativas e valor das ativas: sempre status ativo (status_fechamento is null)
     ativas_conditions = _build_base_filters(company_id, filtros)
@@ -455,6 +506,23 @@ def _query_cards(
                 ),
                 0,
             ).label("total_mes_corrente"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            and_(
+                                Oportunidade.opoDataFechamento >= inicio_ultimos_7_dias,
+                                Oportunidade.opoDataFechamento <= today,
+                                Oportunidade.opoStatusFechamento == "ganho",
+                                func.coalesce(Oportunidade.opoFechadoRecorrencia, 0) != 1,
+                            ),
+                            Oportunidade.opoValorFechado,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("total_ultimos_7_dias"),
         )
         .where(
             *base_conditions,
@@ -466,6 +534,7 @@ def _query_cards(
     mrr_12m = float(mrr_periodos.total_12m) if mrr_periodos is not None else 0.0  # type: ignore[attr-defined]
     mrr_ultimo_mes = float(mrr_periodos.total_ultimo_mes) if mrr_periodos is not None else 0.0  # type: ignore[attr-defined]
     mrr_mes_corrente = float(mrr_periodos.total_mes_corrente) if mrr_periodos is not None else 0.0  # type: ignore[attr-defined]
+    mrr_ultimos_7_dias = float(mrr_periodos.total_ultimos_7_dias) if mrr_periodos is not None else 0.0  # type: ignore[attr-defined]
 
     # Taxa de conversão
     base_conversao = ganhas_total + perdidas_total
@@ -479,14 +548,17 @@ def _query_cards(
         recebidas12m=recebidas_12m,
         recebidasUltimoMes=recebidas_ultimo_mes,
         recebidasMesCorrente=recebidas_mes_corrente,
+        recebidasUltimos7Dias=recebidas_ultimos_7_dias,
         ganhas=ganhas_total,
         ganhas12m=ganhas_12m,
         ganhasUltimoMes=ganhas_ultimo_mes,
         ganhasMesCorrente=ganhas_mes_corrente,
+        ganhasUltimos7Dias=ganhas_ultimos_7_dias,
         perdidas=perdidas_total,
         perdidas12m=perdidas_12m,
         perdidasUltimoMes=perdidas_ultimo_mes,
         perdidasMesCorrente=perdidas_mes_corrente,
+        perdidasUltimos7Dias=perdidas_ultimos_7_dias,
         taxaConversao=round(taxa_conversao, 2),
         ativas=ativas_total,
         valorAtivas=float(round(valor_ativas_total, 2)),
@@ -495,6 +567,7 @@ def _query_cards(
         mrrIncremental12m=float(round(mrr_12m, 2)),
         mrrIncrementalUltimoMes=float(round(mrr_ultimo_mes, 2)),
         mrrIncrementalMesCorrente=float(round(mrr_mes_corrente, 2)),
+        mrrIncrementalUltimos7Dias=float(round(mrr_ultimos_7_dias, 2)),
     )
 
 

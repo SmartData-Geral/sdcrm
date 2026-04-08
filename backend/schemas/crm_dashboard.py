@@ -18,14 +18,17 @@ class CrmDashboardCards(BaseModel):
     recebidas12m: int
     recebidasUltimoMes: int
     recebidasMesCorrente: int
+    recebidasUltimos7Dias: int
     ganhas: int
     ganhas12m: int
     ganhasUltimoMes: int
     ganhasMesCorrente: int
+    ganhasUltimos7Dias: int
     perdidas: int
     perdidas12m: int
     perdidasUltimoMes: int
     perdidasMesCorrente: int
+    perdidasUltimos7Dias: int
     taxaConversao: float
     ativas: int
     valorAtivas: float
@@ -34,6 +37,7 @@ class CrmDashboardCards(BaseModel):
     mrrIncremental12m: float
     mrrIncrementalUltimoMes: float
     mrrIncrementalMesCorrente: float
+    mrrIncrementalUltimos7Dias: float
 
 
 class CrmDashboardGraficoPorMesItem(BaseModel):
