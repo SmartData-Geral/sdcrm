@@ -21,6 +21,10 @@ class OportunidadeBase(BaseModel):
     opoPropostaEnviada: bool = False
     opoDataRecebimento: date | None = None
     opoValorOportunidade: float | None = None
+    opoReceitaPontual: bool = Field(
+        default=False,
+        description="True = receita pontual (única); False = recorrente (contribui ao MRR ao ganhar)",
+    )
     opoDataUltimoContato: date | None = None
     opoDataFechamento: date | None = None
     opoFechadoRecorrencia: int | None = Field(
@@ -61,6 +65,7 @@ class OportunidadeUpdate(BaseModel):
     opoPropostaEnviada: bool | None = None
     opoDataRecebimento: date | None = None
     opoValorOportunidade: float | None = None
+    opoReceitaPontual: bool | None = None
     opoDataUltimoContato: date | None = None
     opoDataFechamento: date | None = None
     opoFechadoRecorrencia: int | None = Field(

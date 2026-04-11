@@ -438,12 +438,13 @@ def _query_cards(
         for row in forecast_rows
     )
 
-    # MRR incremental: oportunidades fechadas com opoFechadoRecorrencia <> 1
+    # MRR incremental: ganhas, não-projeto (opoFechadoRecorrencia <> 1) e não receita pontual
     mrr_conditions = list(fechadas_conditions)
     mrr_conditions.append(Oportunidade.opoStatusFechamento == "ganho")
     mrr_conditions.append(
         func.coalesce(Oportunidade.opoFechadoRecorrencia, 0) != 1,
     )
+    mrr_conditions.append(Oportunidade.opoReceitaPontual.is_(False))
 
     mrr_stmt = select(
         func.coalesce(func.sum(Oportunidade.opoValorFechado), 0),
@@ -464,6 +465,7 @@ def _query_cards(
                                 Oportunidade.opoDataFechamento < primeiro_dia_proximo_mes,
                                 Oportunidade.opoStatusFechamento == "ganho",
                                 func.coalesce(Oportunidade.opoFechadoRecorrencia, 0) != 1,
+                                Oportunidade.opoReceitaPontual.is_(False),
                             ),
                             Oportunidade.opoValorFechado,
                         ),
@@ -481,6 +483,7 @@ def _query_cards(
                                 Oportunidade.opoDataFechamento < primeiro_dia_mes_corrente,
                                 Oportunidade.opoStatusFechamento == "ganho",
                                 func.coalesce(Oportunidade.opoFechadoRecorrencia, 0) != 1,
+                                Oportunidade.opoReceitaPontual.is_(False),
                             ),
                             Oportunidade.opoValorFechado,
                         ),
@@ -498,6 +501,7 @@ def _query_cards(
                                 Oportunidade.opoDataFechamento < primeiro_dia_proximo_mes,
                                 Oportunidade.opoStatusFechamento == "ganho",
                                 func.coalesce(Oportunidade.opoFechadoRecorrencia, 0) != 1,
+                                Oportunidade.opoReceitaPontual.is_(False),
                             ),
                             Oportunidade.opoValorFechado,
                         ),
@@ -515,6 +519,7 @@ def _query_cards(
                                 Oportunidade.opoDataFechamento <= today,
                                 Oportunidade.opoStatusFechamento == "ganho",
                                 func.coalesce(Oportunidade.opoFechadoRecorrencia, 0) != 1,
+                                Oportunidade.opoReceitaPontual.is_(False),
                             ),
                             Oportunidade.opoValorFechado,
                         ),

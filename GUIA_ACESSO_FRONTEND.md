@@ -6,6 +6,13 @@ Este documento descreve o passo a passo completo para:
 2. subir backend e frontend
 3. validar acesso pela API e pela tela de login
 
+## Deploy:
+cd /opt/smartdata/crm/sdcrm
+git status
+git pull origin main
+docker compose up -d --build
+docker ps
+
 ## 1) Pre-requisitos
 
 - Python 3.12+
@@ -33,7 +40,7 @@ Importante:
 Na raiz do projeto:
 
 ```powershell
-cd "C:\Users\carlo\OneDrive\Documents\Sistemas\sdcrm"
+cd "sdcrm"
 .\.venv\Scripts\Activate.ps1
 alembic -c backend\alembic.ini upgrade head
 ```
@@ -47,14 +54,14 @@ Resultado esperado no terminal:
 Ainda na raiz do projeto:
 
 ```powershell
-cd "C:\Users\carlo\OneDrive\Documents\Sistemas\sdcrm"
+cd "sdcrm"
 .\.venv\Scripts\Activate.ps1
 pip install -r backend\requirements.txt
 uvicorn backend.main:app --reload --port 8000
 ```
 ```powershell
 .\.venv\Scripts\Activate.ps1
-uvicorn backend.main:app --reload --port 8000
+
 ```
 
 

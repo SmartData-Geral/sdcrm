@@ -59,6 +59,8 @@ class Oportunidade(Base):
     opoPropostaEnviada: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     opoDataRecebimento: Mapped[date | None] = mapped_column(Date, nullable=True)
     opoValorOportunidade: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    # True = receita única (não entra no MRR); False = recorrente / mensal
+    opoReceitaPontual: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     opoDataUltimoContato: Mapped[date | None] = mapped_column(Date, nullable=True)
     opoDataFechamento: Mapped[date | None] = mapped_column(Date, nullable=True)
     # 0 = recorrência, 1 = projeto

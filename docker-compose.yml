@@ -10,6 +10,8 @@ services:
       - .env
     ports:
       - "8082:8000"
+    volumes:
+      - crm-uploads:/app/backend/uploads
 
   crm-frontend:
     build:
@@ -21,4 +23,8 @@ services:
     restart: unless-stopped
     ports:
       - "3001:80"
+
+volumes:
+  crm-uploads:
+    driver: local
 

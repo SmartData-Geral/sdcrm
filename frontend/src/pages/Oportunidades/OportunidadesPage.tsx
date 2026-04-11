@@ -34,6 +34,7 @@ interface OportunidadeItem {
   opoDataRecebimento: string | null;
   opoDataUltimoContato: string | null;
   opoValorOportunidade: number | null;
+  opoReceitaPontual?: boolean;
   opoValorFechado: number | null;
   opoDoresMotivadores: string | null;
   opoComentarios: string | null;
@@ -116,6 +117,7 @@ const OportunidadesPage: React.FC = () => {
     opoCcoId: null as number | null,
     opoDataRecebimento: "",
     opoValorOportunidade: null as number | null,
+    opoReceitaPontual: false,
     opoDoresMotivadores: "",
     opoComentarios: "",
   });
@@ -222,6 +224,7 @@ const OportunidadesPage: React.FC = () => {
       opoCcoId: null,
       opoDataRecebimento: getTodayDateInput(),
       opoValorOportunidade: null,
+      opoReceitaPontual: false,
       opoDoresMotivadores: "",
       opoComentarios: "",
     });
@@ -243,6 +246,7 @@ const OportunidadesPage: React.FC = () => {
       opoCcoId: row.opoCcoId,
       opoDataRecebimento: row.opoDataRecebimento ?? "",
       opoValorOportunidade: row.opoValorOportunidade,
+      opoReceitaPontual: Boolean(row.opoReceitaPontual),
       opoDoresMotivadores: row.opoDoresMotivadores ?? "",
       opoComentarios: row.opoComentarios ?? "",
     });
@@ -261,6 +265,7 @@ const OportunidadesPage: React.FC = () => {
       opoCcoId: form.opoCcoId ?? null,
       opoDataRecebimento: form.opoDataRecebimento || null,
       opoValorOportunidade: form.opoValorOportunidade ?? null,
+      opoReceitaPontual: form.opoReceitaPontual,
       opoDoresMotivadores: showDores ? form.opoDoresMotivadores : "",
       opoComentarios: showComentarios ? form.opoComentarios : "",
     };
@@ -741,6 +746,16 @@ const OportunidadesPage: React.FC = () => {
                   }
                   placeholder="0,00"
                 />
+              </label>
+              <label className="form-field">
+                <span className="form-label">Tipo de receita</span>
+                <select
+                  value={form.opoReceitaPontual ? "pontual" : "recorrente"}
+                  onChange={(e) => setForm((f) => ({ ...f, opoReceitaPontual: e.target.value === "pontual" }))}
+                >
+                  <option value="recorrente">Recorrente (MRR)</option>
+                  <option value="pontual">Pontual (receita única)</option>
+                </select>
               </label>
               <label className="form-field">
                 <span className="form-label">Data de recebimento</span>

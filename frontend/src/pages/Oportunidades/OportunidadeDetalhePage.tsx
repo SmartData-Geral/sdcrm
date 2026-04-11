@@ -17,6 +17,9 @@ import {
   IcoX,
   IcoCheck,
   IcoArrowLeft,
+  IcoLayers,
+  IcoMessage,
+  IcoTrending,
   IcoCheckCircle,
   IcoXCircle,
   IcoPause,
@@ -47,6 +50,7 @@ interface OportunidadeDetail {
   opoPropostaEnviada: boolean;
   opoDataRecebimento: string | null;
   opoValorOportunidade: number | null;
+  opoReceitaPontual: boolean;
   opoDataUltimoContato: string | null;
   opoDataFechamento: string | null;
   opoFechadoRecorrencia: number | null;
@@ -121,6 +125,7 @@ const OportunidadeDetalhePage: React.FC = () => {
   const [detalheProId, setDetalheProId] = useState<number | null>(null);
   const [detalheDataRecebimento, setDetalheDataRecebimento] = useState("");
   const [detalheValorOportunidade, setDetalheValorOportunidade] = useState<number | "">("");
+  const [detalheReceitaPontual, setDetalheReceitaPontual] = useState(false);
   const [detalheCcoId, setDetalheCcoId] = useState<number | null>(null);
   const [produtos, setProdutos] = useState<NamedItem[]>([]);
   const [usuarios, setUsuarios] = useState<NamedItem[]>([]);
@@ -259,6 +264,7 @@ const OportunidadeDetalhePage: React.FC = () => {
     setDetalheProId(oportunidade.opoProId ?? null);
     setDetalheDataRecebimento(oportunidade.opoDataRecebimento ?? "");
     setDetalheValorOportunidade(oportunidade.opoValorOportunidade ?? "");
+    setDetalheReceitaPontual(Boolean(oportunidade.opoReceitaPontual));
     setDetalheCcoId(oportunidade.opoCcoId ?? null);
     setLeadScoreDraft(oportunidade.opoLeadScore ?? "");
     setReuniaoDraft(oportunidade.opoReuniaoConfirmada);
@@ -374,6 +380,7 @@ const OportunidadeDetalhePage: React.FC = () => {
         opoSolucao: detalheProId ? getNome(produtos, detalheProId) : null,
         opoDataRecebimento: detalheDataRecebimento || null,
         opoValorOportunidade: detalheValorOportunidade === "" ? null : Number(detalheValorOportunidade),
+        opoReceitaPontual: detalheReceitaPontual,
         opoCcoId: detalheCcoId ?? null,
         opoDoresMotivadores: showDores ? dores : null,
         opoComentarios: showComentarios ? comentarios : null,
@@ -474,7 +481,7 @@ const OportunidadeDetalhePage: React.FC = () => {
   return (
     <Layout>
       <div className="oportunidade-page">
-      <section className="surface-card oportunidade-context">
+      <section className={`surface-card oportunidade-context${oportunidade.opoStatusFechamento === "ganho" ? " oportunidade-context--ganho" : oportunidade.opoStatusFechamento === "perdido" ? " oportunidade-context--perdido" : oportunidade.opoStatusFechamento === "stand-by" ? " oportunidade-context--standby" : ""}`}>
         <div className="oportunidade-context-top">
           <div className="oportunidade-breadcrumb">Dashboard &gt; {pipelineContext.sectionLabel} &gt; Oportunidades</div>
           <div className="oportunidade-title-row">
@@ -564,30 +571,33 @@ const OportunidadeDetalhePage: React.FC = () => {
                 ))}
               </select>
             </label>
-            <label className="context-item inline-toggle">
-              <span className="context-field-label">Reunião</span>
-              <input
-                type="checkbox"
-                checked={reuniaoDraft}
-                onChange={async (e) => {
-                  const checked = e.target.checked;
-                  setReuniaoDraft(checked);
-                  await updateAndamento({ opoReuniaoConfirmada: checked });
-                }}
-              />
-            </label>
-            <label className="context-item inline-toggle">
-              <span className="context-field-label">Proposta</span>
-              <input
-                type="checkbox"
-                checked={propostaDraft}
-                onChange={async (e) => {
-                  const checked = e.target.checked;
-                  setPropostaDraft(checked);
-                  await updateAndamento({ opoPropostaEnviada: checked });
-                }}
-              />
-            </label>
+            <span className="context-divider" aria-hidden="true" />
+            <button
+              type="button"
+              className={`context-chip${reuniaoDraft ? " context-chip--active" : ""}`}
+              onClick={async () => {
+                const next = !reuniaoDraft;
+                setReuniaoDraft(next);
+                await updateAndamento({ opoReuniaoConfirmada: next });
+              }}
+              aria-pressed={reuniaoDraft}
+            >
+              {reuniaoDraft && <span className="context-chip__check"><IcoCheck /></span>}
+              Reunião
+            </button>
+            <button
+              type="button"
+              className={`context-chip${propostaDraft ? " context-chip--active" : ""}`}
+              onClick={async () => {
+                const next = !propostaDraft;
+                setPropostaDraft(next);
+                await updateAndamento({ opoPropostaEnviada: next });
+              }}
+              aria-pressed={propostaDraft}
+            >
+              {propostaDraft && <span className="context-chip__check"><IcoCheck /></span>}
+              Proposta
+            </button>
             {!statusAberto && <span className={`context-item ${statusBadgeClass}`}>{oportunidade.opoStatusFechamento}</span>}
           </div>
         </div>
@@ -663,75 +673,127 @@ const OportunidadeDetalhePage: React.FC = () => {
             <div className="detail-left">
               <section className="surface-card details-card">
                 <h2 className="section-title section-title--panel">Detalhes da oportunidade</h2>
-                <div className="info-grid">
-                  <div className="info-item">
-                    <span className="info-label">Solução</span>
-                    <select
-                      className="detail-inline-input"
-                      value={detalheProId ?? ""}
-                      onChange={(e) => setDetalheProId(e.target.value ? Number(e.target.value) : null)}
-                    >
-                      <option value="">Selecione</option>
-                      {produtos.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.nome}
-                        </option>
-                      ))}
-                    </select>
+                <div className="oportunidade-detail-field-groups" role="group" aria-label="Campos da oportunidade">
+                  <div className="detail-field-group">
+                    <h3 className="detail-field-group-title"><span className="field-group-ico"><IcoLayers /></span>Solução e origem</h3>
+                    <div className="detail-field-group-grid">
+                      <div className="info-item">
+                        <span className="info-label">Solução</span>
+                        <select
+                          className="detail-inline-input"
+                          value={detalheProId ?? ""}
+                          onChange={(e) => setDetalheProId(e.target.value ? Number(e.target.value) : null)}
+                        >
+                          <option value="">Selecione</option>
+                          {produtos.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.nome}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="info-item">
+                        <span className="info-label">Como conheceu</span>
+                        <select
+                          className="detail-inline-input"
+                          value={detalheCcoId ?? ""}
+                          onChange={(e) => setDetalheCcoId(e.target.value ? Number(e.target.value) : null)}
+                        >
+                          <option value="">Selecione</option>
+                          {comoConheceu.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.nome}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                   </div>
-                  <div className="info-item">
-                    <span className="info-label">Nome contato</span>
-                    <input
-                      className="detail-inline-input"
-                      value={detalheNomeContato}
-                      onChange={(e) => setDetalheNomeContato(e.target.value)}
-                      placeholder="Nome do contato"
-                    />
+
+                  <div className="detail-field-group">
+                    <h3 className="detail-field-group-title"><span className="field-group-ico"><IcoMessage /></span>Contato</h3>
+                    <div className="detail-field-group-grid">
+                      <div className="info-item">
+                        <span className="info-label">Nome</span>
+                        <input
+                          className="detail-inline-input"
+                          value={detalheNomeContato}
+                          onChange={(e) => setDetalheNomeContato(e.target.value)}
+                          placeholder="Nome do contato"
+                        />
+                      </div>
+                      <div className="info-item">
+                        <span className="info-label">Telefone</span>
+                        <input
+                          className="detail-inline-input"
+                          value={detalheTelefone}
+                          onChange={(e) => setDetalheTelefone(e.target.value)}
+                          placeholder="(00) 00000-0000"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="info-item">
-                    <span className="info-label">Como conheceu</span>
-                    <select
-                      className="detail-inline-input"
-                      value={detalheCcoId ?? ""}
-                      onChange={(e) => setDetalheCcoId(e.target.value ? Number(e.target.value) : null)}
-                    >
-                      <option value="">Selecione</option>
-                      {comoConheceu.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.nome}
-                        </option>
-                      ))}
-                    </select>
+
+                  <div className="detail-field-group">
+                    <h3 className="detail-field-group-title"><span className="field-group-ico"><IcoTrending /></span>Valor e modelo de receita</h3>
+                    <div className="detail-field-group-grid">
+                      <div className="info-item">
+                        <span className="info-label">Valor da oportunidade</span>
+                        <div className="valor-input-wrap">
+                          <span className="valor-prefix">R$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            className="detail-inline-input"
+                            value={detalheValorOportunidade}
+                            onChange={(e) => setDetalheValorOportunidade(e.target.value ? Number(e.target.value) : "")}
+                            placeholder="0,00"
+                          />
+                        </div>
+                      </div>
+                      <div className="info-item">
+                        <span className="info-label">Tipo de receita</span>
+                        <div className="receita-type-toggle">
+                          <button
+                            type="button"
+                            className={`receita-type-btn${!detalheReceitaPontual ? " receita-type-btn--active" : ""}`}
+                            onClick={() => setDetalheReceitaPontual(false)}
+                          >
+                            Recorrente
+                            <span className="receita-type-sub">MRR</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={`receita-type-btn${detalheReceitaPontual ? " receita-type-btn--active" : ""}`}
+                            onClick={() => setDetalheReceitaPontual(true)}
+                          >
+                            Pontual
+                            <span className="receita-type-sub">Único</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="info-item">
-                    <span className="info-label">Telefone</span>
-                    <input
-                      className="detail-inline-input"
-                      value={detalheTelefone}
-                      onChange={(e) => setDetalheTelefone(e.target.value)}
-                      placeholder="(00) 00000-0000"
-                    />
-                  </div>
-                  <div className="info-item">
-                    <span className="info-label">Data de recebimento</span>
-                    <input
-                      type="date"
-                      className="detail-inline-input"
-                      value={detalheDataRecebimento}
-                      onChange={(e) => setDetalheDataRecebimento(e.target.value)}
-                    />
-                  </div>
-                  <div className="info-item">
-                    <span className="info-label">Valor oportunidade</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      className="detail-inline-input"
-                      value={detalheValorOportunidade}
-                      onChange={(e) => setDetalheValorOportunidade(e.target.value ? Number(e.target.value) : "")}
-                      placeholder="0,00"
-                    />
+
+                  <div className="detail-field-group detail-field-group--compact">
+                    <h3 className="detail-field-group-title">
+                      <span className="field-group-ico">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                      </span>
+                      Entrada no funil
+                    </h3>
+                    <div className="detail-field-group-grid detail-field-group-grid--single">
+                      <div className="info-item">
+                        <span className="info-label">Data de recebimento</span>
+                        <input
+                          type="date"
+                          className="detail-inline-input"
+                          value={detalheDataRecebimento}
+                          onChange={(e) => setDetalheDataRecebimento(e.target.value)}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div className="details-expandables">
@@ -762,13 +824,17 @@ const OportunidadeDetalhePage: React.FC = () => {
                     }
                   />
                   <div className="details-expandables-actions">
-                    <OportunidadeIconButton
-                      variant="outline-brand"
-                      label={loadingSave ? "Salvando alterações" : "Salvar alterações da oportunidade"}
-                      icon={loadingSave ? <IcoSpinner /> : <IcoSave />}
+                    <button
+                      type="button"
+                      className="btn-primary oportunidade-save-btn"
                       onClick={() => void saveComplementares()}
                       disabled={loadingSave}
-                    />
+                    >
+                      <span className="oportunidade-save-btn__ico">
+                        {loadingSave ? <IcoSpinner /> : <IcoSave />}
+                      </span>
+                      {loadingSave ? "Salvando..." : "Salvar alterações"}
+                    </button>
                   </div>
                 </div>
               </section>

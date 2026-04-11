@@ -24,6 +24,7 @@ interface OportunidadeItem {
   opoDataRecebimento: string | null;
   opoDataUltimoContato: string | null;
   opoValorOportunidade: number | null;
+  opoReceitaPontual?: boolean;
   opoEtkId: number | null;
   opoStatusFechamento: string | null;
 }
@@ -89,6 +90,7 @@ const OportunidadesKanbanPage: React.FC = () => {
     opoDataRecebimento: "",
     opoEtkId: null as number | null,
     opoValorOportunidade: null as number | null,
+    opoReceitaPontual: false,
     opoDoresMotivadores: "",
     opoComentarios: "",
   });
@@ -375,7 +377,10 @@ const OportunidadesKanbanPage: React.FC = () => {
             {produto?.proNome ?? "Não informado"}
           </span>
           {opo.opoValorOportunidade != null && (
-            <span className="kanban-card-value-badge">
+            <span
+              className={`kanban-card-value-badge${opo.opoReceitaPontual ? " kanban-card-value-badge--pontual" : ""}`}
+              title={opo.opoReceitaPontual ? "Receita pontual" : "Receita recorrente (MRR)"}
+            >
               {opo.opoValorOportunidade.toLocaleString("pt-BR", {
                 style: "currency",
                 currency: "BRL",
@@ -409,6 +414,7 @@ const OportunidadesKanbanPage: React.FC = () => {
       opoDataRecebimento: getTodayDateInput(),
       opoEtkId: etapas[0]?.etkId ?? null,
       opoValorOportunidade: null,
+      opoReceitaPontual: false,
       opoDoresMotivadores: "",
       opoComentarios: "",
     });
@@ -431,6 +437,7 @@ const OportunidadesKanbanPage: React.FC = () => {
         opoDataRecebimento: createForm.opoDataRecebimento || null,
         opoEtkId: createForm.opoEtkId ?? null,
         opoValorOportunidade: createForm.opoValorOportunidade ?? null,
+        opoReceitaPontual: createForm.opoReceitaPontual,
         opoDoresMotivadores: showDores ? createForm.opoDoresMotivadores : "",
         opoComentarios: showComentarios ? createForm.opoComentarios : "",
       });
@@ -723,6 +730,18 @@ const OportunidadesKanbanPage: React.FC = () => {
                   }
                   placeholder="0,00"
                 />
+              </label>
+              <label className="form-field">
+                <span className="form-label">Tipo de receita</span>
+                <select
+                  value={createForm.opoReceitaPontual ? "pontual" : "recorrente"}
+                  onChange={(e) =>
+                    setCreateForm((f) => ({ ...f, opoReceitaPontual: e.target.value === "pontual" }))
+                  }
+                >
+                  <option value="recorrente">Recorrente (MRR)</option>
+                  <option value="pontual">Pontual (receita única)</option>
+                </select>
               </label>
               <label className="form-field">
                 <span className="form-label">Data de recebimento</span>

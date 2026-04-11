@@ -1247,6 +1247,57 @@ label {
   color: #94a3b8;
 }
 
+/* Detalhe — grupos de campos (UX: contato, valor, origem) */
+.oportunidade-page .oportunidade-detail-field-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.oportunidade-page .detail-field-group {
+  padding: 0.85rem 1rem;
+  background: linear-gradient(165deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+.oportunidade-page .detail-field-group--compact {
+  padding-bottom: 0.75rem;
+}
+
+.oportunidade-page .detail-field-group-title {
+  margin: 0 0 0.65rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.oportunidade-page .detail-field-group-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+  align-items: start;
+}
+
+.oportunidade-page .detail-field-group-grid--single {
+  grid-template-columns: minmax(0, 220px);
+}
+
+@media (max-width: 640px) {
+  .oportunidade-page .detail-field-group-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .oportunidade-page .detail-field-group-grid--single {
+    grid-template-columns: 1fr;
+  }
+}
+
 .oportunidade-page .history-add-form .form-label {
   font-size: 0.7rem;
   font-weight: 700;
@@ -1426,6 +1477,208 @@ label {
     padding-top: 1rem;
     margin-top: 0.25rem;
   }
+}
+
+/* ── Context card: acento colorido por status ─────────────────────── */
+.oportunidade-context--ganho {
+  border-left: 3px solid #22c55e;
+}
+.oportunidade-context--perdido {
+  border-left: 3px solid #ef4444;
+}
+.oportunidade-context--standby {
+  border-left: 3px solid #f59e0b;
+}
+
+/* ── Context chips (Reunião / Proposta) ────────────────────────────── */
+.context-divider {
+  width: 1px;
+  height: 18px;
+  background: #e2e8f0;
+  display: inline-flex;
+  flex-shrink: 0;
+  margin: 0 0.1rem;
+}
+
+.context-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  letter-spacing: 0.01em;
+}
+.context-chip:hover {
+  border-color: #cbd5e1;
+  color: #334155;
+  background: #f1f5f9;
+}
+.context-chip--active {
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(37, 99, 235, 0.07);
+  color: var(--brand);
+}
+.context-chip--active:hover {
+  background: rgba(37, 99, 235, 0.12);
+  border-color: var(--brand);
+}
+.context-chip__check {
+  display: inline-flex;
+  align-items: center;
+}
+.context-chip__check svg {
+  width: 11px;
+  height: 11px;
+}
+
+/* ── Field group title com ícone ───────────────────────────────────── */
+.oportunidade-page .detail-field-group-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.field-group-ico {
+  display: inline-flex;
+  align-items: center;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+.field-group-ico svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* ── Valor com prefixo R$ ──────────────────────────────────────────── */
+.valor-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.valor-prefix {
+  position: absolute;
+  left: 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #94a3b8;
+  pointer-events: none;
+  z-index: 1;
+}
+.valor-input-wrap .detail-inline-input {
+  padding-left: 2.1rem;
+}
+
+/* ── Toggle pills de tipo de receita ───────────────────────────────── */
+.receita-type-toggle {
+  display: flex;
+  gap: 0.4rem;
+}
+.receita-type-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.04rem;
+  padding: 0.45rem 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  line-height: 1.2;
+}
+.receita-type-btn:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+  color: #334155;
+}
+.receita-type-btn--active {
+  border-color: rgba(37, 99, 235, 0.4);
+  background: rgba(37, 99, 235, 0.07);
+  color: var(--brand);
+}
+.receita-type-btn--active:hover {
+  background: rgba(37, 99, 235, 0.12);
+  border-color: var(--brand);
+}
+.receita-type-sub {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+/* ── Botão salvar alterações ───────────────────────────────────────── */
+.oportunidade-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1.2rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+.oportunidade-save-btn__ico {
+  display: inline-flex;
+  align-items: center;
+}
+.oportunidade-save-btn__ico svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Timeline do histórico: linha vertical + pontos ───────────────── */
+.oportunidade-history-column .timeline-list {
+  position: relative;
+  max-height: 520px;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+.oportunidade-history-column .timeline-list::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: #e2e8f0;
+  pointer-events: none;
+}
+.oportunidade-history-column .timeline-item {
+  position: relative;
+  padding-left: 1.6rem;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  border-bottom: 1px solid #f1f5f9;
+  padding-top: 0.1rem;
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.1rem;
+}
+.oportunidade-history-column .timeline-item:last-child {
+  border-bottom: none;
+}
+.oportunidade-history-column .timeline-item::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  border: 2px solid #ffffff;
+  outline: 1px solid #e2e8f0;
+  z-index: 1;
 }
 
 .modal-actions .danger {
@@ -1876,6 +2129,12 @@ label {
   margin-left: auto;
 }
 
+.kanban-card-value-badge--pontual {
+  border-color: #e9d5ff;
+  background: #f5f3ff;
+  color: #7c3aed;
+}
+
 .kanban-card-meta-icon {
   width: 14px;
   height: 14px;
@@ -2217,7 +2476,8 @@ label {
 
 .detail-columns {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  /* Campos da oportunidade com mais espaço; histórico mais compacto */
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
 }
@@ -2440,9 +2700,20 @@ label {
 }
 
 .detail-inline-input {
-  height: 34px;
+  /* Altura fixa + padding global dos selects cortava descendentes do texto */
+  height: auto;
+  min-height: 2.5rem;
   width: 100%;
   font-size: 0.84rem;
+  line-height: 1.45;
+  padding-top: 0.52rem;
+  padding-bottom: 0.52rem;
+  padding-left: 0.7rem;
+  padding-right: 0.7rem;
+}
+
+select.detail-inline-input {
+  padding-right: 2rem;
 }
 
 .inline-toggle {
@@ -4603,6 +4874,14 @@ label {
 
   .detail-columns,
   .info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .oportunidade-page .detail-field-group-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .oportunidade-page .detail-field-group-grid--single {
     grid-template-columns: 1fr;
   }
 }

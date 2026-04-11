@@ -4,7 +4,9 @@
       "Bash(npm run:*)",
       "Bash(.venv/Scripts/pip install:*)",
       "Bash(.venv/Scripts/python --version)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(grep:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }
