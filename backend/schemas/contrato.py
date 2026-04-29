@@ -54,7 +54,6 @@ class ContratoInDBBase(BaseModel):
     ctrHorasMelhoriasMensais: int
 
     ctrHtmlSnapshot: str | None
-    ctrPdfPath: str | None
 
     ctrAtivo: bool
     ctrDataCriacao: datetime

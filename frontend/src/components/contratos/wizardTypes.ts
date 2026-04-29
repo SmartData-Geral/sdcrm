@@ -23,7 +23,6 @@ export interface ContratoItem {
   ctrHorasMelhoriasMensais: number;
 
   ctrHtmlSnapshot: string | null;
-  ctrPdfPath: string | null;
 }
 
 export interface ContratoClausulaVariacao {

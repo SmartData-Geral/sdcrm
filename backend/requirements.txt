@@ -12,6 +12,5 @@ email-validator==2.2.0
 python-dotenv==1.0.1
 python-multipart==0.0.22
 pypdf==5.3.1
-reportlab==4.4.10
 openai==1.68.2
 

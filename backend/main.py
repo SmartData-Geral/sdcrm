@@ -86,11 +86,9 @@ UPLOADS_DIR = _resolve_uploads_dir()
 AVATARS_DIR = UPLOADS_DIR / "avatars"
 LOGOS_DIR = UPLOADS_DIR / "company-logos"
 PROPOSAL_IMAGES_DIR = UPLOADS_DIR / "proposal-images"
-CONTRATOS_PDFS_DIR = UPLOADS_DIR / "contratos-pdfs"
 AVATARS_DIR.mkdir(parents=True, exist_ok=True)
 LOGOS_DIR.mkdir(parents=True, exist_ok=True)
 PROPOSAL_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-CONTRATOS_PDFS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _seed_default_proposal_images() -> None:

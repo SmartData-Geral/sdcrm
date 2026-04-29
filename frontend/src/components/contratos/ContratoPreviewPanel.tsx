@@ -14,8 +14,6 @@ const ContratoPreviewPanel: React.FC<Props> = ({ contratoId, tokenPublico }) => 
 
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [loadingHtml, setLoadingHtml] = useState(false);
-  const [loadingPdf, setLoadingPdf] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   const publicUrl = tokenPublico ? getPublicContractUrl(tokenPublico) : null;
 
@@ -29,14 +27,33 @@ const ContratoPreviewPanel: React.FC<Props> = ({ contratoId, tokenPublico }) => 
     }
   };
 
-  const gerarPdf = async () => {
-    setLoadingPdf(true);
-    try {
-      const res = await api.post<{ pdfUrl: string }>(`/contratos/${contratoId}/gerar-pdf`);
-      setPdfUrl(res.data.pdfUrl);
-    } finally {
-      setLoadingPdf(false);
+  const imprimirContrato = () => {
+    if (!previewHtml) {
+      alert("Gere o preview HTML antes de imprimir.");
+      return;
     }
+    const autoPrintScript = `
+<script>
+window.addEventListener("load", function () {
+  try { window.focus(); } catch (e) {}
+  try { window.print(); } catch (e) {}
+});
+</script>
+`;
+    const htmlForPrint = previewHtml.includes("</body>")
+      ? previewHtml.replace("</body>", `${autoPrintScript}</body>`)
+      : `${previewHtml}${autoPrintScript}`;
+
+    const blob = new Blob([htmlForPrint], { type: "text/html;charset=utf-8" });
+    const blobUrl = URL.createObjectURL(blob);
+    const printWin = window.open(blobUrl, "_blank");
+    if (!printWin) {
+      URL.revokeObjectURL(blobUrl);
+      alert("Não foi possível abrir a janela de impressão. Verifique se o pop-up foi bloqueado.");
+      return;
+    }
+    // Libera o blob depois de algum tempo para não vazar memória.
+    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
   };
 
   const copiarLink = async () => {
@@ -52,8 +69,8 @@ const ContratoPreviewPanel: React.FC<Props> = ({ contratoId, tokenPublico }) => 
           <button type="button" className="btn-primary" onClick={() => void gerarHtml()} disabled={loadingHtml}>
             {loadingHtml ? "Gerando HTML..." : "Gerar preview HTML"}
           </button>
-          <button type="button" className="btn-primary" onClick={() => void gerarPdf()} disabled={loadingPdf}>
-            {loadingPdf ? "Gerando PDF..." : "Gerar PDF"}
+          <button type="button" className="btn-primary" onClick={imprimirContrato} disabled={!previewHtml}>
+            Imprimir contrato
           </button>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -64,7 +81,7 @@ const ContratoPreviewPanel: React.FC<Props> = ({ contratoId, tokenPublico }) => 
         </div>
       </div>
 
-      {(loadingHtml || loadingPdf) && <Loader />}
+      {loadingHtml && <Loader />}
 
       {previewHtml ? (
         <div style={{ marginTop: 14 }}>
@@ -75,16 +92,6 @@ const ContratoPreviewPanel: React.FC<Props> = ({ contratoId, tokenPublico }) => 
         </div>
       ) : null}
 
-      {pdfUrl ? (
-        <div style={{ marginTop: 14 }}>
-          <h3 className="section-title" style={{ marginTop: 0 }}>
-            PDF
-          </h3>
-          <a href={pdfUrl} target="_blank" rel="noopener" className="btn-primary">
-            Abrir PDF
-          </a>
-        </div>
-      ) : null}
     </div>
   );
 };

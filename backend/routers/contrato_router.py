@@ -29,11 +29,8 @@ from ..services import contrato_modelo_service
 from ..services.contrato_macros_catalog import list_macro_catalog
 from ..services.contrato_render_service import (
     gerar_html_contrato as render_contrato_html,
-    gerar_pdf_contrato as render_contrato_pdf,
 )
 from ..exceptions import NotFoundError
-from pathlib import Path
-import os
 from sqlalchemy import select
 from ..models.contrato import Contrato
 router = APIRouter(tags=["contratos"])
@@ -480,15 +477,8 @@ def inativar_variacao_clausula_modelo(
 
 
 # =========================
-# Preview HTML / PDF / Link público (ETAPA 6)
+# Preview HTML / Link público (ETAPA 6)
 # =========================
-
-
-def _resolve_uploads_dir() -> Path:
-    configured = (os.getenv("SDCRM_UPLOADS_DIR") or os.getenv("UPLOADS_DIR") or "").strip()
-    if configured:
-        return Path(configured).expanduser().resolve()
-    return Path(__file__).resolve().parent.parent / "uploads"
 
 
 @router.get("/api/contratos/{ctr_id}/preview", response_class=HTMLResponse)
@@ -519,31 +509,6 @@ def gerar_html_contrato(
     db.add(contrato)
     db.commit()
     return HTMLResponse(content=html_out)
-
-
-@router.post("/api/contratos/{ctr_id}/gerar-pdf", status_code=status.HTTP_200_OK)
-def gerar_pdf_contrato(
-    ctr_id: int,
-    db: DbSessionDep,
-    current_user: CurrentUserDep,
-    company_id: CompanyIdDep,
-) -> dict:
-    require_user_in_company(db=db, current_user=current_user, company_id=company_id)
-    contrato = contrato_service._get_contrato_ativo(db=db, company_id=company_id, contrato_id=ctr_id)  # type: ignore[attr-defined]
-
-    uploads_dir = _resolve_uploads_dir()
-    pdf_dir = uploads_dir / "contratos-pdfs"
-    # Gera e salva snapshot HTML para garantir consistência.
-    html_snapshot = render_contrato_html(db=db, contrato_id=ctr_id)
-    contrato.ctrHtmlSnapshot = html_snapshot
-    db.add(contrato)
-    db.commit()
-
-    pdf_path = render_contrato_pdf(db=db, contrato_id=ctr_id, pdf_dir=pdf_dir, html_snapshot=html_snapshot)
-    contrato.ctrPdfPath = "/static/contratos-pdfs/" + Path(pdf_path).name
-    db.add(contrato)
-    db.commit()
-    return {"pdfUrl": contrato.ctrPdfPath}
 
 
 @router.get("/public/contratos/{token}", response_class=HTMLResponse)

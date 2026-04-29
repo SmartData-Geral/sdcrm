@@ -3,12 +3,7 @@ from __future__ import annotations
 import html
 import re
 from decimal import Decimal
-from pathlib import Path
 from typing import Any
-
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -19,7 +14,6 @@ from ..models.contrato_clausula import ContratoClausula
 from ..services.contrato_placeholders import render_placeholders
 
 
-_TOKEN_PUBLICO_RE = re.compile(r"[^a-zA-Z0-9_-]+")
 _PARA_SPLIT_RE = re.compile(r"\n\s*\n+")
 _LIST_BULLET_UNORDERED_RE = re.compile(r"^\s*([-•])\s+")
 _LIST_BULLET_ORDERED_RE = re.compile(r"^\s*(\d+)[\.\)]\s+")
@@ -117,8 +111,9 @@ def _render_text_to_html_paragraphs(rendered_text_escaped: str) -> str:
         return "<p></p>"
 
     paragraphs = _PARA_SPLIT_RE.split(text)
+    separators = _PARA_SPLIT_RE.findall(text)
     parts: list[str] = []
-    for p in paragraphs:
+    for idx, p in enumerate(paragraphs):
         p = p.strip("\n").strip()
         if not p:
             continue
@@ -151,40 +146,18 @@ def _render_text_to_html_paragraphs(rendered_text_escaped: str) -> str:
         else:
             paragraph_html = p.replace("\n", "<br/>")
             parts.append(f"<p>{paragraph_html}</p>")
+        if idx < len(separators):
+            # Preserva linhas em branco adicionais entre blocos (ex.: área de assinatura).
+            # Duas quebras (\n\n) já geram a separação padrão entre parágrafos; acima disso,
+            # adicionamos espaçamento extra proporcional.
+            sep = separators[idx]
+            extra_blank_lines = max(0, sep.count("\n") - 2)
+            if extra_blank_lines > 0:
+                spacer_em = extra_blank_lines * 1.25
+                parts.append(
+                    f'<div class="clause-spacer" style="height:{spacer_em:.2f}em" aria-hidden="true"></div>'
+                )
     return "".join(parts)
-
-
-def _render_text_to_pdf_paragraphs(rendered_text_escaped: str) -> list[str]:
-    text = _normalize_newlines(rendered_text_escaped)
-    if not text.strip():
-        return [""]
-
-    paragraphs = _PARA_SPLIT_RE.split(text)
-    lines_out: list[str] = []
-    for p in paragraphs:
-        p = p.strip("\n").strip()
-        if not p:
-            continue
-        lines = p.split("\n")
-        if _is_list_ordered(lines):
-            for line in lines:
-                m = _LIST_BULLET_ORDERED_RE.match(line)
-                if not m:
-                    continue
-                num = m.group(1)
-                content = line[m.end() :].strip()
-                lines_out.append(f"{num}. {content}")
-        elif _is_list_unordered(lines):
-            for line in lines:
-                m = _LIST_BULLET_UNORDERED_RE.match(line)
-                if not m:
-                    continue
-                content = line[m.end() :].strip()
-                lines_out.append(f"• {content}")
-        else:
-            # mantém linhas como quebras.
-            lines_out.append(p.replace("\n", "<br/>"))
-    return lines_out
 
 
 def gerar_html_contrato(db: Session, contrato_id: int) -> str:
@@ -291,12 +264,57 @@ def gerar_html_contrato(db: Session, contrato_id: int) -> str:
   }
   .clause-body p { margin: 0 0 12px; line-height: 1.75; color: #334155; font-size: 14px; }
   .clause-body ul, .clause-body ol { margin: 0 0 14px 20px; color: #334155; font-size: 14px; }
+  .clause-spacer { width: 100%; }
 
   .contract-footer { padding: 22px 32px 28px; color: #94a3b8; font-size: 12px; line-height: 1.55; }
   .contract-footer hr { border: none; border-top: 1px solid #e8edf3; margin: 0 0 14px; }
 
   @media (max-width: 520px) {
     .clauses-doc-header, .clauses-stack { padding-left: 20px; padding-right: 20px; }
+  }
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+  @media print {
+    body {
+      background: #fff !important;
+      color: #000 !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .wrap {
+      max-width: none;
+      margin: 0;
+      padding: 0;
+    }
+    .contract-card {
+      border: 0;
+      box-shadow: none;
+      border-radius: 0;
+      overflow: visible;
+    }
+    .clauses-doc-header {
+      background: #fff;
+      border-bottom: 1px solid #dbe3ee;
+      padding-top: 0;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .clause {
+      break-inside: auto;
+      page-break-inside: auto;
+      margin-top: 16px;
+      padding-top: 14px;
+    }
+    .clause-title {
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    .clause-body p, .clause-body li {
+      orphans: 3;
+      widows: 3;
+    }
   }
 </style>
 """
@@ -319,15 +337,6 @@ def gerar_html_contrato(db: Session, contrato_id: int) -> str:
 """
         )
 
-    footer = """
-<div class="contract-footer">
-  <hr/>
-  <div>
-    Este contrato foi gerado eletronicamente com base nas cláusulas selecionadas e editadas pelo usuário.
-  </div>
-</div>
-"""
-
     clauses_heading = f"""
 <header class="clauses-doc-header">
   <p class="clauses-doc-kicker">{empresa_nome}</p>
@@ -342,68 +351,6 @@ def gerar_html_contrato(db: Session, contrato_id: int) -> str:
     html_out += "".join(clauses_html_parts)
     html_out += "</div>"
     html_out += "</div>"
-    html_out += footer
     html_out += "</div></div></body></html>"
     return html_out
-
-
-def gerar_pdf_contrato(
-    db: Session,
-    contrato_id: int,
-    pdf_dir: Path,
-    html_snapshot: str | None = None,
-) -> str:
-    contrato = db.scalars(select(Contrato).where(Contrato.ctrId == contrato_id, Contrato.ctrAtivo.is_(True))).first()
-    if contrato is None:
-        raise NotFoundError("Contrato não encontrado")
-
-    pdf_dir.mkdir(parents=True, exist_ok=True)
-
-    # Gera HTML para garantir numeração e placeholders consistentes.
-    # (Pode ser passado pelo endpoint para evitar recalcular.)
-    if html_snapshot is None:
-        html_snapshot = gerar_html_contrato(db=db, contrato_id=contrato_id)
-
-    # Monta doc PDF
-    safe_token = _TOKEN_PUBLICO_RE.sub("_", (contrato.ctrTokenPublico or str(contrato.ctrId)))
-    filename = f"{contrato.ctrId}_{safe_token}.pdf"
-    pdf_path = pdf_dir / filename
-
-    styles = getSampleStyleSheet()
-    title_style = styles["Title"]
-    normal = styles["BodyText"]
-    normal.spaceAfter = 8  # type: ignore[attr-defined]
-
-    elements: list[Any] = []
-    elements.append(Paragraph("Contrato", title_style))
-    elements.append(Paragraph(f"Responsável: {html.escape(contrato.ctrResponsavelNome)}", normal))
-    elements.append(Spacer(1, 10))
-
-    values = _placeholder_values(contrato)
-    used_clauses = db.scalars(
-        select(ContratoClausula)
-        .where(
-            ContratoClausula.cclCtrId == contrato_id,
-            ContratoClausula.cclAtivo.is_(True),
-            ContratoClausula.cclUtilizar.is_(True),
-        )
-        .order_by(ContratoClausula.cclOrdemFinal.asc(), ContratoClausula.cclId.asc())
-    ).all()
-
-    for ccl in used_clauses:
-        titulo_rendered = render_placeholders(ccl.cclTitulo or "", values)
-        texto_rendered = render_placeholders(ccl.cclTexto or "", values)
-        elements.append(Paragraph(titulo_rendered, styles["Heading3"]))
-
-        # Divide em itens (parágrafos ou linhas de lista)
-        parts = _render_text_to_pdf_paragraphs(texto_rendered)
-        for idx, part in enumerate(parts):
-            if idx > 0 and part and not part.startswith("<br"):
-                elements.append(Spacer(1, 6))
-            elements.append(Paragraph(part if part else " ", normal))
-
-    doc = SimpleDocTemplate(str(pdf_path), pagesize=A4, rightMargin=36, leftMargin=36, topMargin=48, bottomMargin=48)
-    doc.build(elements)
-    _ = html_snapshot  # garante que o PDF foi gerado a partir do mesmo estado
-    return str(pdf_path)
 

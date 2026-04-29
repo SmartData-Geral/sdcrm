@@ -56,7 +56,6 @@ class Contrato(Base):
 
     # Snapshots/artefatos
     ctrHtmlSnapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
-    ctrPdfPath: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     ctrAtivo: Mapped[bool] = AtivoColumnFactory.bool_ativo("ctrAtivo")
     ctrDataCriacao: Mapped[datetime] = AuditColumnFactory.datetime_criacao("ctrDataCriacao")
