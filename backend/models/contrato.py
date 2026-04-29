@@ -47,11 +47,12 @@ class Contrato(Base):
     ctrResponsavelCpf: Mapped[str] = mapped_column(String(20), nullable=False)
     ctrObjetoContrato: Mapped[str] = mapped_column(Text, nullable=False)
     ctrValorContrato: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
-    ctrFormaPagamento: Mapped[str] = mapped_column(String(200), nullable=False)
-    ctrVigencia: Mapped[str] = mapped_column(String(200), nullable=False)
     ctrDataInicio: Mapped[date] = mapped_column(Date, nullable=False)
-    ctrForo: Mapped[str] = mapped_column(String(200), nullable=False)
-    ctrReajuste: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ctrPrazoConclusao: Mapped[str] = mapped_column(String(200), nullable=False)
+    ctrDiasPagamento: Mapped[int] = mapped_column(Integer, nullable=False)
+    ctrDiasAntecedenciaRescisao: Mapped[int] = mapped_column(Integer, nullable=False)
+    ctrValorManutencao: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    ctrHorasMelhoriasMensais: Mapped[int] = mapped_column(Integer, nullable=False)
 
     # Snapshots/artefatos
     ctrHtmlSnapshot: Mapped[str | None] = mapped_column(Text, nullable=True)

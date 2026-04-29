@@ -11,7 +11,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..exceptions import BadRequestError, NotFoundError
 from ..models.contrato import Contrato
@@ -62,11 +62,12 @@ def _placeholder_values(contrato: Contrato) -> dict[str, Any]:
         "responsavel_cpf": contrato.ctrResponsavelCpf,
         "objeto_contrato": contrato.ctrObjetoContrato,
         "valor_contrato": _format_valor_brl(contrato.ctrValorContrato),
-        "forma_pagamento": contrato.ctrFormaPagamento,
-        "vigencia": contrato.ctrVigencia,
+        "valor_manutencao": _format_valor_brl(contrato.ctrValorManutencao),
         "data_inicio": _format_data_brl_iso(contrato.ctrDataInicio),
-        "foro": contrato.ctrForo,
-        "reajuste": contrato.ctrReajuste or "",
+        "prazo_conclusao": contrato.ctrPrazoConclusao,
+        "dias_pagamento": str(contrato.ctrDiasPagamento),
+        "dias_antecedencia_rescisao": str(contrato.ctrDiasAntecedenciaRescisao),
+        "horas_melhorias_mensais": str(contrato.ctrHorasMelhoriasMensais),
     }
 
 
@@ -123,6 +124,12 @@ def _render_text_to_html_paragraphs(rendered_text_escaped: str) -> str:
             continue
         lines = p.split("\n")
         if _is_list_ordered(lines):
+            # Cada parágrafo (bloco entre \n\n) vira um <ol> separado. Com um único <li>, o
+            # navegador sempre mostra "1." — usamos start= com o número do texto para manter
+            # a numeração original quando o modelo quebra itens em parágrafos distintos.
+            non_empty = [ln for ln in lines if ln.strip()]
+            first_m = _LIST_BULLET_ORDERED_RE.match(non_empty[0]) if non_empty else None
+            start_num = int(first_m.group(1)) if first_m else 1
             items = []
             for line in lines:
                 m = _LIST_BULLET_ORDERED_RE.match(line)
@@ -130,7 +137,8 @@ def _render_text_to_html_paragraphs(rendered_text_escaped: str) -> str:
                     continue
                 content = line[m.end() :].strip()
                 items.append(f"<li>{content}</li>")
-            parts.append(f"<ol>{''.join(items)}</ol>")
+            start_attr = f' start="{start_num}"' if start_num != 1 else ""
+            parts.append(f"<ol{start_attr}>{''.join(items)}</ol>")
         elif _is_list_unordered(lines):
             items = []
             for line in lines:
@@ -179,83 +187,118 @@ def _render_text_to_pdf_paragraphs(rendered_text_escaped: str) -> list[str]:
     return lines_out
 
 
-def _contract_html_header(contrato: Contrato) -> str:
-    return f"""
-<div class="contract-header">
-  <div class="contract-brand">
-    <div class="brand-dot"></div>
-    <div>
-      <div class="brand-title">Contrato</div>
-      <div class="brand-subtitle">Documento gerado a partir do modelo Smart Data</div>
-    </div>
-  </div>
-
-  <div class="contract-meta">
-    <div><span class="meta-label">Objeto</span><span class="meta-value">{html.escape(contrato.ctrObjetoContrato)}</span></div>
-    <div><span class="meta-label">Valor</span><span class="meta-value">{html.escape(_format_valor_brl(contrato.ctrValorContrato))}</span></div>
-    <div><span class="meta-label">Forma de pagamento</span><span class="meta-value">{html.escape(contrato.ctrFormaPagamento)}</span></div>
-    <div><span class="meta-label">Vigência</span><span class="meta-value">{html.escape(contrato.ctrVigencia)}</span></div>
-    <div><span class="meta-label">Início</span><span class="meta-value">{html.escape(_format_data_brl_iso(contrato.ctrDataInicio))}</span></div>
-    <div><span class="meta-label">Foro</span><span class="meta-value">{html.escape(contrato.ctrForo)}</span></div>
-    <div><span class="meta-label">Reajuste</span><span class="meta-value">{html.escape(contrato.ctrReajuste or "-")}</span></div>
-  </div>
-</div>
-"""
-
-
 def gerar_html_contrato(db: Session, contrato_id: int) -> str:
-    contrato = db.scalars(select(Contrato).where(Contrato.ctrId == contrato_id, Contrato.ctrAtivo.is_(True))).first()
+    contrato = db.scalars(
+        select(Contrato)
+        .where(Contrato.ctrId == contrato_id, Contrato.ctrAtivo.is_(True))
+        .options(selectinload(Contrato.empresa))
+    ).first()
     if contrato is None:
         raise NotFoundError("Contrato não encontrado")
+
+    empresa_nome = (
+        html.escape(contrato.empresa.empNome.strip())
+        if contrato.empresa and contrato.empresa.empNome
+        else "—"
+    )
 
     used_clauses = _recalcular_ordem_final(db, contrato_id)
     values = _placeholder_values(contrato)
 
     style = """
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet"/>
 <style>
-  body { font-family: "Plus Jakarta Sans", "Inter", system-ui, -apple-system, Segoe UI, Arial, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; }
-  .wrap { max-width: 980px; margin: 0 auto; padding: 32px 18px 40px; }
-  .contract-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 10px 32px rgba(15,23,42,0.06); overflow: hidden; }
-  .contract-header { padding: 26px 24px; background: linear-gradient(140deg, #0f172a 0%, #1d4ed8 55%, #2563eb 100%); color: #fff; }
-  .contract-brand { display: flex; gap: 12px; align-items: center; margin-bottom: 18px; }
-  .brand-dot { width: 12px; height: 12px; border-radius: 999px; background: #93c5fd; box-shadow: 0 0 0 6px rgba(147,197,253,0.18); }
-  .brand-title { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; }
-  .brand-subtitle { font-size: 12px; opacity: .9; margin-top: 4px; }
-  .contract-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; }
-  .meta-label { display: block; font-size: 11px; opacity: .78; margin-bottom: 3px; }
-  .meta-value { display: block; font-size: 13px; font-weight: 650; }
-  .contract-body { padding: 26px 24px 14px; }
-  .section-title { font-size: 15px; letter-spacing: .08em; text-transform: uppercase; font-weight: 800; color: #1d4ed8; margin: 0 0 10px; }
-  .parties-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
-  .party-card { border: 1px solid #e5e7eb; border-radius: 14px; padding: 14px; }
-  .party-label { font-size: 11px; opacity: .7; margin-bottom: 6px; }
-  .party-value { font-size: 13px; font-weight: 650; white-space: pre-wrap; }
-  .clause { margin-top: 18px; padding-top: 14px; border-top: 1px solid #e5e7eb; }
-  .clause h3 { margin: 0 0 8px; font-size: 14px; font-weight: 850; color: #0f172a; }
-  .clause-body p { margin: 0 0 10px; line-height: 1.65; }
-  .clause-body ul, .clause-body ol { margin: 0 0 12px 18px; }
-  .contract-footer { padding: 18px 24px 26px; color: #64748b; font-size: 12px; }
-  .contract-footer hr { border: none; border-top: 1px solid #e5e7eb; margin: 0 0 12px; }
-</style>
-"""
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Plus Jakarta Sans", "Inter", system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    margin: 0;
+    background: #f1f5f9;
+    color: #0f172a;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 800px; margin: 0 auto; padding: 24px 16px 40px; }
+  .contract-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px -8px rgba(15, 23, 42, 0.1);
+    overflow: hidden;
+  }
+  .contract-body { padding: 0 0 8px; }
 
-    parties_html = f"""
-<div class="parties-grid">
-  <div class="party-card">
-    <div class="party-label">Contratante</div>
-    <div class="party-value">{html.escape(contrato.ctrRazaoSocial)}</div>
-    <div class="party-label" style="margin-top:10px;">CNPJ</div>
-    <div class="party-value">{html.escape(contrato.ctrCnpj)}</div>
-    <div class="party-label" style="margin-top:10px;">Endereço</div>
-    <div class="party-value">{html.escape(contrato.ctrEndereco)}</div>
-  </div>
-  <div class="party-card">
-    <div class="party-label">Responsável</div>
-    <div class="party-value">{html.escape(contrato.ctrResponsavelNome)}</div>
-    <div class="party-label" style="margin-top:10px;">CPF</div>
-    <div class="party-value">{html.escape(contrato.ctrResponsavelCpf)}</div>
-  </div>
-</div>
+  .clauses-doc-header {
+    margin: 0;
+    padding: 28px 32px 24px;
+    background: linear-gradient(180deg, #f8fafc 0%, #fff 55%);
+    border-bottom: 1px solid #e8edf3;
+  }
+  .clauses-doc-kicker {
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #64748b;
+  }
+  .clauses-doc-title {
+    margin: 0;
+    font-size: clamp(1.5rem, 4vw, 1.875rem);
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 1.15;
+    color: #0f172a;
+  }
+  .clauses-doc-title-accent {
+    display: block;
+    width: 3rem;
+    height: 4px;
+    margin-top: 14px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #1e40af, #3b82f6, #93c5fd);
+  }
+
+  .clauses-stack { padding: 8px 32px 0; }
+
+  .clause {
+    margin-top: 24px;
+    padding-top: 22px;
+    border-top: 1px solid #eef2f7;
+  }
+  .clause:first-of-type { margin-top: 0; padding-top: 20px; border-top: none; }
+  .clause h3.clause-title {
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    font-size: 15px;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+  }
+  .clause-title-accent {
+    display: block;
+    width: 4px;
+    min-height: 1.35em;
+    margin-right: 12px;
+    flex-shrink: 0;
+    border-radius: 4px;
+    background: linear-gradient(180deg, #1e40af 0%, #3b82f6 52%, #93c5fd 100%);
+  }
+  .clause-title-text {
+    flex: 1;
+    min-width: 0;
+  }
+  .clause-body p { margin: 0 0 12px; line-height: 1.75; color: #334155; font-size: 14px; }
+  .clause-body ul, .clause-body ol { margin: 0 0 14px 20px; color: #334155; font-size: 14px; }
+
+  .contract-footer { padding: 22px 32px 28px; color: #94a3b8; font-size: 12px; line-height: 1.55; }
+  .contract-footer hr { border: none; border-top: 1px solid #e8edf3; margin: 0 0 14px; }
+
+  @media (max-width: 520px) {
+    .clauses-doc-header, .clauses-stack { padding-left: 20px; padding-right: 20px; }
+  }
+</style>
 """
 
     clauses_html_parts: list[str] = []
@@ -267,7 +310,10 @@ def gerar_html_contrato(db: Session, contrato_id: int) -> str:
         clauses_html_parts.append(
             f"""
 <section class="clause">
-  <h3>{ccl.cclOrdemFinal}. {titulo_rendered}</h3>
+  <h3 class="clause-title">
+    <span class="clause-title-accent" aria-hidden="true"></span>
+    <span class="clause-title-text">{titulo_rendered}</span>
+  </h3>
   <div class="clause-body">{clause_text_html}</div>
 </section>
 """
@@ -282,13 +328,19 @@ def gerar_html_contrato(db: Session, contrato_id: int) -> str:
 </div>
 """
 
-    html_out = f"<!doctype html><html><head><meta charset='utf-8'>{style}</head><body><div class='wrap'><div class='contract-card'>"
-    html_out += _contract_html_header(contrato)
-    html_out += "<div class='contract-body'>"
-    html_out += "<h2 class='section-title'>Partes</h2>"
-    html_out += parties_html
-    html_out += "<h2 class='section-title'>Cláusulas</h2>"
+    clauses_heading = f"""
+<header class="clauses-doc-header">
+  <p class="clauses-doc-kicker">{empresa_nome}</p>
+  <h1 class="clauses-doc-title">Contrato Prestação de Serviço</h1>
+  <span class="clauses-doc-title-accent" aria-hidden="true"></span>
+</header>
+"""
+
+    html_out = f"<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width, initial-scale=1'/>{style}</head><body><div class='wrap'><div class='contract-card'><div class='contract-body'>"
+    html_out += clauses_heading
+    html_out += "<div class='clauses-stack'>"
     html_out += "".join(clauses_html_parts)
+    html_out += "</div>"
     html_out += "</div>"
     html_out += footer
     html_out += "</div></div></body></html>"
@@ -341,7 +393,7 @@ def gerar_pdf_contrato(
     for ccl in used_clauses:
         titulo_rendered = render_placeholders(ccl.cclTitulo or "", values)
         texto_rendered = render_placeholders(ccl.cclTexto or "", values)
-        elements.append(Paragraph(f"{ccl.cclOrdemFinal}. {titulo_rendered}", styles["Heading3"]))
+        elements.append(Paragraph(titulo_rendered, styles["Heading3"]))
 
         # Divide em itens (parágrafos ou linhas de lista)
         parts = _render_text_to_pdf_paragraphs(texto_rendered)

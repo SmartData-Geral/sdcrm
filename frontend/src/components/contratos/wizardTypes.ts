@@ -14,11 +14,13 @@ export interface ContratoItem {
   ctrResponsavelCpf: string;
   ctrObjetoContrato: string;
   ctrValorContrato: number;
-  ctrFormaPagamento: string;
-  ctrVigencia: string;
   ctrDataInicio: string; // date => string from API
-  ctrForo: string;
-  ctrReajuste: string | null;
+  ctrPrazoConclusao: string;
+  ctrDiasPagamento: number;
+  ctrDiasAntecedenciaRescisao: number;
+  ctrValorManutencao: number;
+  /** Horas de melhorias mensais (substituição {{horas_melhorias_mensais}} nos textos). */
+  ctrHorasMelhoriasMensais: number;
 
   ctrHtmlSnapshot: string | null;
   ctrPdfPath: string | null;

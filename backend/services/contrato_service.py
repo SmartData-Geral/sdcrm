@@ -88,6 +88,16 @@ def _recalcular_ordem_final_clausulas(db: Session, contrato_id: int) -> None:
     db.commit()
 
 
+def _fmt_brl_num(v: Any) -> str:
+    try:
+        from decimal import Decimal
+
+        d = Decimal(str(v))
+        return f"{d:.2f}".replace(".", ",")
+    except Exception:
+        return str(v)
+
+
 def _build_placeholders_values(contrato: Contrato) -> dict[str, Any]:
     return {
         "razao_social": contrato.ctrRazaoSocial,
@@ -97,11 +107,12 @@ def _build_placeholders_values(contrato: Contrato) -> dict[str, Any]:
         "responsavel_cpf": contrato.ctrResponsavelCpf,
         "objeto_contrato": contrato.ctrObjetoContrato,
         "valor_contrato": str(contrato.ctrValorContrato),
-        "forma_pagamento": contrato.ctrFormaPagamento,
-        "vigencia": contrato.ctrVigencia,
+        "valor_manutencao": _fmt_brl_num(contrato.ctrValorManutencao),
         "data_inicio": contrato.ctrDataInicio.isoformat() if contrato.ctrDataInicio else "",
-        "foro": contrato.ctrForo,
-        "reajuste": contrato.ctrReajuste or "",
+        "prazo_conclusao": contrato.ctrPrazoConclusao,
+        "dias_pagamento": str(contrato.ctrDiasPagamento),
+        "dias_antecedencia_rescisao": str(contrato.ctrDiasAntecedenciaRescisao),
+        "horas_melhorias_mensais": str(contrato.ctrHorasMelhoriasMensais),
     }
 
 
@@ -247,16 +258,17 @@ def criar_contrato(
         if opo is None:
             raise NotFoundError("Oportunidade não encontrada para a empresa")
 
-        # Regra: apenas 1 contrato por oportunidade. Mesmo que exista contrato inativo,
-        # a criação deve ser bloqueada para evitar violação da constraint.
-        existente = db.scalars(
+        existente_ativo = db.scalars(
             select(Contrato).where(
                 Contrato.ctrEmpId == company_id,
                 Contrato.ctrOpoId == data.ctrOpoId,
+                Contrato.ctrAtivo.is_(True),
             )
         ).first()
-        if existente is not None:
-            raise BadRequestError("Já existe contrato para esta oportunidade")
+        if existente_ativo is not None:
+            raise BadRequestError(
+                "Já existe um contrato ativo para esta oportunidade. Inative-o antes de criar outro."
+            )
 
     # Garante um nome mesmo quando o front não informa.
     if data.ctrNome and data.ctrNome.strip():
@@ -281,11 +293,12 @@ def criar_contrato(
         ctrResponsavelCpf=data.ctrResponsavelCpf,
         ctrObjetoContrato=data.ctrObjetoContrato,
         ctrValorContrato=data.ctrValorContrato,
-        ctrFormaPagamento=data.ctrFormaPagamento,
-        ctrVigencia=data.ctrVigencia,
         ctrDataInicio=data.ctrDataInicio,
-        ctrForo=data.ctrForo,
-        ctrReajuste=data.ctrReajuste,
+        ctrPrazoConclusao=data.ctrPrazoConclusao.strip(),
+        ctrDiasPagamento=data.ctrDiasPagamento,
+        ctrDiasAntecedenciaRescisao=data.ctrDiasAntecedenciaRescisao,
+        ctrValorManutencao=data.ctrValorManutencao,
+        ctrHorasMelhoriasMensais=data.ctrHorasMelhoriasMensais,
         ctrAtivo=True,
     )
     db.add(contrato)
@@ -317,6 +330,17 @@ def criar_contrato(
 
     db.commit()
     _recalcular_ordem_final_clausulas(db, contrato.ctrId)
+    db.refresh(contrato)
+    return ContratoResponse.model_validate(contrato)
+
+
+def inativar_contrato(db: Session, company_id: int, contrato_id: int) -> ContratoResponse:
+    """Inativa o contrato e libera a oportunidade (ctrOpoId) para permitir novo contrato ativo."""
+    contrato = _get_contrato_ativo(db, company_id, contrato_id)
+    contrato.ctrAtivo = False
+    contrato.ctrOpoId = None
+    db.add(contrato)
+    db.commit()
     db.refresh(contrato)
     return ContratoResponse.model_validate(contrato)
 

@@ -18,12 +18,15 @@ from ..schemas.contrato import (
     ContratoModeloClausulaVariacaoCreate,
     ContratoModeloClausulaVariacaoUpdate,
     ContratoListResponse,
+    ContratoMacroItem,
+    ContratoMacroListResponse,
     ContratoResponse,
     ContratoSalvarComoVariacaoRequest,
     ContratoUpdate,
 )
 from ..services import contrato_service
 from ..services import contrato_modelo_service
+from ..services.contrato_macros_catalog import list_macro_catalog
 from ..services.contrato_render_service import (
     gerar_html_contrato as render_contrato_html,
     gerar_pdf_contrato as render_contrato_pdf,
@@ -46,6 +49,20 @@ def listar_contratos(
 ) -> ContratoListResponse:
     require_user_in_company(db=db, current_user=current_user, company_id=company_id)
     return contrato_service.list_contratos(db=db, company_id=company_id, page=page, page_size=page_size)
+
+
+@router.get("/api/contratos/macros", response_model=ContratoMacroListResponse)
+def listar_macros_contrato(
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    company_id: CompanyIdDep,
+) -> ContratoMacroListResponse:
+    """Lista macros {{chave}} suportadas nos textos de modelos e cláusulas (referência para redatores)."""
+    require_user_in_company(db=db, current_user=current_user, company_id=company_id)
+    rows = list_macro_catalog()
+    return ContratoMacroListResponse(
+        items=[ContratoMacroItem.model_validate(r) for r in rows],
+    )
 
 
 @router.get("/api/contratos/{ctr_id}", response_model=ContratoResponse)
@@ -132,6 +149,19 @@ def set_assinado(
 ) -> ContratoResponse:
     require_user_in_company(db=db, current_user=current_user, company_id=company_id)
     return contrato_service.set_status_contrato(db=db, company_id=company_id, contrato_id=ctr_id, novo_status="assinado")
+
+
+@router.patch("/api/contratos/{ctr_id}/inativar", response_model=ContratoResponse)
+def inativar_contrato_endpoint(
+    ctr_id: int,
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    company_id: CompanyIdDep,
+) -> ContratoResponse:
+    require_user_in_company(db=db, current_user=current_user, company_id=company_id)
+    return contrato_service.inativar_contrato(
+        db=db, company_id=company_id, contrato_id=ctr_id
+    )
 
 
 @router.get("/api/contratos/{ctr_id}/clausulas", response_model=list[ContratoClausulaResponse])

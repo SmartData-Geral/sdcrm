@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import Layout from "../../components/Layout";
 import Loader from "../../components/Loader";
 import ActionIconButton from "../../components/ActionIconButton";
@@ -11,14 +11,23 @@ import { ContratoClausula, ContratoItem } from "../../components/contratos/wizar
 
 type Step = 2 | 3 | 4;
 
+function computeStepFromLocationSearch(search: string): Step {
+  const raw = new URLSearchParams(search).get("step");
+  if (!raw) return 3;
+  const r = raw.trim().toLowerCase();
+  if (r === "2" || r === "dados" || r === "cadastro") return 2;
+  if (r === "4" || r === "finalizacao" || r === "preview") return 4;
+  return 3;
+}
+
 const ContratoEditorPage: React.FC = () => {
   const { api } = useAuth();
-  const navigate = useNavigate();
+  const location = useLocation();
   const params = useParams<{ ctrId: string }>();
   const ctrId = params.ctrId ? Number(params.ctrId) : null;
 
   const [loading, setLoading] = useState(true);
-  const [step, setStep] = useState<Step>(3);
+  const [step, setStep] = useState<Step>(() => computeStepFromLocationSearch(location.search));
 
   const [contrato, setContrato] = useState<ContratoItem | null>(null);
   const [clauses, setClauses] = useState<ContratoClausula[]>([]);
@@ -33,11 +42,12 @@ const ContratoEditorPage: React.FC = () => {
     ctrResponsavelCpf: "",
     ctrObjetoContrato: "",
     ctrValorContrato: "" as number | "",
-    ctrFormaPagamento: "",
-    ctrVigencia: "",
     ctrDataInicio: "",
-    ctrForo: "",
-    ctrReajuste: "" as string | null,
+    ctrPrazoConclusao: "",
+    ctrDiasPagamento: "" as number | "",
+    ctrDiasAntecedenciaRescisao: "" as number | "",
+    ctrValorManutencao: "" as number | "",
+    ctrHorasMelhoriasMensais: "" as number | "",
   });
 
   const [expandedClauseId, setExpandedClauseId] = useState<number | null>(null);
@@ -64,11 +74,12 @@ const ContratoEditorPage: React.FC = () => {
         ctrResponsavelCpf: res.data.ctrResponsavelCpf ?? "",
         ctrObjetoContrato: res.data.ctrObjetoContrato ?? "",
         ctrValorContrato: res.data.ctrValorContrato ?? "",
-        ctrFormaPagamento: res.data.ctrFormaPagamento ?? "",
-        ctrVigencia: res.data.ctrVigencia ?? "",
         ctrDataInicio: res.data.ctrDataInicio ?? "",
-        ctrForo: res.data.ctrForo ?? "",
-        ctrReajuste: res.data.ctrReajuste ?? null,
+        ctrPrazoConclusao: res.data.ctrPrazoConclusao ?? "",
+        ctrDiasPagamento: res.data.ctrDiasPagamento ?? "",
+        ctrDiasAntecedenciaRescisao: res.data.ctrDiasAntecedenciaRescisao ?? "",
+        ctrValorManutencao: res.data.ctrValorManutencao ?? "",
+        ctrHorasMelhoriasMensais: res.data.ctrHorasMelhoriasMensais ?? "",
       });
 
       setClausesLoading(true);
@@ -84,6 +95,12 @@ const ContratoEditorPage: React.FC = () => {
     void loadContrato();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctrId]);
+
+  useEffect(() => {
+    const p = new URLSearchParams(location.search);
+    if (!p.has("step")) return;
+    setStep(computeStepFromLocationSearch(location.search));
+  }, [location.search]);
 
   const stepTitle = useMemo(() => {
     if (step === 2) return "2) Dados do contrato";
@@ -102,11 +119,12 @@ const ContratoEditorPage: React.FC = () => {
       ctrResponsavelCpf: dadosDraft.ctrResponsavelCpf,
       ctrObjetoContrato: dadosDraft.ctrObjetoContrato,
       ctrValorContrato: Number(dadosDraft.ctrValorContrato),
-      ctrFormaPagamento: dadosDraft.ctrFormaPagamento,
-      ctrVigencia: dadosDraft.ctrVigencia,
       ctrDataInicio: dadosDraft.ctrDataInicio,
-      ctrForo: dadosDraft.ctrForo,
-      ctrReajuste: dadosDraft.ctrReajuste,
+      ctrPrazoConclusao: dadosDraft.ctrPrazoConclusao.trim(),
+      ctrDiasPagamento: Number(dadosDraft.ctrDiasPagamento),
+      ctrDiasAntecedenciaRescisao: Number(dadosDraft.ctrDiasAntecedenciaRescisao),
+      ctrValorManutencao: Number(dadosDraft.ctrValorManutencao),
+      ctrHorasMelhoriasMensais: Number(dadosDraft.ctrHorasMelhoriasMensais),
     });
     await loadContrato();
     alert("Dados do contrato atualizados.");
@@ -221,24 +239,79 @@ const ContratoEditorPage: React.FC = () => {
               />
             </label>
             <label>
-              Forma de pagamento
-              <input value={dadosDraft.ctrFormaPagamento} onChange={(e) => setDadosDraft((d) => ({ ...d, ctrFormaPagamento: e.target.value }))} />
-            </label>
-            <label>
-              Vigência
-              <input value={dadosDraft.ctrVigencia} onChange={(e) => setDadosDraft((d) => ({ ...d, ctrVigencia: e.target.value }))} />
-            </label>
-            <label>
               Data de início
               <input type="date" value={dadosDraft.ctrDataInicio} onChange={(e) => setDadosDraft((d) => ({ ...d, ctrDataInicio: e.target.value }))} />
             </label>
             <label>
-              Foro
-              <input value={dadosDraft.ctrForo} onChange={(e) => setDadosDraft((d) => ({ ...d, ctrForo: e.target.value }))} />
+              Prazo de conclusão (texto para as cláusulas, ex.: 90 dias)
+              <input
+                value={dadosDraft.ctrPrazoConclusao}
+                onChange={(e) => setDadosDraft((d) => ({ ...d, ctrPrazoConclusao: e.target.value }))}
+              />
             </label>
             <label>
-              Reajuste (opcional)
-              <textarea rows={3} value={dadosDraft.ctrReajuste ?? ""} onChange={(e) => setDadosDraft((d) => ({ ...d, ctrReajuste: e.target.value }))} />
+              Dias para o primeiro pagamento (após a assinatura)
+              <input
+                type="number"
+                min={0}
+                max={3660}
+                value={dadosDraft.ctrDiasPagamento}
+                onChange={(e) =>
+                  setDadosDraft((d) => ({
+                    ...d,
+                    ctrDiasPagamento: e.target.value === "" ? "" : Number(e.target.value),
+                  }))
+                }
+              />
+            </label>
+            <label>
+              Dias de antecedência para rescisão (notice)
+              <input
+                type="number"
+                min={0}
+                max={3660}
+                value={dadosDraft.ctrDiasAntecedenciaRescisao}
+                onChange={(e) =>
+                  setDadosDraft((d) => ({
+                    ...d,
+                    ctrDiasAntecedenciaRescisao: e.target.value === "" ? "" : Number(e.target.value),
+                  }))
+                }
+              />
+            </label>
+            <label>
+              Valor da manutenção (mensal ou conforme modelo)
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={dadosDraft.ctrValorManutencao}
+                onChange={(e) =>
+                  setDadosDraft((d) => ({
+                    ...d,
+                    ctrValorManutencao: e.target.value === "" ? "" : Number(e.target.value),
+                  }))
+                }
+              />
+            </label>
+            <label>
+              Horas de melhorias mensais
+              <span className="muted-text" style={{ display: "block", fontWeight: 400, fontSize: "0.9em", marginBottom: 6 }}>
+                Macro no texto: <code>{"{{horas_melhorias_mensais}}"}</code>
+              </span>
+              <input
+                type="number"
+                min={0}
+                max={744}
+                step={1}
+                value={dadosDraft.ctrHorasMelhoriasMensais}
+                onChange={(e) =>
+                  setDadosDraft((d) => ({
+                    ...d,
+                    ctrHorasMelhoriasMensais: e.target.value === "" ? "" : Number(e.target.value),
+                  }))
+                }
+              />
             </label>
 
             <div className="modal-actions" style={{ marginTop: "1rem", display: "flex", justifyContent: "space-between" }}>
@@ -254,13 +327,16 @@ const ContratoEditorPage: React.FC = () => {
 
         {step === 3 && (
           <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <p className="muted-text" style={{ margin: 0 }}>
                 Ajuste cláusulas do snapshot. Selecionar uma variação atualiza o texto do snapshot; edições posteriores permanecem independentes do modelo.
               </p>
-              <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button type="button" onClick={() => setStep(2)} disabled={!ctrId}>
+                  Dados do contrato
+                </button>
                 <button type="button" className="btn-primary" onClick={() => setStep(4)} disabled={!ctrId}>
-                  Finalizar (preview em breve)
+                  Preview e finalização
                 </button>
               </div>
             </div>
@@ -354,15 +430,17 @@ const ContratoEditorPage: React.FC = () => {
         {step === 4 && (
           <div>
             <p className="muted-text" style={{ marginTop: 0 }}>
-              Preview HTML, geração de PDF e link público são gerados com base no snapshot atual do contrato.
+              Preview HTML, geração de PDF e link público refletem os dados e cláusulas atuais. Após alterar dados ou cláusulas, gere o HTML ou o PDF de novo.
             </p>
-            <div className="modal-actions" style={{ display: "flex", justifyContent: "space-between" }}>
+            <div className="modal-actions" style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "space-between" }}>
               <button type="button" onClick={() => setStep(3)}>
-                Voltar
+                Voltar para cláusulas
               </button>
-              <button type="button" className="btn-primary" onClick={() => setStep(3)}>
-                Continuar edição
-              </button>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button type="button" className="btn-primary" onClick={() => setStep(2)}>
+                  Editar dados do contrato
+                </button>
+              </div>
             </div>
 
             {ctrId && (

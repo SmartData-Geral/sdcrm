@@ -27,6 +27,16 @@ interface VariacaoListResponse {
   items: ContratoModeloClausulaVariacaoItem[];
 }
 
+interface ContratoMacroItem {
+  key: string;
+  titulo: string;
+  descricao: string;
+}
+
+interface ContratoMacroListResponse {
+  items: ContratoMacroItem[];
+}
+
 const ContratosCadastrosPage: React.FC = () => {
   const { api } = useAuth();
 
@@ -83,6 +93,10 @@ const ContratosCadastrosPage: React.FC = () => {
   // Inactivate confirmation
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [confirmTarget, setConfirmTarget] = useState<{ kind: "modelo" | "clausula" | "variacao"; id: number } | null>(null);
+
+  const [macrosModalOpen, setMacrosModalOpen] = useState(false);
+  const [macrosLoading, setMacrosLoading] = useState(false);
+  const [macrosList, setMacrosList] = useState<ContratoMacroItem[]>([]);
 
   const activeClauses = useMemo(() => clauses.filter((c) => c.cmcAtivo), [clauses]);
   const inactiveClauses = useMemo(() => clauses.filter((c) => !c.cmcAtivo), [clauses]);
@@ -288,6 +302,20 @@ const ContratosCadastrosPage: React.FC = () => {
     if (variationCmcId) await loadVariacoes(variationCmcId);
   };
 
+  const openMacrosModal = async () => {
+    setMacrosModalOpen(true);
+    setMacrosLoading(true);
+    try {
+      const res = await api.get<ContratoMacroListResponse>("/contratos/macros");
+      setMacrosList(res.data.items ?? []);
+    } catch {
+      setMacrosList([]);
+      alert("Não foi possível carregar a lista de macros.");
+    } finally {
+      setMacrosLoading(false);
+    }
+  };
+
   const dragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
@@ -318,9 +346,14 @@ const ContratosCadastrosPage: React.FC = () => {
     <Layout>
       <ListingToolbar
         actions={
-          <button type="button" className="btn-primary" onClick={openCreateModel}>
-            Novo modelo de contrato
-          </button>
+          <>
+            <button type="button" onClick={() => void openMacrosModal()}>
+              Ver Macros
+            </button>
+            <button type="button" className="btn-primary" onClick={openCreateModel}>
+              Novo modelo de contrato
+            </button>
+          </>
         }
         filters={<p className="muted-text">Modelos base com cláusulas e variações (drag-and-drop na ordem base).</p>}
       />
@@ -686,6 +719,49 @@ const ContratosCadastrosPage: React.FC = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={macrosModalOpen}
+        title="Macros do contrato"
+        onClose={() => {
+          setMacrosModalOpen(false);
+        }}
+      >
+        <p className="muted-text" style={{ marginTop: 0 }}>
+          Nos textos das cláusulas do modelo, use a sintaxe <code>{"{{chave}}"}</code>. Na geração do contrato, cada macro é substituída pelo valor correspondente nos dados do contrato.
+        </p>
+        {macrosLoading ? (
+          <Loader />
+        ) : (
+          <div style={{ marginTop: 12, overflow: "auto", maxHeight: "min(70vh, 480px)" }}>
+            <table className="datatable" style={{ width: "100%", fontSize: "0.95rem" }}>
+              <thead>
+                <tr>
+                  <th scope="col">Macro</th>
+                  <th scope="col">Chave no contrato</th>
+                  <th scope="col">Descrição</th>
+                </tr>
+              </thead>
+              <tbody>
+                {macrosList.map((m) => (
+                  <tr key={m.key}>
+                    <td style={{ fontWeight: 600 }}>{m.titulo}</td>
+                    <td>
+                      <code style={{ whiteSpace: "nowrap" }}>{`{{${m.key}}}`}</code>
+                    </td>
+                    <td>{m.descricao}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="modal-actions" style={{ marginTop: "1rem" }}>
+          <button type="button" onClick={() => setMacrosModalOpen(false)}>
+            Fechar
+          </button>
+        </div>
       </Modal>
 
       <ConfirmDialog

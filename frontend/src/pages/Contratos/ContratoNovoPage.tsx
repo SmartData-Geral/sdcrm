@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Layout from "../../components/Layout";
 import Loader from "../../components/Loader";
 import ActionIconButton from "../../components/ActionIconButton";
@@ -19,9 +19,13 @@ interface ContratoModeloListResponse {
   page_size: number;
 }
 
+/** Dados vindos da API após inativar o contrato anterior; pré-preenchem o passo 2. */
+type ContratoNovoPrefill = ContratoItem;
+
 const ContratoNovoPage: React.FC = () => {
   const { api } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const params = useParams<{ opoId?: string }>();
   const opoId = params.opoId ? Number(params.opoId) : null;
 
@@ -49,11 +53,12 @@ const ContratoNovoPage: React.FC = () => {
     ctrResponsavelCpf: "",
     ctrObjetoContrato: "",
     ctrValorContrato: "" as number | "",
-    ctrFormaPagamento: "",
-    ctrVigencia: "",
     ctrDataInicio: "",
-    ctrForo: "",
-    ctrReajuste: "",
+    ctrPrazoConclusao: "90 (noventa) dias",
+    ctrDiasPagamento: 30 as number | "",
+    ctrDiasAntecedenciaRescisao: 30 as number | "",
+    ctrValorManutencao: 390 as number | "",
+    ctrHorasMelhoriasMensais: 8 as number | "",
   });
 
   const [savingAsVar, setSavingAsVar] = useState(false);
@@ -68,10 +73,51 @@ const ContratoNovoPage: React.FC = () => {
     return "4) Finalização";
   }, [step]);
 
-  const loadModels = async () => {
+  const dadosFromContratoPrefill = (prefill: ContratoNovoPrefill) => {
+    const di =
+      typeof prefill.ctrDataInicio === "string"
+        ? prefill.ctrDataInicio.slice(0, 10)
+        : "";
+    return {
+      ctrRazaoSocial: prefill.ctrRazaoSocial ?? "",
+      ctrCnpj: prefill.ctrCnpj ?? "",
+      ctrEndereco: prefill.ctrEndereco ?? "",
+      ctrResponsavelNome: prefill.ctrResponsavelNome ?? "",
+      ctrResponsavelCpf: prefill.ctrResponsavelCpf ?? "",
+      ctrObjetoContrato: prefill.ctrObjetoContrato ?? "",
+      ctrValorContrato: prefill.ctrValorContrato ?? ("" as number | ""),
+      ctrDataInicio: di,
+      ctrPrazoConclusao: (prefill.ctrPrazoConclusao ?? "90 (noventa) dias").trim() || "90 (noventa) dias",
+      ctrDiasPagamento: typeof prefill.ctrDiasPagamento === "number" ? prefill.ctrDiasPagamento : ("" as number | ""),
+      ctrDiasAntecedenciaRescisao:
+        typeof prefill.ctrDiasAntecedenciaRescisao === "number" ? prefill.ctrDiasAntecedenciaRescisao : ("" as number | ""),
+      ctrValorManutencao:
+        typeof prefill.ctrValorManutencao === "number" ? prefill.ctrValorManutencao : ("" as number | ""),
+      ctrHorasMelhoriasMensais:
+        typeof prefill.ctrHorasMelhoriasMensais === "number" ? prefill.ctrHorasMelhoriasMensais : ("" as number | ""),
+    };
+  };
+
+  const loadModelsInitial = async (navStateSnapshot: unknown) => {
+    const parsed = navStateSnapshot as { prefillContrato?: ContratoNovoPrefill } | undefined;
+    const ctrIdCandidate = parsed?.prefillContrato?.ctrId;
+    const prefill =
+      parsed?.prefillContrato != null && typeof ctrIdCandidate === "number"
+        ? parsed.prefillContrato
+        : undefined;
+
     const res = await api.get<ContratoModeloListResponse>("/contratos-modelo", { params: { page_size: 100, page: 1 } });
     const items = res.data.items ?? [];
     setModels(items);
+
+    if (prefill && opoId) {
+      setSelectedModelId(prefill.ctrCtmId);
+      setDados(dadosFromContratoPrefill(prefill));
+      setModelFallbackHint("Campos recuperados do contrato anterior.");
+      setStep(2);
+      navigate(".", { replace: true, state: {} });
+      return;
+    }
 
     const ativos = items.filter((m) => m.ctmAtivo);
     if (ativos.length > 0) {
@@ -94,9 +140,11 @@ const ContratoNovoPage: React.FC = () => {
   };
 
   useEffect(() => {
-    void loadModels();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const navStateSnapshot = location.state;
+    void loadModelsInitial(navStateSnapshot);
+    // Somente navegações distintas; não dependemos de `location.state` após o navigate replace nos pré-preencidos.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- location.state intencionalmente omitido das deps
+  }, [location.key, opoId]);
 
   const onToggleUtilizar = async (clause: ContratoClausula, utilizar: boolean) => {
     if (!contractId) return;
@@ -169,10 +217,16 @@ const ContratoNovoPage: React.FC = () => {
     if (!dados.ctrResponsavelCpf.trim()) return alert("Informe o CPF do responsável.");
     if (!dados.ctrObjetoContrato.trim()) return alert("Informe o objeto do contrato.");
     if (dados.ctrValorContrato === "" || Number(dados.ctrValorContrato) <= 0) return alert("Informe o valor do contrato.");
-    if (!dados.ctrFormaPagamento.trim()) return alert("Informe a forma de pagamento.");
-    if (!dados.ctrVigencia.trim()) return alert("Informe a vigência.");
     if (!dados.ctrDataInicio) return alert("Informe a data de início.");
-    if (!dados.ctrForo.trim()) return alert("Informe o foro.");
+    if (!dados.ctrPrazoConclusao.trim()) return alert("Informe o prazo de conclusão.");
+    if (dados.ctrDiasPagamento === "" || Number(dados.ctrDiasPagamento) < 0) return alert("Informe os dias para o primeiro pagamento.");
+    if (dados.ctrDiasAntecedenciaRescisao === "" || Number(dados.ctrDiasAntecedenciaRescisao) < 0) {
+      return alert("Informe os dias de antecedência para rescisão.");
+    }
+    if (dados.ctrValorManutencao === "" || Number(dados.ctrValorManutencao) < 0) return alert("Informe o valor da manutenção.");
+    if (dados.ctrHorasMelhoriasMensais === "" || Number(dados.ctrHorasMelhoriasMensais) < 0) {
+      return alert("Informe as horas de melhorias mensais (valor inteiro, ex.: 8).");
+    }
 
     setLoading(true);
     try {
@@ -187,11 +241,12 @@ const ContratoNovoPage: React.FC = () => {
         ctrResponsavelCpf: dados.ctrResponsavelCpf,
         ctrObjetoContrato: dados.ctrObjetoContrato,
         ctrValorContrato: Number(dados.ctrValorContrato),
-        ctrFormaPagamento: dados.ctrFormaPagamento,
-        ctrVigencia: dados.ctrVigencia,
         ctrDataInicio: dados.ctrDataInicio,
-        ctrForo: dados.ctrForo,
-        ctrReajuste: dados.ctrReajuste.trim() ? dados.ctrReajuste.trim() : null,
+        ctrPrazoConclusao: dados.ctrPrazoConclusao.trim(),
+        ctrDiasPagamento: Number(dados.ctrDiasPagamento),
+        ctrDiasAntecedenciaRescisao: Number(dados.ctrDiasAntecedenciaRescisao),
+        ctrValorManutencao: Number(dados.ctrValorManutencao),
+        ctrHorasMelhoriasMensais: Number(dados.ctrHorasMelhoriasMensais),
       };
 
       const res = opoId
@@ -287,24 +342,84 @@ const ContratoNovoPage: React.FC = () => {
               />
             </label>
             <label>
-              Forma de pagamento
-              <input value={dados.ctrFormaPagamento} onChange={(e) => setDados((d) => ({ ...d, ctrFormaPagamento: e.target.value }))} required />
-            </label>
-            <label>
-              Vigência
-              <input value={dados.ctrVigencia} onChange={(e) => setDados((d) => ({ ...d, ctrVigencia: e.target.value }))} required />
-            </label>
-            <label>
               Data de início
               <input type="date" value={dados.ctrDataInicio} onChange={(e) => setDados((d) => ({ ...d, ctrDataInicio: e.target.value }))} required />
             </label>
             <label>
-              Foro
-              <input value={dados.ctrForo} onChange={(e) => setDados((d) => ({ ...d, ctrForo: e.target.value }))} required />
+              Prazo de conclusão (texto nas cláusulas)
+              <input
+                value={dados.ctrPrazoConclusao}
+                onChange={(e) => setDados((d) => ({ ...d, ctrPrazoConclusao: e.target.value }))}
+                required
+              />
             </label>
             <label>
-              Reajuste (opcional)
-              <textarea rows={3} value={dados.ctrReajuste} onChange={(e) => setDados((d) => ({ ...d, ctrReajuste: e.target.value }))} />
+              Dias para o primeiro pagamento
+              <input
+                type="number"
+                min={0}
+                max={3660}
+                value={dados.ctrDiasPagamento}
+                onChange={(e) =>
+                  setDados((d) => ({
+                    ...d,
+                    ctrDiasPagamento: e.target.value === "" ? "" : Number(e.target.value),
+                  }))
+                }
+                required
+              />
+            </label>
+            <label>
+              Dias de antecedência para rescisão
+              <input
+                type="number"
+                min={0}
+                max={3660}
+                value={dados.ctrDiasAntecedenciaRescisao}
+                onChange={(e) =>
+                  setDados((d) => ({
+                    ...d,
+                    ctrDiasAntecedenciaRescisao: e.target.value === "" ? "" : Number(e.target.value),
+                  }))
+                }
+                required
+              />
+            </label>
+            <label>
+              Valor da manutenção
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={dados.ctrValorManutencao}
+                onChange={(e) =>
+                  setDados((d) => ({
+                    ...d,
+                    ctrValorManutencao: e.target.value === "" ? "" : Number(e.target.value),
+                  }))
+                }
+                required
+              />
+            </label>
+            <label>
+              Horas de melhorias mensais
+              <span className="muted-text" style={{ display: "block", fontWeight: 400, fontSize: "0.9em", marginBottom: 6 }}>
+                Usada nos textos do modelo como macro <code>{"{{horas_melhorias_mensais}}"}</code> (número inteiro).
+              </span>
+              <input
+                type="number"
+                min={0}
+                max={744}
+                step={1}
+                value={dados.ctrHorasMelhoriasMensais}
+                onChange={(e) =>
+                  setDados((d) => ({
+                    ...d,
+                    ctrHorasMelhoriasMensais: e.target.value === "" ? "" : Number(e.target.value),
+                  }))
+                }
+                required
+              />
             </label>
 
             <div className="modal-actions" style={{ marginTop: "1rem", display: "flex", justifyContent: "space-between" }}>
@@ -320,13 +435,22 @@ const ContratoNovoPage: React.FC = () => {
 
         {step === 3 && (
           <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <p className="muted-text" style={{ margin: 0 }}>
                 Para cada cláusula: ative/desative, escolha versão (padrão ou variação) e edite snapshot (título/texto) sem alterar o modelo.
               </p>
-              <button type="button" className="btn-primary" onClick={() => setStep(4)} disabled={!contractId}>
-                Finalizar (preview em breve)
-              </button>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => contractId && navigate(`/contratos/${contractId}/editor?step=2`)}
+                  disabled={!contractId}
+                >
+                  Dados do contrato
+                </button>
+                <button type="button" className="btn-primary" onClick={() => setStep(4)} disabled={!contractId}>
+                  Preview e finalização
+                </button>
+              </div>
             </div>
 
             {clausesLoading ? <Loader /> : null}
@@ -421,15 +545,24 @@ const ContratoNovoPage: React.FC = () => {
         {step === 4 && (
           <div>
             <p className="muted-text" style={{ marginTop: 0 }}>
-              Preview HTML, geração de PDF e link público são gerados com base no snapshot atual do contrato.
+              Preview HTML, geração de PDF e link público refletem os dados e cláusulas atuais. Após alterar dados ou cláusulas, gere o HTML ou o PDF de novo.
             </p>
-            <div className="modal-actions" style={{ display: "flex", justifyContent: "space-between" }}>
+            <div className="modal-actions" style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "space-between" }}>
               <button type="button" onClick={() => setStep(3)}>
-                Voltar
+                Voltar para cláusulas
               </button>
-              <button type="button" className="btn-primary" onClick={() => contractId && navigate(`/contratos/${contractId}/editor`)}>
-                Abrir editor
-              </button>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => contractId && navigate(`/contratos/${contractId}/editor?step=2`)}
+                >
+                  Editar dados do contrato
+                </button>
+                <button type="button" onClick={() => contractId && navigate(`/contratos/${contractId}/editor`)}>
+                  Ir ao editor de cláusulas
+                </button>
+              </div>
             </div>
 
             {contractId ? <ContratoPreviewPanel contratoId={contractId} tokenPublico={tokenPublico} /> : null}

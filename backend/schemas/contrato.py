@@ -21,12 +21,12 @@ class ContratoCreate(BaseModel):
 
     ctrObjetoContrato: str
     ctrValorContrato: float
-    ctrFormaPagamento: str = Field(max_length=200)
-
-    ctrVigencia: str = Field(max_length=200)
     ctrDataInicio: date
-    ctrForo: str = Field(max_length=200)
-    ctrReajuste: str | None = None
+    ctrPrazoConclusao: str = Field(max_length=200)
+    ctrDiasPagamento: int = Field(ge=0, le=3660)
+    ctrDiasAntecedenciaRescisao: int = Field(ge=0, le=3660)
+    ctrValorManutencao: float = Field(ge=0)
+    ctrHorasMelhoriasMensais: int = Field(ge=0, le=744)
 
 
 class ContratoInDBBase(BaseModel):
@@ -46,11 +46,12 @@ class ContratoInDBBase(BaseModel):
     ctrResponsavelCpf: str
     ctrObjetoContrato: str
     ctrValorContrato: float
-    ctrFormaPagamento: str
-    ctrVigencia: str
     ctrDataInicio: date
-    ctrForo: str
-    ctrReajuste: str | None
+    ctrPrazoConclusao: str
+    ctrDiasPagamento: int
+    ctrDiasAntecedenciaRescisao: int
+    ctrValorManutencao: float
+    ctrHorasMelhoriasMensais: int
 
     ctrHtmlSnapshot: str | None
     ctrPdfPath: str | None
@@ -76,11 +77,12 @@ class ContratoUpdate(BaseModel):
     ctrResponsavelCpf: str | None = Field(default=None, max_length=20)
     ctrObjetoContrato: str | None = None
     ctrValorContrato: float | None = None
-    ctrFormaPagamento: str | None = Field(default=None, max_length=200)
-    ctrVigencia: str | None = Field(default=None, max_length=200)
     ctrDataInicio: date | None = None
-    ctrForo: str | None = Field(default=None, max_length=200)
-    ctrReajuste: str | None = None
+    ctrPrazoConclusao: str | None = Field(default=None, max_length=200)
+    ctrDiasPagamento: int | None = Field(default=None, ge=0, le=3660)
+    ctrDiasAntecedenciaRescisao: int | None = Field(default=None, ge=0, le=3660)
+    ctrValorManutencao: float | None = Field(default=None, ge=0)
+    ctrHorasMelhoriasMensais: int | None = Field(default=None, ge=0, le=744)
 
 
 class ContratoListResponse(BaseModel):
@@ -88,6 +90,18 @@ class ContratoListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class ContratoMacroItem(BaseModel):
+    """Macro disponível para uso nos textos do modelo de contrato (sintaxe {{chave}})."""
+
+    key: str
+    titulo: str
+    descricao: str
+
+
+class ContratoMacroListResponse(BaseModel):
+    items: list[ContratoMacroItem]
 
 
 class ContratoClausulaVariacaoResponse(BaseModel):

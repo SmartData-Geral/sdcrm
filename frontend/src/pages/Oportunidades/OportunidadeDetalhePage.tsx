@@ -157,6 +157,9 @@ const OportunidadeDetalhePage: React.FC = () => {
     prpTipo: "projeto" as "projeto" | "planos" | "hibrida",
     prpTplId: "" as number | "",
   });
+  const [isSubstituicaoContratoModalOpen, setIsSubstituicaoContratoModalOpen] = useState(false);
+  const [substituicaoManterDados, setSubstituicaoManterDados] = useState<"manter" | "zerar" | null>(null);
+  const [loadingSubstituicaoContrato, setLoadingSubstituicaoContrato] = useState(false);
   const [detailTab, setDetailTab] = useState<OportunidadeDetailTab>("geral");
 
   const id = opoId ? parseInt(opoId, 10) : NaN;
@@ -246,6 +249,26 @@ const OportunidadeDetalhePage: React.FC = () => {
       setContrato(null);
     } finally {
       setLoadingContrato(false);
+    }
+  };
+
+  const confirmarSubstituicaoContrato = async () => {
+    if (!contrato || substituicaoManterDados === null) return;
+    setLoadingSubstituicaoContrato(true);
+    try {
+      const res = await api.patch<ContratoItem>(`/contratos/${contrato.ctrId}/inativar`);
+      setContrato(null);
+      setIsSubstituicaoContratoModalOpen(false);
+      setSubstituicaoManterDados(null);
+      navigate(
+        pipelineContext.contractNewPath(id),
+        substituicaoManterDados === "manter" ? { state: { prefillContrato: res.data } } : undefined
+      );
+    } catch (e: unknown) {
+      const detail = typeof e === "object" && e !== null && "response" in e ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail : undefined;
+      alert(detail ?? "Não foi possível inativar o contrato.");
+    } finally {
+      setLoadingSubstituicaoContrato(false);
     }
   };
 
@@ -1011,15 +1034,29 @@ const OportunidadeDetalhePage: React.FC = () => {
                       Status: <strong>{contrato.ctrStatus}</strong>
                     </p>
                     <p className="muted-text" style={{ marginTop: 6 }}>
-                      Dados do contrato já estão no snapshot.
+                      Edite valores cadastrais, cláusulas e gere pré-visualização quando precisar. Alterações aparecem na próxima geração de HTML ou PDF.
                     </p>
                   </div>
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    <button type="button" className="btn-primary" onClick={() => navigate(`/contratos/${contrato.ctrId}/editor`)}>
-                      Abrir contrato
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    <button
+                      type="button"
+                      disabled={loadingSubstituicaoContrato}
+                      title="Inativa este contrato e abre um novo fluxo nesta oportunidade."
+                      onClick={() => {
+                        setSubstituicaoManterDados(null);
+                        setIsSubstituicaoContratoModalOpen(true);
+                      }}
+                    >
+                      Substituir contrato
                     </button>
-                    <button type="button" className="btn-primary" disabled title="ETAPA 6: implementar preview/PDF">
-                      Preview/PDF (em breve)
+                    <button type="button" onClick={() => navigate(`/contratos/${contrato.ctrId}/editor?step=2`)}>
+                      Dados do contrato
+                    </button>
+                    <button type="button" onClick={() => navigate(`/contratos/${contrato.ctrId}/editor`)}>
+                      Cláusulas
+                    </button>
+                    <button type="button" className="btn-primary" onClick={() => navigate(`/contratos/${contrato.ctrId}/editor?step=4`)}>
+                      Preview / PDF
                     </button>
                   </div>
                 </div>
@@ -1036,6 +1073,56 @@ const OportunidadeDetalhePage: React.FC = () => {
         )}
       </div>
       </div>
+      <Modal
+        isOpen={isSubstituicaoContratoModalOpen}
+        title="Substituir contrato"
+        onClose={() => {
+          if (loadingSubstituicaoContrato) return;
+          setIsSubstituicaoContratoModalOpen(false);
+          setSubstituicaoManterDados(null);
+        }}
+      >
+        <p className="muted-text" style={{ marginTop: 0 }}>
+          O contrato atual será <strong>inativado</strong> e deixará de estar vinculado a esta oportunidade. Em seguida você pode registrar um novo contrato.
+        </p>
+        <fieldset className="form-vertical" style={{ border: "none", margin: "12px 0 0", padding: 0 }}>
+          <legend className="section-title">Deseja manter os dados do contrato?</legend>
+          <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="substituicaoCtrDados"
+              checked={substituicaoManterDados === "manter"}
+              onChange={() => setSubstituicaoManterDados("manter")}
+              style={{ marginTop: 3 }}
+            />
+            <span>Sim — pré-preencher o novo formulário com contratante, objeto, valores e demais dados atuais (as cláusulas serão recriadas pelo modelo).</span>
+          </label>
+          <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 10, cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="substituicaoCtrDados"
+              checked={substituicaoManterDados === "zerar"}
+              onChange={() => setSubstituicaoManterDados("zerar")}
+              style={{ marginTop: 3 }}
+            />
+            <span>Não — começar o fluxo novo com formulário limpo.</span>
+          </label>
+        </fieldset>
+        <div className="modal-actions">
+          <button type="button" disabled={loadingSubstituicaoContrato} onClick={() => setIsSubstituicaoContratoModalOpen(false)}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={loadingSubstituicaoContrato || substituicaoManterDados === null}
+            onClick={() => void confirmarSubstituicaoContrato()}
+          >
+            {loadingSubstituicaoContrato ? "Processando..." : "Confirmar"}
+          </button>
+        </div>
+      </Modal>
+
       <Modal isOpen={isPerderModalOpen} title="Marcar como perdida" onClose={() => setIsPerderModalOpen(false)}>
         <form className="form-vertical" onSubmit={confirmarPerda}>
           <label>
