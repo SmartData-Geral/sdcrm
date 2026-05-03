@@ -20,3 +20,8 @@ class BadRequestError(HTTPException):
     def __init__(self, detail: str = "Requisição inválida") -> None:
         super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
+
+class ConflictError(HTTPException):
+    def __init__(self, detail: str = "Conflito de dados") -> None:
+        super().__init__(status_code=status.HTTP_409_CONFLICT, detail=detail)
+

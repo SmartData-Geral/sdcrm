@@ -16,6 +16,7 @@ import LlmAgentesPage from "./pages/LlmAgentes/LlmAgentesPage";
 import ContratosCadastrosPage from "./pages/Contratos/ContratosCadastrosPage";
 import ContratoNovoPage from "./pages/Contratos/ContratoNovoPage";
 import ContratoEditorPage from "./pages/Contratos/ContratoEditorPage";
+import MetasMensaisPage from "./pages/MetasMensais/MetasMensaisPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 function App() {
@@ -139,6 +140,14 @@ function App() {
         element={
           <ProtectedRoute>
             <PropostasCadastrosPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cadastros/metas-mensais"
+        element={
+          <ProtectedRoute>
+            <MetasMensaisPage />
           </ProtectedRoute>
         }
       />

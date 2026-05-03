@@ -4,7 +4,8 @@ SQLAlchemy==2.0.35
 alembic==1.13.2
 PyMySQL==1.1.1
 python-jose[cryptography]==3.3.0
-bcrypt==4.2.0
+# passlib 1.7.x não suporta bcrypt>=4.1 (remoção de __about__.__version__)
+bcrypt==4.0.1
 passlib[bcrypt]==1.7.4
 pydantic==2.9.2
 pydantic-settings==2.5.2

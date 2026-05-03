@@ -9,6 +9,7 @@ import ActionIconButton from "../../components/ActionIconButton";
 import AvatarSelect from "../../components/AvatarSelect";
 import TemperatureSelect from "../../components/TemperatureSelect";
 import ReuniaoIaSection from "../../components/oportunidades/ReuniaoIaSection";
+import SmartAgenteIaSection from "../../components/oportunidades/SmartAgenteIaSection";
 import {
   OportunidadeIconButton,
   IcoSave,
@@ -861,6 +862,7 @@ const OportunidadeDetalhePage: React.FC = () => {
                   </div>
                 </div>
               </section>
+              <SmartAgenteIaSection opoId={id} chatDisabled={!!isFechada} />
             </div>
             <aside className="detail-right oportunidade-history-column">
               <section className="surface-card details-card">

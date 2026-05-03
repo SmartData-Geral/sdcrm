@@ -16,10 +16,12 @@ from .llm.llm_factory import get_scope_provider
 from .llm.providers.base import ScopeGenerationInput, ScopeSourceImage, ScopeSourceText
 from .llm_agente_service import get_agent_by_codigo
 
-ALLOWED_EXTENSIONS = {".json", ".txt", ".csv", ".pdf", ".png", ".jpg", ".jpeg", ".webp"}
+ALLOWED_EXTENSIONS = {".json", ".txt", ".csv", ".pdf", ".md", ".png", ".jpg", ".jpeg", ".webp"}
 ALLOWED_CONTENT_TYPES = {
     "application/json",
     "text/plain",
+    "text/markdown",
+    "text/x-markdown",
     "text/csv",
     "application/csv",
     "application/pdf",

@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     # Timeout total (s) para chamadas HTTP à OpenAI (transcrições grandes podem demorar).
     LLM_HTTP_TIMEOUT_SECONDS: float = 180.0
     LLM_MAX_FILE_SIZE_MB: int = 10
-    LLM_MAX_FILES: int = 5
+    LLM_MAX_FILES: int = 10
 
     @field_validator("LLM_OPENAI_BASE_URL", mode="before")
     @classmethod

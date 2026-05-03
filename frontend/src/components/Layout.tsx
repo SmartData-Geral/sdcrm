@@ -2,6 +2,12 @@ import React, { useCallback, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
+const HamburgerIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden>
+    <path d="M3 12h18M3 6h18M3 18h18" />
+  </svg>
+);
+
 const SIDEBAR_OPEN_KEY = "sd_sidebar_groups";
 
 interface EmpresaItem {
@@ -199,6 +205,13 @@ function getHeaderData(pathname: string): HeaderData {
       description: "Gerencie origens e canais de aquisição.",
     };
   }
+  if (pathname.startsWith("/cadastros/metas-mensais")) {
+    return {
+      breadcrumb: ["Dashboard", "Cadastros", "Metas mensais"],
+      title: "Metas mensais",
+      description: "Cadastre e visualize metas de recebimento, conversão e MRR por mês.",
+    };
+  }
   if (pathname.startsWith("/clientes")) {
     return {
       breadcrumb: ["Dashboard", "CRM", "Clientes"],
@@ -217,6 +230,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, logout, companyId, setCompanyId, api } = useAuth();
   const [empresas, setEmpresas] = useState<EmpresaItem[]>([]);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(getStoredOpen);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const location = useLocation();
   const headerData = getHeaderData(location.pathname);
 
@@ -227,6 +241,15 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       return next;
     });
   }, []);
+
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    document.body.style.overflow = mobileSidebarOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileSidebarOpen]);
 
   useEffect(() => {
     if (!user) return;
@@ -266,6 +289,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           path.startsWith("/produtos") ||
           path.startsWith("/etapas-kanban") ||
           path.startsWith("/cadastros/propostas") ||
+          path.startsWith("/cadastros/metas-mensais") ||
           path.startsWith("/cadastros/agentes-ia") ||
           path.startsWith("/cadastros/contratos") ||
           path.startsWith("/empresas")) &&
@@ -286,7 +310,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   };
 
   return (
-    <div className="app-layout">
+    <div className={`app-layout${mobileSidebarOpen ? " sidebar-open" : ""}`}>
+      {mobileSidebarOpen && (
+        <div className="sidebar-overlay" onClick={() => setMobileSidebarOpen(false)} />
+      )}
       <aside className="sidebar">
         <div className="brand-block">
           <span className="brand-logo" aria-hidden>
@@ -404,6 +431,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 <NavLink to="/etapas-kanban" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
                   Etapas Kanban
                 </NavLink>
+                <NavLink to="/cadastros/metas-mensais" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
+                  Metas mensais
+                </NavLink>
                 <NavLink to="/cadastros/propostas" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
                   Propostas
                 </NavLink>
@@ -446,16 +476,27 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
       <div className="content-area">
         <header className="top-header">
-          <div className="top-breadcrumb" aria-label="Breadcrumb">
-            {headerData.breadcrumb.map((item, idx) => (
-              <React.Fragment key={item}>
-                {idx > 0 && <span className="top-breadcrumb-sep"> &gt; </span>}
-                <span>{item}</span>
-              </React.Fragment>
-            ))}
+          <button
+            type="button"
+            className="mobile-nav-toggle"
+            onClick={() => setMobileSidebarOpen((v) => !v)}
+            aria-label={mobileSidebarOpen ? "Fechar menu" : "Abrir menu"}
+            aria-expanded={mobileSidebarOpen}
+          >
+            <HamburgerIcon />
+          </button>
+          <div className="top-header-inner">
+            <div className="top-breadcrumb" aria-label="Breadcrumb">
+              {headerData.breadcrumb.map((item, idx) => (
+                <React.Fragment key={item}>
+                  {idx > 0 && <span className="top-breadcrumb-sep"> &gt; </span>}
+                  <span>{item}</span>
+                </React.Fragment>
+              ))}
+            </div>
+            <h1>{headerData.title}</h1>
+            <p>{headerData.description}</p>
           </div>
-          <h1>{headerData.title}</h1>
-          <p>{headerData.description}</p>
         </header>
         <main className="app-main">{children}</main>
       </div>

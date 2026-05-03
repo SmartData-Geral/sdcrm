@@ -14,7 +14,7 @@ async def gerar_escopo_por_ia(
     db: DbSessionDep,
     current_user: CurrentUserDep,
     company_id: CompanyIdDep,
-    files: list[UploadFile] = File(..., description="Arquivos de contexto (json, txt, pdf, imagens)"),
+    files: list[UploadFile] = File(..., description="Arquivos de contexto (json, txt, md, csv, pdf, imagens)"),
 ) -> EscopoAiGenerateResponse:
     require_user_in_company(db=db, current_user=current_user, company_id=company_id)
     if len(files) > settings.LLM_MAX_FILES:

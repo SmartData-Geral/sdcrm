@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
 import Modal from "../Modal";
+import { LLM_MAX_FILES_PER_REQUEST } from "../../constants/llmUploads";
 import { useAuth } from "../../contexts/AuthContext";
 
 interface Props {
@@ -92,6 +93,12 @@ const ProposalScopeEditor: React.FC<Props> = ({ value, onChange, propostaId }) =
 
   const handleGerarSugestao = async () => {
     setSugestaoError(null);
+    if (selectedFiles.length > LLM_MAX_FILES_PER_REQUEST) {
+      setSugestaoError(
+        `Envie no máximo ${LLM_MAX_FILES_PER_REQUEST} arquivos por requisição (complementares à sugestão de escopo).`,
+      );
+      return;
+    }
     setGenerating(true);
     try {
       const data = new FormData();
@@ -229,11 +236,12 @@ const ProposalScopeEditor: React.FC<Props> = ({ value, onChange, propostaId }) =
             />
           </label>
           <label>
-            Arquivos opcionais (txt, csv, json, pdf, jpg, png)
+            Arquivos opcionais — pode anexar vários (txt, md, csv, json, pdf, jpg, png). Máximo {LLM_MAX_FILES_PER_REQUEST} por
+            envio.
             <input
               type="file"
               multiple
-              accept=".txt,.csv,.json,.pdf,image/png,image/jpeg,.jpg,.jpeg"
+              accept=".txt,.md,.csv,.json,.pdf,image/png,image/jpeg,.jpg,.jpeg,text/markdown"
               onChange={(e) => setSelectedFiles(Array.from(e.target.files ?? []))}
               disabled={generating}
             />

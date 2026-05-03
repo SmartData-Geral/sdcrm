@@ -41,6 +41,7 @@ class MeetingAnalysisInput:
     oportunidade_contexto: str
     transcricao: str
     materiais: list[ScopeSourceText]
+    reunioes_anteriores_resumo: str = ""
 
 
 class LlmMeetingProvider(Protocol):

@@ -41,17 +41,24 @@ async def criar_analise_reuniao(
     company_id: CompanyIdDep,
     ranTranscricao: Optional[str] = Form(default=None),
     arquivo_transcricao: UploadFile | None = File(default=None),
+    arquivos_transcricao: list[UploadFile] | None = File(default=None),
     files: list[UploadFile] | None = File(default=None),
 ) -> ReuniaoAnaliseResponse:
     require_user_in_company(db=db, current_user=current_user, company_id=company_id)
-    upload_files = files if files is not None else []
+    upload_files = [f for f in (files or []) if (f.filename or "").strip()]
+    transcricao_parts: list[UploadFile] = []
+    if arquivo_transcricao is not None and (arquivo_transcricao.filename or "").strip():
+        transcricao_parts.append(arquivo_transcricao)
+    for part in arquivos_transcricao or []:
+        if part is not None and (part.filename or "").strip():
+            transcricao_parts.append(part)
     return await reuniao_analise_service.create_reuniao_analise(
         db=db,
         opo_id=opo_id,
         company_id=company_id,
         usu_id=current_user.usuId,
         transcricao=ranTranscricao,
-        transcricao_arquivo=arquivo_transcricao,
+        transcricao_arquivos=transcricao_parts,
         files=upload_files,
     )
 

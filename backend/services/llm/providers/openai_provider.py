@@ -133,12 +133,21 @@ class OpenAiScopeProvider(LlmScopeProvider):
         materiais_text = "\n\n".join(
             [f"Arquivo: {item.filename}\nConteúdo extraído:\n{item.content}" for item in payload.materiais]
         )
+        prior = (payload.reunioes_anteriores_resumo or "").strip()
+        bloco_anteriores = ""
+        if prior:
+            bloco_anteriores = (
+                "=== Reuniões anteriores da mesma oportunidade (contexto cumulativo) ===\n"
+                f"{prior}\n\n"
+            )
         prompt_usuario = (
             "Contexto da oportunidade:\n"
             f"{payload.oportunidade_contexto}\n\n"
-            "Transcrição principal da reunião:\n"
+            f"{bloco_anteriores}"
+            "=== Reunião atual (foco principal desta análise) ===\n"
+            "Transcrição principal:\n"
             f"{payload.transcricao}\n\n"
-            "Materiais complementares:\n"
+            "Materiais complementares desta reunião:\n"
             f"{materiais_text or 'Sem materiais complementares legíveis.'}"
         )
         response = self._chat_completions_create(
@@ -157,3 +166,17 @@ class OpenAiScopeProvider(LlmScopeProvider):
             return json.loads(content)
         except json.JSONDecodeError as exc:
             raise BadRequestError("A IA retornou um formato inválido de análise.") from exc
+
+    def chat_completion(self, messages: list[dict[str, str]], *, temperature: float = 0.6) -> str:
+        """Chat em texto livre (sem response_format JSON)."""
+        if not messages:
+            raise BadRequestError("Mensagens vazias para o chat.")
+        response = self._chat_completions_create(
+            model=self.model_name,
+            messages=messages,
+            temperature=temperature,
+        )
+        content = response.choices[0].message.content if response.choices else None
+        if not content:
+            raise BadRequestError("A IA não retornou conteúdo para o chat.")
+        return str(content).strip()

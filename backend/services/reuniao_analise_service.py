@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Iterable, Optional
 
 from fastapi import UploadFile
-from sqlalchemy import func, select
+from sqlalchemy import asc, func, select
 from sqlalchemy.orm import Session
 
 from ..exceptions import BadRequestError, NotFoundError
@@ -19,9 +19,11 @@ from ..schemas.reuniao_analise import (
     ReuniaoAnaliseProcessResult,
     ReuniaoAnaliseResponse,
 )
+from ..config import settings
 from .llm.llm_factory import get_meeting_provider
 from .llm.providers.base import MeetingAnalysisInput, ScopeSourceText
 from .llm_agente_service import get_agent_by_codigo
+from .reuniao_contexto_llm import build_reunioes_anteriores_resumo_para_analise
 from .oportunidade_service import get_oportunidade
 
 ALLOWED_EXTENSIONS = {".txt", ".csv", ".json", ".pdf", ".md", ".log", ".tsv"}
@@ -81,6 +83,20 @@ async def _extract_files_summary(files: Iterable[UploadFile]) -> list[ReuniaoAna
         content_type = (upload.content_type or "").lower() or None
         raw_content = await upload.read()
         tamanho = len(raw_content)
+        max_bytes = settings.LLM_MAX_FILE_SIZE_MB * 1024 * 1024
+        if tamanho > max_bytes:
+            items.append(
+                ReuniaoAnaliseArquivoResumo(
+                    nome=filename,
+                    mime=content_type,
+                    extensao=ext or None,
+                    tamanho_bytes=tamanho,
+                    leitura_sucesso=False,
+                    mensagem=f"Arquivo excede o limite de {settings.LLM_MAX_FILE_SIZE_MB}MB.",
+                    conteudo_extraido=None,
+                )
+            )
+            continue
 
         if ext not in ALLOWED_EXTENSIONS:
             items.append(
@@ -173,6 +189,11 @@ async def _read_transcricao_arquivo(upload: UploadFile) -> tuple[str, str, int, 
     content_type = (upload.content_type or "").lower() or None
     raw_content = await upload.read()
     tamanho = len(raw_content)
+    max_bytes = settings.LLM_MAX_FILE_SIZE_MB * 1024 * 1024
+    if tamanho > max_bytes:
+        raise BadRequestError(
+            f"O arquivo de transcrição '{filename}' excede o limite de {settings.LLM_MAX_FILE_SIZE_MB}MB."
+        )
 
     if ext not in ALLOWED_EXTENSIONS:
         raise BadRequestError(
@@ -257,6 +278,23 @@ def _normalize_meeting_result(payload: dict) -> ReuniaoAnaliseProcessResult:
     )
 
 
+def _list_reunioes_anteriores_mesma_oportunidade(
+    db: Session,
+    opo_id: int,
+    exclude_ran_id: int,
+    company_id: Optional[int],
+) -> list[ReuniaoAnalise]:
+    stmt = select(ReuniaoAnalise).where(
+        ReuniaoAnalise.ranOpoId == opo_id,
+        ReuniaoAnalise.ranAtivo.is_(True),
+        ReuniaoAnalise.ranId != exclude_ran_id,
+    )
+    if company_id is not None:
+        stmt = stmt.where(ReuniaoAnalise.ranEmpId == company_id)
+    stmt = stmt.order_by(asc(ReuniaoAnalise.ranDataCriacao))
+    return list(db.scalars(stmt).all())
+
+
 def _get_reuniao_analise(db: Session, ran_id: int, company_id: Optional[int]) -> ReuniaoAnalise:
     stmt = select(ReuniaoAnalise).where(ReuniaoAnalise.ranId == ran_id, ReuniaoAnalise.ranAtivo.is_(True))
     if company_id is not None:
@@ -301,21 +339,24 @@ async def create_reuniao_analise(
     company_id: Optional[int],
     usu_id: int,
     transcricao: str | None,
-    transcricao_arquivo: UploadFile | None,
+    transcricao_arquivos: list[UploadFile],
     files: list[UploadFile],
 ) -> ReuniaoAnaliseResponse:
     oportunidade = get_oportunidade(db, opo_id, company_id)
+    total_envios = len(transcricao_arquivos) + len(files)
+    if total_envios > settings.LLM_MAX_FILES:
+        raise BadRequestError(f"Envie no máximo {settings.LLM_MAX_FILES} arquivos no total (transcrição + complementares).")
+
     arquivos_resumo = await _extract_files_summary(files)
 
-    texto_arquivo = ""
-    nome_arquivo_tr = ""
-    if transcricao_arquivo is not None and (transcricao_arquivo.filename or "").strip():
-        extracted, nome_arquivo_tr, tamanho_bytes, mime_tr, ext_tr = await _read_transcricao_arquivo(
-            transcricao_arquivo
+    transcricao_clean = _sanitize_text(transcricao or "")
+    resumos_transcricao: list[ReuniaoAnaliseArquivoResumo] = []
+    for tr_upload in transcricao_arquivos:
+        extracted, nome_arquivo_tr, tamanho_bytes, mime_tr, ext_tr = await _read_transcricao_arquivo(tr_upload)
+        transcricao_clean = _merge_transcricao_texto_e_arquivo(
+            transcricao_clean, extracted, nome_arquivo_tr or "transcricao"
         )
-        texto_arquivo = extracted
-        arquivos_resumo.insert(
-            0,
+        resumos_transcricao.append(
             ReuniaoAnaliseArquivoResumo(
                 nome=nome_arquivo_tr,
                 mime=mime_tr,
@@ -324,10 +365,9 @@ async def create_reuniao_analise(
                 leitura_sucesso=True,
                 mensagem="Conteúdo incorporado ao campo Transcrição (não duplicado nos materiais complementares).",
                 conteudo_extraido=None,
-            ),
+            )
         )
-
-    transcricao_clean = _merge_transcricao_texto_e_arquivo(transcricao or "", texto_arquivo, nome_arquivo_tr or "arquivo")
+    arquivos_resumo = resumos_transcricao + arquivos_resumo
     has_text = bool(transcricao_clean)
     has_file_text = any(item.leitura_sucesso and (item.conteudo_extraido or "").strip() for item in arquivos_resumo)
     if not has_text and not has_file_text:
@@ -368,10 +408,16 @@ def process_reuniao_analise(db: Session, ran_id: int, company_id: Optional[int])
                 continue
             materiais.append(ScopeSourceText(filename=str(item.get("nome") or "arquivo"), content=conteudo))
 
+        anteriores = _list_reunioes_anteriores_mesma_oportunidade(
+            db, obj.ranOpoId, obj.ranId, company_id
+        )
+        reunioes_anteriores_txt = build_reunioes_anteriores_resumo_para_analise(anteriores)
+
         payload = MeetingAnalysisInput(
             oportunidade_contexto=_build_oportunidade_context(oportunidade),
             transcricao=str(obj.ranTranscricao or ""),
             materiais=materiais,
+            reunioes_anteriores_resumo=reunioes_anteriores_txt,
         )
         resolved = get_agent_by_codigo(db, company_id, "reuniao_analise")
         if resolved.llm_provider.strip().lower() != "openai":

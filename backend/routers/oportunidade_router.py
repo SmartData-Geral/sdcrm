@@ -11,6 +11,8 @@ from ..schemas.oportunidade import (
     OportunidadeListResponse,
     OportunidadeMoverEtapaRequest,
     OportunidadeResponse,
+    OportunidadeSmartAgenteChatRequest,
+    OportunidadeSmartAgenteChatResponse,
     OportunidadeStandByRequest,
     OportunidadeTemperaturaRequest,
     OportunidadeUpdate,
@@ -23,6 +25,7 @@ from ..schemas.oportunidade_historico import (
 )
 from ..services import oportunidade_historico_service
 from ..services import oportunidade_service
+from ..services.oportunidade_smart_agente_service import chat_smart_agente
 
 router = APIRouter(prefix="/api/oportunidades", tags=["oportunidades"])
 
@@ -200,6 +203,21 @@ def proposta_enviada(
 ) -> OportunidadeResponse:
     require_user_in_company(db=db, current_user=current_user, company_id=company_id)
     return oportunidade_service.set_proposta_enviada(db, opo_id, True, company_id)
+
+
+@router.post(
+    "/{opo_id}/smart-agente/chat",
+    response_model=OportunidadeSmartAgenteChatResponse,
+)
+def smart_agente_chat(
+    opo_id: int,
+    data: OportunidadeSmartAgenteChatRequest,
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    company_id: CompanyIdDep,
+) -> OportunidadeSmartAgenteChatResponse:
+    require_user_in_company(db=db, current_user=current_user, company_id=company_id)
+    return chat_smart_agente(db, opo_id, company_id, data)
 
 
 @router.patch("/{opo_id}/inativar", response_model=OportunidadeResponse)

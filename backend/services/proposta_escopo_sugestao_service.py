@@ -4,7 +4,7 @@ import json
 from typing import Optional
 
 from fastapi import UploadFile
-from sqlalchemy import case, desc, select
+from sqlalchemy import asc, select
 from sqlalchemy.orm import Session
 
 from ..exceptions import BadRequestError
@@ -14,21 +14,7 @@ from .escopo_ai_service import read_scope_upload_files
 from .llm.llm_factory import get_scope_provider
 from .llm_agente_service import get_agent_by_codigo
 from .proposta_service import _get_proposta
-
-
-def _truncate(text: str | None, max_len: int) -> str:
-    if not text:
-        return ""
-    s = str(text).replace("\x00", "").strip()
-    if len(s) <= max_len:
-        return s
-    return s[: max_len - 3] + "..."
-
-
-def _indent(block: str, prefix: str = "    ") -> str:
-    if not block.strip():
-        return prefix + "(vazio)"
-    return "\n".join(prefix + line for line in block.split("\n"))
+from .reuniao_contexto_llm import caps_por_num_reunioes_escopo, format_reuniao_para_contexto_escopo
 
 
 def _tipo_label(tipo: str) -> str:
@@ -40,58 +26,11 @@ def _tipo_label(tipo: str) -> str:
     return m.get((tipo or "").strip().lower(), tipo or "-")
 
 
-def _format_reuniao_para_contexto(ran: ReuniaoAnalise, transcricao_max: int) -> str:
-    linhas = [
-        f"- ID: {ran.ranId} | Status: {ran.ranStatus} | Registro: {ran.ranDataCriacao}",
-    ]
-    if ran.ranStatus != "concluido":
-        linhas.append(
-            "  (Atenção: esta análise pode não ter resultado da IA ainda; use transcrição/dados brutos se forem o único conteúdo.)"
-        )
-    if ran.ranProcessadoEm:
-        linhas.append(f"  Processado em: {ran.ranProcessadoEm}")
-    if ran.ranResumo:
-        linhas.append("  Resumo:\n" + _indent(_truncate(ran.ranResumo, 8000)))
-    if ran.ranFeedbackIa:
-        linhas.append("  Feedback IA:\n" + _indent(_truncate(ran.ranFeedbackIa, 4000)))
-    if ran.ranDoresOportunidadesSugeridas:
-        linhas.append(
-            "  Dores e oportunidades:\n" + _indent(_truncate(ran.ranDoresOportunidadesSugeridas, 4000))
-        )
-    if ran.ranObservacoesSugeridas:
-        linhas.append("  Observações sugeridas:\n" + _indent(_truncate(ran.ranObservacoesSugeridas, 4000)))
-    if ran.ranProximosPassosSugeridos:
-        linhas.append("  Próximos passos:\n" + _indent(_truncate(ran.ranProximosPassosSugeridos, 2000)))
-    if ran.ranTranscricao:
-        linhas.append("  Transcrição (trecho):\n" + _indent(_truncate(ran.ranTranscricao, transcricao_max)))
-    if ran.ranRespostaJson and isinstance(ran.ranRespostaJson, dict):
-        try:
-            js = json.dumps(ran.ranRespostaJson, ensure_ascii=False, indent=2)
-            linhas.append("  JSON resposta IA (referência):\n" + _indent(_truncate(js, 6000)))
-        except (TypeError, ValueError):
-            pass
-    return "\n".join(linhas)
-
-
-def _load_analises(db: Session, opo_id: int, company_id: Optional[int], limit: int = 15) -> list[ReuniaoAnalise]:
-    """
-    Prioriza análises com IA concluída (mais recente por ranProcessadoEm), depois as demais por data.
-    Evita que a “última” linha seja só um registro pendente sem resumo quando já existe análise processada.
-    """
+def _load_analises_escopo_cronologicas(db: Session, opo_id: int, company_id: Optional[int], limit: int = 15) -> list[ReuniaoAnalise]:
     stmt = select(ReuniaoAnalise).where(ReuniaoAnalise.ranOpoId == opo_id, ReuniaoAnalise.ranAtivo.is_(True))
     if company_id is not None:
         stmt = stmt.where(ReuniaoAnalise.ranEmpId == company_id)
-    prioridade_concluida = case((ReuniaoAnalise.ranStatus == "concluido", 0), else_=1)
-    # MySQL não suporta NULLS LAST; coloca registros com ranProcessadoEm preenchido antes dos NULL
-    processado_nao_nulo_primeiro = case((ReuniaoAnalise.ranProcessadoEm.is_(None), 1), else_=0)
-    stmt = (
-        stmt.order_by(
-            prioridade_concluida.asc(),
-            processado_nao_nulo_primeiro.asc(),
-            desc(ReuniaoAnalise.ranProcessadoEm),
-            desc(ReuniaoAnalise.ranDataCriacao),
-        ).limit(limit)
-    )
+    stmt = stmt.order_by(asc(ReuniaoAnalise.ranDataCriacao)).limit(limit)
     return list(db.scalars(stmt).all())
 
 
@@ -133,7 +72,7 @@ async def gerar_sugestao_escopo_para_proposta(
     proposta = _get_proposta(db, prp_id, company_id)
     pontos = (pontos_principais or "").strip()
     obs_user = (observacoes_adicionais or "").strip()
-    analises = _load_analises(db, proposta.prpOpoId, company_id)
+    analises = _load_analises_escopo_cronologicas(db, proposta.prpOpoId, company_id)
     file_input = await read_scope_upload_files(files)
 
     tem_analise = len(analises) > 0
@@ -144,21 +83,21 @@ async def gerar_sugestao_escopo_para_proposta(
             "Informe pontos principais ou observações, anexe arquivos ou cadastre análises de reunião na oportunidade."
         )
 
-    sec_ultima = ""
-    sec_historico = ""
     if analises:
-        ultima = analises[0]
-        sec_ultima = _format_reuniao_para_contexto(ultima, transcricao_max=12000)
-        if len(analises) > 1:
-            hist_parts = []
-            for ran in analises[1:]:
-                hist_parts.append(_format_reuniao_para_contexto(ran, transcricao_max=4000))
-            sec_historico = "\n\n---\n\n".join(hist_parts)
+        n = len(analises)
+        caps = caps_por_num_reunioes_escopo(n)
+        blocos_r: list[str] = []
+        for i, ran in enumerate(analises, start=1):
+            body = format_reuniao_para_contexto_escopo(ran, **caps)
+            blocos_r.append(f"--- Reunião {i} de {n} (ordem cronológica) ---\n{body}")
+        sec_reunioes = "\n\n".join(blocos_r)
+    else:
+        sec_reunioes = "(nenhuma análise cadastrada para esta oportunidade)"
 
     contexto = f"""INSTRUÇÃO CRÍTICA
 - Gere uma sugestão de escopo NOVA e independente.
 - NÃO copie, reproduza nem “aperfeiçoe” blocos de escopo já existentes na proposta (eles NÃO foram enviados neste contexto de propósito).
-- Após os textos do usuário, dê PESO ALTO à análise da reunião (resumo, dores, oportunidades, próximos passos, transcrição).
+- Após os textos do usuário, use TODAS as análises de reunião com peso alto e equilibrado (cronologia informada abaixo).
 
 DADOS DA PROPOSTA (somente metadados)
 Título: {proposta.prpTitulo}
@@ -170,13 +109,10 @@ Tipo: {_tipo_label(proposta.prpTipo)}
 === OBSERVAÇÕES ADICIONAIS (usuário) ===
 {obs_user or "(não informado)"}
 
-=== ANÁLISE DE REUNIÃO — PRINCIPAL (priorize após os inputs do usuário) ===
-{sec_ultima or "(nenhuma análise cadastrada para esta oportunidade)"}
+=== ANÁLISES DE REUNIÃO DESTA OPORTUNIDADE (ordem cronológica; mesmo peso) ===
+{sec_reunioes}
 
-=== OUTRAS ANÁLISES DE REUNIÃO (contexto complementar) ===
-{sec_historico or "(não há análises adicionais)"}
-
-Agora gere o escopo com base nos dados acima (usuário + reunião + anexos, se houver).
+Agora gere o escopo com base nos dados acima (usuário + reuniões + anexos, se houver).
 """
     resolved = get_agent_by_codigo(db, company_id, "escopo_sugestao")
     if resolved.llm_provider.strip().lower() != "openai":

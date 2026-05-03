@@ -13,6 +13,7 @@ from .routers import (
     contrato_router,
     como_conheceu_router,
     crm_dashboard_router,
+    crm_meta_mensal_router,
     escopo_ai_router,
     empresa_router,
     etapa_kanban_router,
@@ -70,6 +71,7 @@ app.include_router(historico_oportunidade_router.router)
 app.include_router(llm_agente_router.router)
 app.include_router(usuario_router.router)
 app.include_router(crm_dashboard_router.router)
+app.include_router(crm_meta_mensal_router.router)
 app.include_router(escopo_ai_router.router)
 app.include_router(reuniao_analise_router.router)
 

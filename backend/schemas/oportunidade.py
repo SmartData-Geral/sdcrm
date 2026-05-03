@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -129,3 +130,19 @@ class OportunidadeGanharRequest(BaseModel):
         default=0, description="0 = recorrência, 1 = projeto"
     )
     opoValorFechado: float
+
+
+SmartAgenteChatRole = Literal["user", "assistant"]
+
+
+class OportunidadeSmartAgenteMessage(BaseModel):
+    role: SmartAgenteChatRole
+    content: str = Field(..., max_length=16000)
+
+
+class OportunidadeSmartAgenteChatRequest(BaseModel):
+    messages: list[OportunidadeSmartAgenteMessage] = Field(..., min_length=1, max_length=40)
+
+
+class OportunidadeSmartAgenteChatResponse(BaseModel):
+    message: str

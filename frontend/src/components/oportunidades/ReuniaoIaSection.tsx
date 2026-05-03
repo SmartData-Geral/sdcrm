@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
+import { LLM_MAX_FILES_PER_REQUEST } from "../../constants/llmUploads";
 import { ReuniaoAnaliseItem } from "./reuniaoIaTypes";
 import {
   OportunidadeIconButton,
@@ -29,7 +30,7 @@ const ReuniaoIaSection: React.FC<Props> = ({ opoId, onOpportunityRefresh }) => {
   const refArquivosExtras = useRef<HTMLInputElement>(null);
   const [transcricao, setTranscricao] = useState("");
   const [textoTranscricaoAberto, setTextoTranscricaoAberto] = useState(false);
-  const [arquivoTranscricao, setArquivoTranscricao] = useState<File | null>(null);
+  const [arquivosTranscricao, setArquivosTranscricao] = useState<File[]>([]);
   const [files, setFiles] = useState<File[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -77,12 +78,17 @@ const ReuniaoIaSection: React.FC<Props> = ({ opoId, onOpportunityRefresh }) => {
     try {
       let ranId = selected?.ranId ?? null;
 
-      if (transcricao.trim() || arquivoTranscricao || files.length > 0) {
+      if (transcricao.trim() || arquivosTranscricao.length > 0 || files.length > 0) {
+        const totalArquivos = arquivosTranscricao.length + files.length;
+        if (totalArquivos > LLM_MAX_FILES_PER_REQUEST) {
+          setError(
+            `Envie no máximo ${LLM_MAX_FILES_PER_REQUEST} arquivos no total (transcrição em arquivo + materiais complementares).`,
+          );
+          return;
+        }
         const data = new FormData();
         data.append("ranTranscricao", transcricao);
-        if (arquivoTranscricao) {
-          data.append("arquivo_transcricao", arquivoTranscricao);
-        }
+        arquivosTranscricao.forEach((file) => data.append("arquivos_transcricao", file));
         files.forEach((file) => data.append("files", file));
         const created = await api.post<ReuniaoAnaliseItem>(`/oportunidades/${opoId}/analises-reuniao`, data, {
           headers: { "Content-Type": "multipart/form-data" },
@@ -100,7 +106,7 @@ const ReuniaoIaSection: React.FC<Props> = ({ opoId, onOpportunityRefresh }) => {
       await api.post<ReuniaoAnaliseItem>(`/analises-reuniao/${ranId}/processar`);
       setSuccess("Análise processada com sucesso.");
       setTranscricao("");
-      setArquivoTranscricao(null);
+      setArquivosTranscricao([]);
       setFiles([]);
       await loadAnalises();
       setSelectedRanId(ranId);
@@ -164,8 +170,8 @@ const ReuniaoIaSection: React.FC<Props> = ({ opoId, onOpportunityRefresh }) => {
     }
   };
 
-  const limparArquivoTranscricao = () => {
-    setArquivoTranscricao(null);
+  const limparArquivosTranscricao = () => {
+    setArquivosTranscricao([]);
     if (refArquivoTranscricao.current) refArquivoTranscricao.current.value = "";
   };
 
@@ -222,29 +228,30 @@ const ReuniaoIaSection: React.FC<Props> = ({ opoId, onOpportunityRefresh }) => {
               ref={refArquivoTranscricao}
               id={idArquivoTranscricao}
               type="file"
+              multiple
               className="reuniao-file-input-native"
               accept={FILE_ACCEPT}
-              onChange={(e) => setArquivoTranscricao(e.target.files?.[0] ?? null)}
+              onChange={(e) => setArquivosTranscricao(Array.from(e.target.files ?? []))}
             />
             <label htmlFor={idArquivoTranscricao} className="reuniao-file-picker-btn">
-              Escolher arquivo
+              Escolher arquivos
             </label>
             <span className="reuniao-file-field__name">
-              {arquivoTranscricao ? (
+              {arquivosTranscricao.length === 0 ? (
+                "Nenhum arquivo selecionado"
+              ) : (
                 <>
-                  <strong>{arquivoTranscricao.name}</strong>{" "}
-                  <button type="button" className="btn-link" onClick={limparArquivoTranscricao}>
-                    remover
+                  <strong>{arquivosTranscricao.length}</strong> arquivo(s): {arquivosTranscricao.map((f) => f.name).join(", ")}{" "}
+                  <button type="button" className="btn-link" onClick={limparArquivosTranscricao}>
+                    remover todos
                   </button>
                 </>
-              ) : (
-                "Nenhum arquivo selecionado"
               )}
             </span>
           </div>
           <span className="field-hint">
-            Envie um único arquivo com a transcrição (.txt, .csv, .json, .pdf, .md, etc.). Opcional se você colar o texto
-            acima.
+            Um ou vários arquivos de transcrição (.txt, .csv, .json, .pdf, .md, etc.); são unidos ao texto colado na ordem de
+            envio. Com os complementares da reunião, no máximo {LLM_MAX_FILES_PER_REQUEST} arquivos por envio.
           </span>
         </div>
 
@@ -272,7 +279,8 @@ const ReuniaoIaSection: React.FC<Props> = ({ opoId, onOpportunityRefresh }) => {
             </span>
           </div>
           <span className="field-hint">
-            Anexos extras além da transcrição (ex.: proposta, lista de requisitos). Formatos: .txt, .csv, .json, .pdf, etc.
+            Anexos extras além da transcrição (ex.: proposta, lista de requisitos). Pode selecionar vários. Formatos: .txt, .csv,
+            .json, .pdf, etc. Limite combinado transcrição (arquivo) + estes arquivos: {LLM_MAX_FILES_PER_REQUEST} por envio.
           </span>
         </div>
       </div>
