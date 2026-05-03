@@ -1175,6 +1175,24 @@ label {
   background: rgba(37, 99, 235, 0.06);
 }
 
+.oportunidade-detail-tab-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+  color: #6366f1;
+}
+
+.oportunidade-detail-tab-ico svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.oportunidade-detail-tab[aria-selected="true"] .oportunidade-detail-tab-ico {
+  color: var(--brand);
+}
+
 .oportunidade-detail-panels {
   margin-top: 0.65rem;
 }

@@ -26,6 +26,7 @@ import {
   IcoPause,
   IcoRotateCcw,
   IcoSpinner,
+  IcoSparkles,
 } from "../../components/oportunidades/OportunidadeIconButton";
 import { useAuth } from "../../contexts/AuthContext";
 import { getPublicProposalUrl } from "../../utils/api";
@@ -100,7 +101,7 @@ interface PropostaTemplateItem {
   ptlAtivo: boolean;
 }
 
-type OportunidadeDetailTab = "geral" | "reunioes" | "propostas" | "contrato";
+type OportunidadeDetailTab = "geral" | "reunioes" | "propostas" | "smart_agente" | "contrato";
 
 const OportunidadeDetalhePage: React.FC = () => {
   const { opoId } = useParams<{ opoId: string }>();
@@ -670,6 +671,20 @@ const OportunidadeDetalhePage: React.FC = () => {
           <button
             type="button"
             role="tab"
+            id="tab-oportunidade-smart-agente"
+            aria-selected={detailTab === "smart_agente"}
+            aria-controls="panel-oportunidade-smart-agente"
+            className="oportunidade-detail-tab"
+            onClick={() => setDetailTab("smart_agente")}
+          >
+            <span className="oportunidade-detail-tab-ico" aria-hidden>
+              <IcoSparkles />
+            </span>
+            Smart Agent
+          </button>
+          <button
+            type="button"
+            role="tab"
             id="tab-oportunidade-contrato"
             aria-selected={detailTab === "contrato"}
             aria-controls="panel-oportunidade-contrato"
@@ -862,7 +877,6 @@ const OportunidadeDetalhePage: React.FC = () => {
                   </div>
                 </div>
               </section>
-              <SmartAgenteIaSection opoId={id} chatDisabled={!!isFechada} />
             </div>
             <aside className="detail-right oportunidade-history-column">
               <section className="surface-card details-card">
@@ -1013,6 +1027,16 @@ const OportunidadeDetalhePage: React.FC = () => {
                 </div>
               )}
             </section>
+          </div>
+        )}
+        {detailTab === "smart_agente" && (
+          <div
+            id="panel-oportunidade-smart-agente"
+            role="tabpanel"
+            aria-labelledby="tab-oportunidade-smart-agente"
+            className="oportunidade-detail-stack"
+          >
+            <SmartAgenteIaSection opoId={id} chatDisabled={!!isFechada} />
           </div>
         )}
         {detailTab === "contrato" && (

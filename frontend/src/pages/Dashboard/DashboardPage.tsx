@@ -376,7 +376,9 @@ const DashboardPage: React.FC = () => {
 
   const anosSerieOpcoes = useMemo(() => {
     const y = new Date().getFullYear();
-    return Array.from({ length: 10 }, (_, i) => y - i);
+    const minAno = 2024;
+    if (y < minAno) return [y];
+    return Array.from({ length: y - minAno + 1 }, (_, i) => y - i);
   }, []);
 
   const [anosSerieGraficos, setAnosSerieGraficos] = useState<number[]>(() => [new Date().getFullYear()]);

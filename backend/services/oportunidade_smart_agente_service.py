@@ -3,17 +3,20 @@ from __future__ import annotations
 import json
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import asc, delete, func, select
 from sqlalchemy.orm import Session
 
 from ..exceptions import BadRequestError
 from ..models.oportunidade import Oportunidade
+from ..models.oportunidade_smart_agente_mensagem import OportunidadeSmartAgenteMensagem
 from ..models.proposta import Proposta
 from ..models.proposta_versao import PropostaVersao
 from ..models.reuniao_analise import ReuniaoAnalise
 from ..schemas.oportunidade import (
-    OportunidadeSmartAgenteChatRequest,
     OportunidadeSmartAgenteChatResponse,
+    OportunidadeSmartAgenteChatSend,
+    OportunidadeSmartAgenteMensagemListResponse,
+    OportunidadeSmartAgenteMensagemResponse,
 )
 from .llm.llm_factory import get_meeting_provider
 from .llm_agente_service import get_agent_by_codigo
@@ -25,6 +28,7 @@ MAX_REUNIOES = 3
 MAX_SNAPSHOT_POR_PROPOSTA = 8_000
 MAX_MSG_CONTENT = 12_000
 MAX_TURNS = 40
+LIST_DEFAULT_LIMIT = 500
 
 
 def _truncate(text: str, max_len: int) -> str:
@@ -145,11 +149,48 @@ def build_context_text(db: Session, opo_id: int, company_id: Optional[int], opo:
     return _truncate(full, MAX_CONTEXT_TOTAL)
 
 
+def _mensagem_conds(opo_id: int, company_id: Optional[int]):
+    conds = [OportunidadeSmartAgenteMensagem.osmOpoId == opo_id]
+    if company_id is not None:
+        conds.append(OportunidadeSmartAgenteMensagem.osmEmpId == company_id)
+    return conds
+
+
+def clear_smart_agente_mensagens(db: Session, opo_id: int, company_id: Optional[int]) -> None:
+    get_oportunidade(db, opo_id, company_id)
+    conds = _mensagem_conds(opo_id, company_id)
+    db.execute(delete(OportunidadeSmartAgenteMensagem).where(*conds))
+    db.commit()
+
+
+def list_smart_agente_mensagens(
+    db: Session,
+    opo_id: int,
+    company_id: Optional[int],
+    *,
+    limit: int = LIST_DEFAULT_LIMIT,
+) -> OportunidadeSmartAgenteMensagemListResponse:
+    get_oportunidade(db, opo_id, company_id)
+    conds = _mensagem_conds(opo_id, company_id)
+    total = db.scalar(select(func.count()).select_from(OportunidadeSmartAgenteMensagem).where(*conds)) or 0
+    stmt = (
+        select(OportunidadeSmartAgenteMensagem)
+        .where(*conds)
+        .order_by(asc(OportunidadeSmartAgenteMensagem.osmDataCriacao))
+        .limit(min(limit, 2000))
+    )
+    rows = list(db.scalars(stmt).all())
+    return OportunidadeSmartAgenteMensagemListResponse(
+        items=[OportunidadeSmartAgenteMensagemResponse.model_validate(r) for r in rows],
+        total=total,
+    )
+
+
 def _validate_client_messages(messages: list[dict[str, str]]) -> None:
     if not messages:
         raise BadRequestError("Envie ao menos uma mensagem.")
     if len(messages) > MAX_TURNS:
-        raise BadRequestError(f"No máximo {MAX_TURNS} mensagens por requisição.")
+        raise BadRequestError(f"No máximo {MAX_TURNS} mensagens no contexto do chat.")
     if messages[-1]["role"] != "user":
         raise BadRequestError("A última mensagem deve ser do usuário.")
     for i, m in enumerate(messages):
@@ -168,28 +209,84 @@ def _validate_client_messages(messages: list[dict[str, str]]) -> None:
             raise BadRequestError("Mensagem do assistente não pode ser vazia.")
 
 
+def _load_recent_thread_for_llm(
+    db: Session, opo_id: int, company_id: Optional[int]
+) -> list[OportunidadeSmartAgenteMensagem]:
+    conds = _mensagem_conds(opo_id, company_id)
+    stmt = (
+        select(OportunidadeSmartAgenteMensagem)
+        .where(*conds)
+        .order_by(OportunidadeSmartAgenteMensagem.osmDataCriacao.desc())
+        .limit(MAX_TURNS)
+    )
+    rows = list(db.scalars(stmt).all())
+    rows.reverse()
+    return rows
+
+
 def chat_smart_agente(
     db: Session,
     opo_id: int,
     company_id: Optional[int],
-    data: OportunidadeSmartAgenteChatRequest,
+    data: OportunidadeSmartAgenteChatSend,
+    usu_id: int | None,
 ) -> OportunidadeSmartAgenteChatResponse:
     oportunidade = get_oportunidade(db, opo_id, company_id)
+    sts = (oportunidade.opoStatusFechamento or "").strip().lower()
+    if sts in ("ganho", "perdido", "stand-by"):
+        raise BadRequestError("Esta oportunidade está fechada; não é possível enviar novas mensagens ao Smart Agente.")
+
     resolved = get_agent_by_codigo(db, company_id, AGENT_CODIGO)
     if resolved.llm_provider.strip().lower() != "openai":
         raise BadRequestError("Apenas o provider 'openai' é suportado para o Smart Agente.")
 
-    client_msgs = [{"role": m.role, "content": m.content.strip()} for m in data.messages]
+    user_text = data.message.strip()
+    if not user_text:
+        raise BadRequestError("Mensagem do usuário não pode ser vazia.")
+
+    hist_rows = _load_recent_thread_for_llm(db, opo_id, company_id)
+    client_msgs: list[dict[str, str]] = [
+        {"role": str(r.osmRole), "content": (r.osmContent or "").strip()} for r in hist_rows
+    ]
+    client_msgs.append({"role": "user", "content": user_text})
     _validate_client_messages(client_msgs)
+
+    user_row = OportunidadeSmartAgenteMensagem(
+        osmEmpId=oportunidade.opoEmpId,
+        osmOpoId=opo_id,
+        osmUsuId=usu_id,
+        osmRole="user",
+        osmContent=user_text,
+    )
+    db.add(user_row)
+    db.flush()
 
     context = build_context_text(db, opo_id, company_id, oportunidade)
     system_content = (
         f"{resolved.system_prompt}\n\n=== Dados atuais da oportunidade (somente leitura) ===\n{context}"
     )
     system_content = _truncate(system_content, MAX_CONTEXT_TOTAL + 4000)
-
     openai_messages: list[dict[str, str]] = [{"role": "system", "content": system_content}, *client_msgs]
 
     provider = get_meeting_provider(model_override=resolved.llm_model)
-    reply = provider.chat_completion(openai_messages, temperature=0.6)
-    return OportunidadeSmartAgenteChatResponse(message=reply)
+    try:
+        reply = provider.chat_completion(openai_messages, temperature=0.6)
+    except Exception:
+        db.rollback()
+        raise
+
+    assistant_row = OportunidadeSmartAgenteMensagem(
+        osmEmpId=oportunidade.opoEmpId,
+        osmOpoId=opo_id,
+        osmUsuId=None,
+        osmRole="assistant",
+        osmContent=reply,
+    )
+    db.add(assistant_row)
+    db.commit()
+    db.refresh(user_row)
+    db.refresh(assistant_row)
+    return OportunidadeSmartAgenteChatResponse(
+        user=OportunidadeSmartAgenteMensagemResponse.model_validate(user_row),
+        assistant=OportunidadeSmartAgenteMensagemResponse.model_validate(assistant_row),
+    )

@@ -94,3 +94,8 @@ class Oportunidade(Base):
         back_populates="oportunidade",
         cascade="all, delete-orphan",
     )
+    smartAgenteMensagens: Mapped[list["OportunidadeSmartAgenteMensagem"]] = relationship(
+        "OportunidadeSmartAgenteMensagem",
+        back_populates="oportunidade",
+        cascade="all, delete-orphan",
+    )

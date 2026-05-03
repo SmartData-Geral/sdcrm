@@ -24,4 +24,5 @@ from .contrato_modelo_clausula_variacao import ContratoModeloClausulaVariacao  #
 from .contrato import Contrato  # noqa: F401
 from .contrato_clausula import ContratoClausula  # noqa: F401
 from .crm_meta_mensal import CrmMetaMensal  # noqa: F401
+from .oportunidade_smart_agente_mensagem import OportunidadeSmartAgenteMensagem  # noqa: F401
 

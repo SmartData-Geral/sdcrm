@@ -1,12 +1,17 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { OportunidadeIconButton, IcoSparkles, IcoSpinner, IcoX } from "./OportunidadeIconButton";
 
-export type SmartChatRole = "user" | "assistant";
+export interface SmartAgenteMsg {
+  osmId: number;
+  osmRole: "user" | "assistant";
+  osmContent: string;
+  osmDataCriacao: string;
+}
 
-export interface SmartChatMessage {
-  role: SmartChatRole;
-  content: string;
+interface ChatResponse {
+  user: SmartAgenteMsg;
+  assistant: SmartAgenteMsg;
 }
 
 interface Props {
@@ -16,35 +21,60 @@ interface Props {
 
 const SmartAgenteIaSection: React.FC<Props> = ({ opoId, chatDisabled = false }) => {
   const { api } = useAuth();
-  const [messages, setMessages] = useState<SmartChatMessage[]>([]);
+  const [messages, setMessages] = useState<SmartAgenteMsg[]>([]);
+  const [loadingList, setLoadingList] = useState(true);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const clearChat = useCallback(() => {
-    setMessages([]);
-    setDraft("");
+  const loadMessages = useCallback(async () => {
+    setLoadingList(true);
     setError(null);
-  }, []);
+    try {
+      const res = await api.get<{ items: SmartAgenteMsg[]; total: number }>(
+        `/oportunidades/${opoId}/smart-agente/messages`,
+        { params: { page_size: 500 } },
+      );
+      setMessages(res.data.items ?? []);
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(detail || "Não foi possível carregar o histórico do chat.");
+      setMessages([]);
+    } finally {
+      setLoadingList(false);
+    }
+  }, [api, opoId]);
+
+  useEffect(() => {
+    void loadMessages();
+  }, [loadMessages]);
+
+  const clearChat = async () => {
+    if (chatDisabled || loading) return;
+    setError(null);
+    try {
+      await api.delete(`/oportunidades/${opoId}/smart-agente/messages`);
+      setMessages([]);
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(detail || "Falha ao limpar o histórico.");
+    }
+  };
 
   const send = async () => {
     const text = draft.trim();
     if (!text || chatDisabled || loading) return;
     setError(null);
-    const nextThread: SmartChatMessage[] = [...messages, { role: "user", content: text }];
-    setMessages(nextThread);
     setDraft("");
     setLoading(true);
     try {
-      const res = await api.post<{ message: string }>(`/oportunidades/${opoId}/smart-agente/chat`, {
-        messages: nextThread,
+      const res = await api.post<ChatResponse>(`/oportunidades/${opoId}/smart-agente/chat`, {
+        message: text,
       });
-      const reply = (res.data.message || "").trim();
-      setMessages((prev) => [...prev, { role: "assistant", content: reply || "(Sem resposta.)" }]);
+      setMessages((prev) => [...prev, res.data.user, res.data.assistant]);
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(detail || "Falha ao consultar o Smart Agente.");
-      setMessages((prev) => prev.slice(0, -1));
+      setError(detail || "Falha ao consultar o Smart Agent.");
       setDraft(text);
     } finally {
       setLoading(false);
@@ -52,51 +82,51 @@ const SmartAgenteIaSection: React.FC<Props> = ({ opoId, chatDisabled = false }) 
   };
 
   return (
-    <section className="surface-card smart-agente-ia-block" aria-labelledby="smart-agente-ia-heading">
+    <section className="surface-card smart-agente-ia-block" aria-labelledby="smart-agent-heading">
       <div className="smart-agente-ia-block__header">
         <div className="smart-agente-ia-block__title-row">
           <span className="smart-agente-ia-block__badge" aria-hidden>
             <IcoSparkles />
           </span>
           <div>
-            <h2 className="smart-agente-ia-block__title" id="smart-agente-ia-heading">
-              Smart Agente AI
+            <h2 className="smart-agente-ia-block__title" id="smart-agent-heading">
+              Smart Agent
             </h2>
             <p className="smart-agente-ia-block__subtitle">
-              Assistente com contexto desta oportunidade (CRM, reuniões e propostas). A conversa não é salva no servidor.
+              Chat desta oportunidade com histórico salvo no CRM. Somente usuários com acesso à oportunidade veem esta conversa.
             </p>
           </div>
         </div>
         <OportunidadeIconButton
           type="button"
           variant="subtle"
-          label="Limpar conversa"
+          label="Limpar histórico do chat"
           icon={<IcoX />}
-          onClick={clearChat}
-          disabled={loading || messages.length === 0}
+          onClick={() => void clearChat()}
+          disabled={chatDisabled || loading || loadingList || messages.length === 0}
         />
       </div>
 
       {chatDisabled ? (
         <p className="smart-agente-ia-block__closed-hint muted-text">
-          Oportunidade fechada (ganho, perdido ou stand-by). O chat está desativado.
+          Oportunidade fechada (ganho, perdido ou stand-by). Você pode ver o histórico, mas não enviar novas mensagens ao Smart Agent.
         </p>
       ) : null}
 
       <div className="smart-agente-ia-block__thread" role="log" aria-live="polite" aria-relevant="additions">
-        {messages.length === 0 ? (
+        {loadingList ? (
+          <p className="muted-text smart-agente-ia-block__empty">Carregando histórico…</p>
+        ) : messages.length === 0 ? (
           <p className="muted-text smart-agente-ia-block__empty">
-            Envie uma pergunta ou peça sugestões para avançar o lead (objeções, próximos passos, mensagem para o cliente).
+            Nenhuma mensagem ainda. Envie uma pergunta ou peça sugestões para avançar o lead (objeções, próximos passos,
+            mensagem para o cliente).
           </p>
         ) : (
           <ul className="smart-agente-ia-block__messages">
-            {messages.map((m, idx) => (
-              <li
-                key={`${idx}-${m.role}`}
-                className={`smart-agente-ia-msg smart-agente-ia-msg--${m.role}`}
-              >
-                <span className="smart-agente-ia-msg__role">{m.role === "user" ? "Você" : "Agente"}</span>
-                <div className="smart-agente-ia-msg__bubble">{m.content}</div>
+            {messages.map((m) => (
+              <li key={m.osmId} className={`smart-agente-ia-msg smart-agente-ia-msg--${m.osmRole}`}>
+                <span className="smart-agente-ia-msg__role">{m.osmRole === "user" ? "Você" : "Smart Agent"}</span>
+                <div className="smart-agente-ia-msg__bubble">{m.osmContent}</div>
               </li>
             ))}
           </ul>
@@ -112,7 +142,7 @@ const SmartAgenteIaSection: React.FC<Props> = ({ opoId, chatDisabled = false }) 
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Ex.: Como responder se o cliente achar o escopo grande demais?"
-          disabled={chatDisabled || loading}
+          disabled={chatDisabled || loading || loadingList}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -127,7 +157,7 @@ const SmartAgenteIaSection: React.FC<Props> = ({ opoId, chatDisabled = false }) 
             label="Enviar"
             icon={loading ? <IcoSpinner /> : <IcoSparkles />}
             onClick={() => void send()}
-            disabled={chatDisabled || loading || !draft.trim()}
+            disabled={chatDisabled || loading || loadingList || !draft.trim()}
           />
         </div>
       </div>

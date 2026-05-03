@@ -2,6 +2,7 @@ from datetime import date
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import Response
 
 from ..dependencies import CompanyIdDep, CurrentUserDep, DbSessionDep, require_user_in_company
 from ..schemas.oportunidade import (
@@ -11,8 +12,9 @@ from ..schemas.oportunidade import (
     OportunidadeListResponse,
     OportunidadeMoverEtapaRequest,
     OportunidadeResponse,
-    OportunidadeSmartAgenteChatRequest,
     OportunidadeSmartAgenteChatResponse,
+    OportunidadeSmartAgenteChatSend,
+    OportunidadeSmartAgenteMensagemListResponse,
     OportunidadeStandByRequest,
     OportunidadeTemperaturaRequest,
     OportunidadeUpdate,
@@ -25,7 +27,11 @@ from ..schemas.oportunidade_historico import (
 )
 from ..services import oportunidade_historico_service
 from ..services import oportunidade_service
-from ..services.oportunidade_smart_agente_service import chat_smart_agente
+from ..services.oportunidade_smart_agente_service import (
+    chat_smart_agente,
+    clear_smart_agente_mensagens,
+    list_smart_agente_mensagens,
+)
 
 router = APIRouter(prefix="/api/oportunidades", tags=["oportunidades"])
 
@@ -205,19 +211,46 @@ def proposta_enviada(
     return oportunidade_service.set_proposta_enviada(db, opo_id, True, company_id)
 
 
+@router.get(
+    "/{opo_id}/smart-agente/messages",
+    response_model=OportunidadeSmartAgenteMensagemListResponse,
+)
+def smart_agente_listar_mensagens(
+    opo_id: int,
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    company_id: CompanyIdDep,
+    page_size: int = Query(500, ge=1, le=2000),
+) -> OportunidadeSmartAgenteMensagemListResponse:
+    require_user_in_company(db=db, current_user=current_user, company_id=company_id)
+    return list_smart_agente_mensagens(db, opo_id, company_id, limit=page_size)
+
+
+@router.delete("/{opo_id}/smart-agente/messages", status_code=status.HTTP_204_NO_CONTENT)
+def smart_agente_limpar_mensagens(
+    opo_id: int,
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    company_id: CompanyIdDep,
+) -> Response:
+    require_user_in_company(db=db, current_user=current_user, company_id=company_id)
+    clear_smart_agente_mensagens(db, opo_id, company_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post(
     "/{opo_id}/smart-agente/chat",
     response_model=OportunidadeSmartAgenteChatResponse,
 )
 def smart_agente_chat(
     opo_id: int,
-    data: OportunidadeSmartAgenteChatRequest,
+    data: OportunidadeSmartAgenteChatSend,
     db: DbSessionDep,
     current_user: CurrentUserDep,
     company_id: CompanyIdDep,
 ) -> OportunidadeSmartAgenteChatResponse:
     require_user_in_company(db=db, current_user=current_user, company_id=company_id)
-    return chat_smart_agente(db, opo_id, company_id, data)
+    return chat_smart_agente(db, opo_id, company_id, data, usu_id=current_user.usuId)
 
 
 @router.patch("/{opo_id}/inativar", response_model=OportunidadeResponse)

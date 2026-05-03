@@ -135,14 +135,27 @@ class OportunidadeGanharRequest(BaseModel):
 SmartAgenteChatRole = Literal["user", "assistant"]
 
 
-class OportunidadeSmartAgenteMessage(BaseModel):
-    role: SmartAgenteChatRole
-    content: str = Field(..., max_length=16000)
+class OportunidadeSmartAgenteChatSend(BaseModel):
+    """Uma nova mensagem do usuário; o histórico vem do banco."""
+
+    message: str = Field(..., min_length=1, max_length=16000)
 
 
-class OportunidadeSmartAgenteChatRequest(BaseModel):
-    messages: list[OportunidadeSmartAgenteMessage] = Field(..., min_length=1, max_length=40)
+class OportunidadeSmartAgenteMensagemResponse(BaseModel):
+    osmId: int
+    osmRole: SmartAgenteChatRole
+    osmContent: str
+    osmDataCriacao: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class OportunidadeSmartAgenteMensagemListResponse(BaseModel):
+    items: list[OportunidadeSmartAgenteMensagemResponse]
+    total: int
 
 
 class OportunidadeSmartAgenteChatResponse(BaseModel):
-    message: str
+    user: OportunidadeSmartAgenteMensagemResponse
+    assistant: OportunidadeSmartAgenteMensagemResponse
