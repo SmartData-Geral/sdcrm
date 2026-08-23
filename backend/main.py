@@ -2,7 +2,14 @@ import os
 import shutil
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile, status
+import json
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -19,6 +26,9 @@ from .routers import (
     etapa_kanban_router,
     health_router,
     historico_oportunidade_router,
+    integracao_router,
+    lead_intake_router,
+    webhook_router,
     llm_agente_router,
     motivo_cancelamento_router,
     oportunidade_router,
@@ -29,7 +39,19 @@ from .routers import (
     usuario_router,
 )
 
-app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Sobe e desce o worker de entrega de webhooks junto com a aplicacao."""
+    from .workers import webhook_worker
+
+    await webhook_worker.iniciar()
+    try:
+        yield
+    finally:
+        await webhook_worker.parar()
+
+
+app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
 
 allow_origins = [str(o) for o in settings.ALLOW_ORIGINS]
 
@@ -74,6 +96,60 @@ app.include_router(crm_dashboard_router.router)
 app.include_router(crm_meta_mensal_router.router)
 app.include_router(escopo_ai_router.router)
 app.include_router(reuniao_analise_router.router)
+app.include_router(integracao_router.router)
+app.include_router(lead_intake_router.router)
+app.include_router(webhook_router.router)
+
+logger = logging.getLogger(__name__)
+
+
+@app.exception_handler(RequestValidationError)
+async def registrar_validacao_integracao(request: Request, exc: RequestValidationError):
+    """
+    O 422 do Pydantic curto-circuita antes do handler da rota, entao o log da
+    requisicao invalida so pode acontecer aqui.
+
+    Tres cuidados: abrimos uma Session propria (o get_db da rota ja foi encerrado),
+    envolvemos tudo em try/except para que uma falha de log jamais transforme um 422
+    em 500, e preservamos o corpo de resposta padrao do FastAPI para nao quebrar
+    clientes nem o OpenAPI.
+    """
+    if request.url.path.startswith("/api/v1/"):
+        try:
+            from .services import integracao_chave_service, integracao_log_service
+
+            corpo = await request.body()
+            try:
+                dados = json.loads(corpo) if corpo else None
+            except (ValueError, UnicodeDecodeError):
+                dados = None
+
+            encaminhado = request.headers.get("x-forwarded-for")
+            ip = (
+                encaminhado.split(",")[0].strip()[:64]
+                if encaminhado
+                else (request.client.host if request.client else None)
+            )
+            integracao_log_service.registrar_isolado(
+                rota=request.url.path[:120],
+                metodo=request.method,
+                status_http=422,
+                resultado="invalid",
+                prefixo_informado=integracao_chave_service.prefixo_para_log(
+                    request.headers.get("x-api-key")
+                ),
+                origem_sistema=(dados or {}).get("source") if isinstance(dados, dict) else None,
+                external_id=(dados or {}).get("external_id") if isinstance(dados, dict) else None,
+                payload=dados,
+                erro=jsonable_encoder(exc.errors()),
+                ip=ip,
+                user_agent=request.headers.get("user-agent"),
+            )
+        except Exception:
+            logger.exception("Falha ao registrar log de validacao da integracao")
+
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(exc.errors())})
+
 
 def _resolve_uploads_dir() -> Path:
     configured = (os.getenv("SDCRM_UPLOADS_DIR") or os.getenv("UPLOADS_DIR") or "").strip()

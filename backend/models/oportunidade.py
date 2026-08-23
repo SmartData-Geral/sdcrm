@@ -69,6 +69,35 @@ class Oportunidade(Base):
     opoStatusFechamento: Mapped[str | None] = mapped_column(String(20), nullable=True)
     opoDoresMotivadores: Mapped[str | None] = mapped_column(Text, nullable=True)
     opoComentarios: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # --- Rastreio de origem (integração de entrada de leads) ---
+    # `source` cru do payload. Gravado sempre, independente de opoCcoId ter sido
+    # resolvido, para que renomear um "como conheceu" nunca perca o rastro de máquina.
+    opoOrigemSistema: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    opoOrigemExternalId: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    opoUtmSource: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    opoUtmMedium: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    opoUtmCampaign: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    opoUtmContent: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    opoUtmTerm: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    # Cópias normalizadas usadas pelo dedup. Existem como coluna própria porque
+    # LOWER()/REGEXP no WHERE invalidaria o índice no MySQL.
+    opoEmailNormalizado: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    opoTelefoneNormalizado: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    opoIchId: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("integracao_chave.ichId", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # Ciclo anterior encerrado do mesmo contato: quando um lead volta depois de a
+    # oportunidade ter sido ganha/perdida, abrimos uma nova e apontamos para a antiga.
+    opoOpoAnteriorId: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("oportunidade.opoId", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     opoAtivo: Mapped[bool] = AtivoColumnFactory.bool_ativo("opoAtivo")
     opoDataCriacao: Mapped[datetime] = AuditColumnFactory.datetime_criacao("opoDataCriacao")
     opoDataAtualizacao: Mapped[datetime | None] = AuditColumnFactory.datetime_atualizacao("opoDataAtualizacao")

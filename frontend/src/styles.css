@@ -6347,3 +6347,160 @@ select.detail-inline-input {
 .variation-row:last-child {
   margin-bottom: 0;
 }
+
+/* ============================================================
+   Integrações — chaves de API, webhooks e log de requisições
+   ============================================================ */
+
+.integracao-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.integracao-header > div {
+  flex: 1;
+}
+
+.integracao-subtexto {
+  font-size: 0.82rem;
+  margin-top: 0.2rem;
+  display: block;
+}
+
+.integracao-escopo {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.12rem 0.4rem;
+  margin: 0.1rem 0.25rem 0.1rem 0;
+  border-radius: 4px;
+  background: rgba(127, 127, 127, 0.14);
+}
+
+.integracao-url {
+  font-size: 0.78rem;
+  word-break: break-all;
+  display: inline-block;
+  max-width: 22rem;
+}
+
+.integracao-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.16rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(127, 127, 127, 0.18);
+  white-space: nowrap;
+}
+
+.integracao-badge--ok {
+  background: rgba(34, 197, 94, 0.18);
+  color: #15803d;
+}
+
+.integracao-badge--warn {
+  background: rgba(245, 158, 11, 0.2);
+  color: #b45309;
+}
+
+.integracao-badge--danger {
+  background: rgba(239, 68, 68, 0.18);
+  color: #b91c1c;
+}
+
+.integracao-erro {
+  border-left: 3px solid #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+  padding: 0.6rem 0.8rem;
+  border-radius: 4px;
+  margin-bottom: 0.9rem;
+  font-size: 0.88rem;
+}
+
+.integracao-aviso {
+  border-left: 3px solid #3b82f6;
+  background: rgba(59, 130, 246, 0.08);
+  padding: 0.6rem 0.8rem;
+  border-radius: 4px;
+  margin-bottom: 0.9rem;
+  font-size: 0.88rem;
+}
+
+.integracao-escopos {
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 6px;
+  padding: 0.7rem 0.9rem 0.9rem;
+  margin: 0.9rem 0;
+}
+
+.integracao-escopos legend {
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0 0.35rem;
+}
+
+.checkbox-inline--off {
+  opacity: 0.55;
+}
+
+.integracao-filtros {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  margin-top: 0.9rem;
+}
+
+.integracao-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.integracao-acoes button {
+  font-size: 0.78rem;
+  padding: 0.25rem 0.55rem;
+}
+
+.integracao-detalhe {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.6rem 0.2rem;
+  font-size: 0.85rem;
+}
+
+.integracao-json {
+  background: rgba(127, 127, 127, 0.1);
+  border-radius: 4px;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.78rem;
+  max-height: 18rem;
+  overflow: auto;
+  margin: 0.3rem 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.reveal-secret-warning {
+  border-left: 3px solid #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+  padding: 0.7rem 0.9rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.reveal-secret-warning p {
+  margin: 0.35rem 0 0;
+  font-size: 0.86rem;
+}
+
+.reveal-secret-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  width: 100%;
+}

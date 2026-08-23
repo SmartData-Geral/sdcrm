@@ -21,7 +21,7 @@ interface HeaderData {
   description: string;
 }
 
-const SidebarIcon: React.FC<{ kind: "dashboard" | "crm" | "cadastros" | "usuarios" }> = ({ kind }) => {
+const SidebarIcon: React.FC<{ kind: "dashboard" | "crm" | "cadastros" | "usuarios" | "integracoes" }> = ({ kind }) => {
   const iconMap = {
     dashboard: (
       <path d="M3 3h8v8H3zM13 3h8v5h-8zM13 10h8v11h-8zM3 13h8v8H3z" />
@@ -34,6 +34,9 @@ const SidebarIcon: React.FC<{ kind: "dashboard" | "crm" | "cadastros" | "usuario
     ),
     usuarios: (
       <path d="M12 12a4 4 0 100-8 4 4 0 000 8zm-7 9a7 7 0 0114 0" />
+    ),
+    integracoes: (
+      <path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1" />
     ),
   } as const;
 
@@ -451,6 +454,36 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               </div>
             )}
           </div>
+
+          {user?.usuAdmin && (
+            <div className="sidebar-group">
+              <button
+                type="button"
+                className={`sidebar-group-toggle ${openGroups.integracoes ? " is-open" : ""}`}
+                onClick={() => toggleGroup("integracoes")}
+                aria-expanded={openGroups.integracoes}
+              >
+                <span className="sidebar-group-label">
+                  <SidebarIcon kind="integracoes" />
+                  <span>Integrações</span>
+                </span>
+                <span className="sidebar-group-icon" aria-hidden>▼</span>
+              </button>
+              {openGroups.integracoes && (
+                <div className="sidebar-group-items">
+                  <NavLink to="/integracoes/chaves" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
+                    Chaves de API
+                  </NavLink>
+                  <NavLink to="/integracoes/webhooks" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
+                    Webhooks
+                  </NavLink>
+                  <NavLink to="/integracoes/logs" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
+                    Log de integração
+                  </NavLink>
+                </div>
+              )}
+            </div>
+          )}
 
           {user?.usuAdmin && (
             <NavLink to="/usuarios" className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}>

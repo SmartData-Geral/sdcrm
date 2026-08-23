@@ -46,6 +46,34 @@ class Settings(BaseSettings):
 
     MULTIEMPRESA_ENABLED: bool = True
 
+    # --- Integração externa (API de leads + webhooks) ---
+    # Pepper da hash das chaves de API. Um dump do banco sozinho deixa de confirmar
+    # uma chave adivinhada. ATENÇÃO: trocar este valor invalida todas as chaves emitidas.
+    API_KEY_PEPPER: str | None = None
+    LEADS_PIPELINE_PADRAO: str = "default"
+    LEADS_ETAPA_PADRAO_NOME: str = "Novo Lead"
+    # Cria em como_conheceu a origem que chegar no `source` e ainda não existir,
+    # marcada com ccoGrupo="Integração". Desligue se preferir curar a lista à mão.
+    INTEGRACAO_AUTOCRIAR_ORIGEM: bool = True
+    INTEGRACAO_LOG_RETENCAO_DIAS: int = 90
+    # Por padrão o log mascara e-mail e telefone (LGPD). Ligue por uma janela curta
+    # de depuração apenas.
+    INTEGRACAO_LOG_PAYLOAD_COMPLETO: bool = False
+
+    # --- Webhooks de saida ---
+    # Desligavel para o caso de extrairem um container de worker dedicado: as replicas
+    # de API sobem com false e so o worker roda o dispatcher.
+    WEBHOOK_WORKER_ENABLED: bool = True
+    WEBHOOK_POLL_INTERVAL_SECONDS: float = 10.0
+    WEBHOOK_BATCH_SIZE: int = 20
+    WEBHOOK_TIMEOUT_SECONDS: float = 15.0
+    WEBHOOK_MAX_FALHAS_DESATIVAR: int = 20
+    WEBHOOK_RETENCAO_DIAS: int = 30
+    # Vazio = qualquer host publico. A protecao contra faixas privadas vale sempre.
+    WEBHOOK_HOSTS_PERMITIDOS: str = ""
+    # Minutos ate uma entrega reivindicada por um processo morto ser recuperada.
+    WEBHOOK_CLAIM_TIMEOUT_MINUTOS: int = 5
+
     LLM_PROVIDER: str = "openai"
     LLM_OPENAI_API_KEY: str | None = None
     LLM_OPENAI_BASE_URL: str | None = None

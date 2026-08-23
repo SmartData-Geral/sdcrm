@@ -14,4 +14,7 @@ python-dotenv==1.0.1
 python-multipart==0.0.22
 pypdf==5.3.1
 openai==1.68.2
+# Cliente HTTP das entregas de webhook. Ate agora vinha so como
+# dependencia transitiva do openai; fixado aqui porque passamos a depender dele.
+httpx==0.28.1
 

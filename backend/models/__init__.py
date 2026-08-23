@@ -25,4 +25,8 @@ from .contrato import Contrato  # noqa: F401
 from .contrato_clausula import ContratoClausula  # noqa: F401
 from .crm_meta_mensal import CrmMetaMensal  # noqa: F401
 from .oportunidade_smart_agente_mensagem import OportunidadeSmartAgenteMensagem  # noqa: F401
-
+from .integracao_chave import IntegracaoChave  # noqa: F401
+from .integracao_requisicao_log import IntegracaoRequisicaoLog  # noqa: F401
+from .webhook_assinatura import WebhookAssinatura  # noqa: F401
+from .webhook_evento import WebhookEvento  # noqa: F401
+from .webhook_entrega import WebhookEntrega  # noqa: F401

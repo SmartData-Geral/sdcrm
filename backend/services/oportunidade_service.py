@@ -8,6 +8,7 @@ from ..exceptions import BadRequestError, NotFoundError
 from ..models.etapa_kanban import EtapaKanban
 from ..models.oportunidade import Oportunidade
 from ..models.oportunidade_historico import OportunidadeHistorico
+from . import webhook_emitter
 from ..schemas.oportunidade import (
     OportunidadeCreate,
     OportunidadeGanharRequest,
@@ -185,6 +186,12 @@ def create_oportunidade(
     db.add(obj)
     db.flush()
     _registrar_historico_automatico(db, obj, "Oportunidade criada.")
+    # Enfileirado ANTES do commit: evento e mudanca na mesma transacao (outbox).
+    # deal.created, e nao lead.created: esta funcao e o caminho da UI. Leads entrando
+    # pela API passam por lead_intake_service, que emite lead.created.
+    webhook_emitter.enfileirar(
+        db, tipo="deal.created", emp_id=obj.opoEmpId, oportunidade=obj, origem="ui"
+    )
     db.commit()
     db.refresh(obj)
     return OportunidadeResponse.model_validate(obj)
@@ -201,8 +208,34 @@ def update_oportunidade(
     valores = data.model_dump(exclude_unset=True)
     if "opoEtkId" in valores:
         _validar_etapa_do_funil(db, valores["opoEtkId"], company_id, etapa_atual_pipeline)
+    pre_imagem = {campo: getattr(obj, campo) for campo in valores}
     for k, v in valores.items():
         setattr(obj, k, v)
+    etapa_mudou = "opoEtkId" in valores and pre_imagem.get("opoEtkId") != obj.opoEtkId
+    contato_mudou = any(
+        campo in valores and pre_imagem.get(campo) != getattr(obj, campo)
+        for campo in webhook_emitter.CAMPOS_DE_CONTATO
+    )
+    if etapa_mudou:
+        webhook_emitter.enfileirar(
+            db,
+            tipo="deal.stage_changed",
+            emp_id=obj.opoEmpId,
+            oportunidade=obj,
+            anterior={"stage_id": pre_imagem.get("opoEtkId")},
+        )
+    if contato_mudou:
+        webhook_emitter.enfileirar(
+            db,
+            tipo="deal.contact_updated",
+            emp_id=obj.opoEmpId,
+            oportunidade=obj,
+            anterior={
+                campo: pre_imagem.get(campo)
+                for campo in webhook_emitter.CAMPOS_DE_CONTATO
+                if campo in valores
+            },
+        )
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -234,6 +267,15 @@ def set_oportunidade_status_fechamento(
             obj,
             f'Status alterado para "{status}".',
         )
+        tipo_evento = webhook_emitter.tipo_para_status(status)
+        if tipo_evento:
+            webhook_emitter.enfileirar(
+                db,
+                tipo=tipo_evento,
+                emp_id=obj.opoEmpId,
+                oportunidade=obj,
+                anterior={"status": status_anterior},
+            )
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -257,6 +299,9 @@ def set_oportunidade_stand_by(
         f'Oportunidade em stand-by até {data_retorno.strftime("%d/%m/%Y")}.',
     )
     obj.opoDataUltimoContato = data_retorno
+    webhook_emitter.enfileirar(
+        db, tipo="deal.standby", emp_id=obj.opoEmpId, oportunidade=obj
+    )
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -304,6 +349,13 @@ def mover_etapa(
             db,
             obj,
             f'Etapa alterada de "{nome_etapa_anterior}" para "{nome_etapa_nova}".',
+        )
+        webhook_emitter.enfileirar(
+            db,
+            tipo="deal.stage_changed",
+            emp_id=obj.opoEmpId,
+            oportunidade=obj,
+            anterior={"stage_id": etapa_anterior, "stage_name": nome_etapa_anterior},
         )
     db.add(obj)
     db.commit()

@@ -66,3 +66,19 @@ No exemplo de `cliente`:
 - Parâmetro de status: `status=ativos|inativos|todos` em `GET /api/clientes`.
 
 
+
+### 5. Exceção: superfície externa versionada
+
+Integrações de terceiros entram por `/api/v1/*`, com campos em **inglês** e versão
+explícita no caminho — fora da convenção `/api/<recurso-pt>` acima.
+
+A exceção é deliberada e restrita: `/api/v1/*` é um contrato público consumido por
+Zapier e por outras fontes de lead. Contratos externos precisam de versionamento para
+evoluir sem quebrar quem já integrou, e ferramentas de automação esperam nomes de campo
+em inglês. Estas rotas autenticam por header `X-API-Key`, não por JWT, e **não usam**
+`X-Company-Id` — a empresa vem da própria chave.
+
+Rotas internas do CRM, inclusive a administração das integrações
+(`/api/integracao-chaves`, `/api/integracao-logs`), seguem a convenção em português.
+
+Detalhes do contrato em [INTEGRACAO_API.md](INTEGRACAO_API.md).

@@ -17,6 +17,9 @@ import ContratosCadastrosPage from "./pages/Contratos/ContratosCadastrosPage";
 import ContratoNovoPage from "./pages/Contratos/ContratoNovoPage";
 import ContratoEditorPage from "./pages/Contratos/ContratoEditorPage";
 import MetasMensaisPage from "./pages/MetasMensais/MetasMensaisPage";
+import ChavesApiPage from "./pages/Integracoes/ChavesApiPage";
+import WebhooksPage from "./pages/Integracoes/WebhooksPage";
+import IntegracaoLogsPage from "./pages/Integracoes/IntegracaoLogsPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 function App() {
@@ -196,6 +199,30 @@ function App() {
         element={
           <ProtectedRoute>
             <ContratoEditorPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/integracoes/chaves"
+        element={
+          <ProtectedRoute>
+            <ChavesApiPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/integracoes/webhooks"
+        element={
+          <ProtectedRoute>
+            <WebhooksPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/integracoes/logs"
+        element={
+          <ProtectedRoute>
+            <IntegracaoLogsPage />
           </ProtectedRoute>
         }
       />
