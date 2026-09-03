@@ -40,12 +40,16 @@ def _parse_dashboard_oportunidades_params(
     solucao: Annotated[Optional[str], Query(description="Recorte: solução")] = None,
     motivo_perda: Annotated[Optional[str], Query(description="Recorte: motivo de perda")] = None,
     periodo: Annotated[Optional[str], Query(description="Recorte: YYYY-MM")] = None,
-    metrica: Annotated[Optional[str], Query(description="recebidas|ganhas|perdidas|ativas|mrrIncremental")] = None,
+    metrica: Annotated[
+        Optional[str],
+        Query(description="recebidas|ganhas|perdidas|ativas|mrrIncremental|valorProjeto"),
+    ] = None,
 ) -> CrmDashboardOportunidadesFiltroParams:
     st = status or "todas"
     if st not in ("todas", "ganhas", "perdidas", "ativas"):
         st = "todas"
-    if metrica and metrica not in ("recebidas", "ganhas", "perdidas", "ativas", "mrrIncremental"):
+    # Validação delegada ao serviço: manter uma lista própria aqui já fez as duas divergirem.
+    if metrica and crm_dashboard_service.normalizar_metrica_drill(metrica) is None:
         raise HTTPException(status_code=422, detail="metrica inválida")
     return CrmDashboardOportunidadesFiltroParams(
         data_inicial=data_inicial,

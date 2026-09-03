@@ -1267,7 +1267,7 @@ def _forecast_sql_expr():
     )
 
 
-def _normalizar_metrica_drill(metrica: str | None) -> str | None:
+def normalizar_metrica_drill(metrica: str | None) -> str | None:
     """Normaliza a métrica do drill-down; None quando ausente ou desconhecida."""
     bruto = (metrica or "").strip().lower()
     if bruto == "mrrincremental":
@@ -1550,7 +1550,7 @@ def list_dashboard_oportunidades(
             )
         di_g, df_g = inter
 
-    metrica_eff = _normalizar_metrica_drill(filtros.metrica)
+    metrica_eff = normalizar_metrica_drill(filtros.metrica)
 
     if metrica_eff in ("mrr_incremental", "valor_projeto"):
         conditions.append(Oportunidade.opoAtivo.is_(True))

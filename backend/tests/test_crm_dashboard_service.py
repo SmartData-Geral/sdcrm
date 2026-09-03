@@ -2,7 +2,7 @@ import unittest
 
 from backend.services.crm_dashboard_service import (
     _calculate_forecast_value,
-    _normalizar_metrica_drill,
+    normalizar_metrica_drill,
     _resumo_meta_linha,
 )
 
@@ -24,20 +24,20 @@ class CrmDashboardServiceTests(unittest.TestCase):
 
 class NormalizarMetricaDrillTests(unittest.TestCase):
     def test_reconhece_valor_projeto_ignorando_caixa_e_espacos(self) -> None:
-        self.assertEqual(_normalizar_metrica_drill("valorProjeto"), "valor_projeto")
-        self.assertEqual(_normalizar_metrica_drill("  VALORPROJETO "), "valor_projeto")
+        self.assertEqual(normalizar_metrica_drill("valorProjeto"), "valor_projeto")
+        self.assertEqual(normalizar_metrica_drill("  VALORPROJETO "), "valor_projeto")
 
     def test_reconhece_mrr_incremental(self) -> None:
-        self.assertEqual(_normalizar_metrica_drill("mrrIncremental"), "mrr_incremental")
+        self.assertEqual(normalizar_metrica_drill("mrrIncremental"), "mrr_incremental")
 
     def test_mantem_metricas_simples(self) -> None:
         for metrica in ("recebidas", "ganhas", "perdidas", "ativas"):
-            self.assertEqual(_normalizar_metrica_drill(metrica), metrica)
+            self.assertEqual(normalizar_metrica_drill(metrica), metrica)
 
     def test_retorna_none_para_desconhecida_ou_vazia(self) -> None:
-        self.assertIsNone(_normalizar_metrica_drill(None))
-        self.assertIsNone(_normalizar_metrica_drill(""))
-        self.assertIsNone(_normalizar_metrica_drill("qualquer"))
+        self.assertIsNone(normalizar_metrica_drill(None))
+        self.assertIsNone(normalizar_metrica_drill(""))
+        self.assertIsNone(normalizar_metrica_drill("qualquer"))
 
 
 class ResumoMetaLinhaTests(unittest.TestCase):

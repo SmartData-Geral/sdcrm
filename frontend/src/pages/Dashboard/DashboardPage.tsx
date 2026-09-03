@@ -300,6 +300,17 @@ function formatarTituloDetalhamento(config: DetalhamentoConfig): string {
   return config.titulo;
 }
 
+/** Mensagem de erro do dashboard a partir da resposta do backend.
+ *  Em modo multiempresa o backend recusa a requisição sem empresa no cabeçalho;
+ *  esse caso é orientação ao usuário, não falha de carregamento. */
+function mensagemErroDashboard(err: unknown): string {
+  const detail = (err as { response?: { data?: { detail?: unknown } } } | null)?.response?.data?.detail;
+  if (typeof detail === "string" && detail.includes("X-Company-Id")) {
+    return "Selecione uma empresa no menu lateral para carregar o dashboard.";
+  }
+  return "Não foi possível carregar a dashboard do CRM. Tente novamente.";
+}
+
 function serieMetricaParaDrill(metrica: MetricaSerie): MetricaDetalhamento {
   switch (metrica) {
     case "ganhas":
@@ -457,7 +468,7 @@ const DashboardPage: React.FC = () => {
       );
     } catch (e) {
       console.error(e);
-      setError("Não foi possível carregar a dashboard do CRM. Tente novamente.");
+      setError(mensagemErroDashboard(e));
     } finally {
       setLoading(false);
     }
@@ -892,44 +903,6 @@ const DashboardPage: React.FC = () => {
             <div
               role="button"
               tabIndex={0}
-              className="dashboard-card dashboard-card--red dashboard-card--clickable"
-              onClick={() =>
-                abrirDetalhamento({
-                  titulo: "Oportunidades perdidas",
-                  params: { metrica: "perdidas" },
-                })
-              }
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  abrirDetalhamento({
-                    titulo: "Oportunidades perdidas",
-                    params: { metrica: "perdidas" },
-                  });
-                }
-              }}
-            >
-              <div className="dashboard-card-header">
-                <span className="dashboard-card-icon" aria-hidden>
-                  <svg viewBox="0 0 24 24">
-                    <path d="M6 6l12 12M18 6L6 18" />
-                  </svg>
-                </span>
-                <strong className="dashboard-card-value">{cards.perdidas}</strong>
-              </div>
-              <span className="dashboard-card-label">Oportunidades Perdidas</span>
-              <div className="dashboard-card-subvalues">
-                <span className="dashboard-card-subvalue"><span>12 meses</span><span>{cards.perdidas12m}</span></span>
-                <span className="dashboard-card-subvalue"><span>Últ. mês</span><span>{cards.perdidasUltimoMes}</span></span>
-                <span className="dashboard-card-subvalue"><span>Mês atual</span><span>{cards.perdidasMesCorrente}</span></span>
-                <span className="dashboard-card-subvalue"><span>Últ. 7 dias</span><span>{cards.perdidasUltimos7Dias}</span></span>
-              </div>
-              <span className="dashboard-click-hint">Clique para ver detalhes</span>
-            </div>
-
-            <div
-              role="button"
-              tabIndex={0}
               className="dashboard-card dashboard-card--purple dashboard-card--clickable"
               onClick={() =>
                 abrirDetalhamento({
@@ -957,6 +930,10 @@ const DashboardPage: React.FC = () => {
               </div>
               <span className="dashboard-card-label">Taxa de Conversão</span>
               <div className="dashboard-card-subvalues">
+                <span className="dashboard-card-subvalue">
+                  <span>Perdidas</span>
+                  <span>{cards.perdidas}</span>
+                </span>
                 <span className="dashboard-card-subvalue">
                   <span>Oportunidades ativas</span>
                   <span>{cards.ativas}</span>
