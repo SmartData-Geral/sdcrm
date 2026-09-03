@@ -170,6 +170,7 @@ def _query_metas_e_resumo(
         func.coalesce(func.sum(CrmMetaMensal.cmmQtdRecebimento), 0).label("meta_rec"),
         func.coalesce(func.sum(CrmMetaMensal.cmmQtdFechamento), 0).label("meta_fec"),
         func.coalesce(func.sum(CrmMetaMensal.cmmMrrIncremental), 0).label("meta_mrr"),
+        func.coalesce(func.sum(CrmMetaMensal.cmmValorProjeto), 0).label("meta_projeto"),
     )
     if meta_conds:
         stmt = stmt.where(*meta_conds)
@@ -179,11 +180,13 @@ def _query_metas_e_resumo(
     meta_rec = float(row.meta_rec) if row is not None else 0.0  # type: ignore[attr-defined]
     meta_fec = float(row.meta_fec) if row is not None else 0.0  # type: ignore[attr-defined]
     meta_mrr = float(row.meta_mrr) if row is not None else 0.0  # type: ignore[attr-defined]
+    meta_projeto = float(row.meta_projeto) if row is not None else 0.0  # type: ignore[attr-defined]
 
     resumo = CrmDashboardResumoMetas(
         recebimento=_resumo_meta_linha(meta_rec if tem_meta else None, cards.recebidas),
         fechamento=_resumo_meta_linha(meta_fec if tem_meta else None, cards.ganhas),
         mrrIncremental=_resumo_meta_linha(meta_mrr if tem_meta else None, cards.mrrIncremental),
+        valorProjeto=_resumo_meta_linha(meta_projeto if tem_meta else None, cards.valorProjeto),
     )
     return tem_meta, resumo
 
@@ -313,17 +316,55 @@ def _build_serie_mensal_emp_resp_filters(company_id: Optional[int], responsavel_
     return conds
 
 
+def _mrr_incremental_condicoes() -> list:
+    """Ganhas recorrentes: exclui projeto e receita pontual."""
+    return [
+        Oportunidade.opoStatusFechamento == "ganho",
+        func.coalesce(Oportunidade.opoFechadoRecorrencia, 0) != 1,
+        Oportunidade.opoReceitaPontual.is_(False),
+    ]
+
+
 def _mrr_incremental_expr():
     return case(
-        (
-            and_(
-                Oportunidade.opoStatusFechamento == "ganho",
-                func.coalesce(Oportunidade.opoFechadoRecorrencia, 0) != 1,
-                Oportunidade.opoReceitaPontual.is_(False),
-            ),
-            func.coalesce(Oportunidade.opoValorFechado, 0),
-        ),
+        (and_(*_mrr_incremental_condicoes()), func.coalesce(Oportunidade.opoValorFechado, 0)),
         else_=0,
+    )
+
+
+def _valor_projeto_condicoes() -> list:
+    """Ganhas fechadas como projeto (venda pontual). Espelha o MRR, sem sobreposição."""
+    return [
+        Oportunidade.opoStatusFechamento == "ganho",
+        func.coalesce(Oportunidade.opoFechadoRecorrencia, 0) == 1,
+    ]
+
+
+def _valor_projeto_expr():
+    return case(
+        (and_(*_valor_projeto_condicoes()), func.coalesce(Oportunidade.opoValorFechado, 0)),
+        else_=0,
+    )
+
+
+def _soma_valor_fechado_na_janela(inicio, fim, condicoes: list, fim_inclusivo: bool = False):
+    """Soma opoValorFechado das oportunidades fechadas na janela, sob as condições dadas."""
+    limite = (
+        Oportunidade.opoDataFechamento <= fim
+        if fim_inclusivo
+        else Oportunidade.opoDataFechamento < fim
+    )
+    return func.coalesce(
+        func.sum(
+            case(
+                (
+                    and_(Oportunidade.opoDataFechamento >= inicio, limite, *condicoes),
+                    Oportunidade.opoValorFechado,
+                ),
+                else_=0,
+            )
+        ),
+        0,
     )
 
 
@@ -373,22 +414,26 @@ def _query_serie_mensal(
     y_g = func.cast(func.extract("year", Oportunidade.opoDataFechamento), Integer)
     m_g = func.cast(func.extract("month", Oportunidade.opoDataFechamento), Integer)
     mrr_x = _mrr_incremental_expr()
+    projeto_x = _valor_projeto_expr()
     stmt_g = (
         select(
             y_g.label("ano"),
             m_g.label("mes"),
             func.count(Oportunidade.opoId).label("qtd"),
             func.coalesce(func.sum(mrr_x), 0).label("mrr"),
+            func.coalesce(func.sum(projeto_x), 0).label("projeto"),
         )
         .where(*cond_g)
         .group_by(y_g, m_g)
     )
     by_gan: dict[str, int] = {}
     by_mrr: dict[str, float] = {}
+    by_projeto: dict[str, float] = {}
     for row in db.execute(stmt_g).all():
         k = _periodo_key(row.ano, row.mes)  # type: ignore[attr-defined]
         by_gan[k] = int(row.qtd)  # type: ignore[attr-defined]
         by_mrr[k] = float(row.mrr)  # type: ignore[attr-defined]
+        by_projeto[k] = float(row.projeto)  # type: ignore[attr-defined]
 
     # --- Perdidas (mês da referência coalesce fechamento/recebimento)
     cond_p = [*base, Oportunidade.opoAtivo.is_(True), Oportunidade.opoStatusFechamento == "perdido", data_perdida.is_not(None)]
@@ -425,7 +470,7 @@ def _query_serie_mensal(
         by_atv[periodo] = n
 
     # --- Metas cadastradas por mês (interseção: janela da série + filtro explícito de meses, se houver)
-    by_meta: dict[str, tuple[int, int, float]] = {}
+    by_meta: dict[str, tuple[int, int, float, float]] = {}
     meta_conds: list = []
     if company_id is not None:
         meta_conds.append(CrmMetaMensal.cmmEmpId == company_id)
@@ -440,11 +485,17 @@ def _query_serie_mensal(
         CrmMetaMensal.cmmQtdRecebimento,
         CrmMetaMensal.cmmQtdFechamento,
         CrmMetaMensal.cmmMrrIncremental,
+        CrmMetaMensal.cmmValorProjeto,
     ).where(*meta_conds)
     for r in db.execute(mstmt).all():
         d = r.cmmMesReferencia
         pk = f"{d.year:04d}-{d.month:02d}"
-        by_meta[pk] = (int(r.cmmQtdRecebimento), int(r.cmmQtdFechamento), float(r.cmmMrrIncremental))  # type: ignore[attr-defined]
+        by_meta[pk] = (  # type: ignore[attr-defined]
+            int(r.cmmQtdRecebimento),
+            int(r.cmmQtdFechamento),
+            float(r.cmmMrrIncremental),
+            float(r.cmmValorProjeto),
+        )
 
     out: list[CrmDashboardSerieMensalItem] = []
     for periodo, label, _first, _last in slots:
@@ -452,6 +503,7 @@ def _query_serie_mensal(
         gan = by_gan.get(periodo, 0)
         perd = by_perd.get(periodo, 0)
         mrr_inc = round(float(by_mrr.get(periodo, 0.0)), 2)
+        valor_projeto = round(float(by_projeto.get(periodo, 0.0)), 2)
         fechadas_mes = gan + perd
         taxa = round((gan / fechadas_mes) * 100, 2) if fechadas_mes > 0 else 0.0
         mrr_medio = round(mrr_inc / gan, 2) if gan > 0 else 0.0
@@ -463,6 +515,7 @@ def _query_serie_mensal(
         meta_rec = None
         meta_g = None
         meta_m = None
+        meta_p = None
         if meta_t is not None:
             if meta_t[0] != 0:
                 meta_rec = float(meta_t[0])
@@ -470,6 +523,8 @@ def _query_serie_mensal(
                 meta_g = float(meta_t[1])
             if float(meta_t[2]) != 0.0:
                 meta_m = float(meta_t[2])
+            if float(meta_t[3]) != 0.0:
+                meta_p = float(meta_t[3])
 
         out.append(
             CrmDashboardSerieMensalItem(
@@ -481,10 +536,12 @@ def _query_serie_mensal(
                 taxaConversao=taxa,
                 mrrIncremental=mrr_inc,
                 mrrMedio=mrr_medio,
+                valorProjeto=valor_projeto,
                 forecast=forecast,
                 metaRecebidas=meta_rec,
                 metaGanhas=meta_g,
                 metaMrr=meta_m,
+                metaValorProjeto=meta_p,
             )
         )
     return out
@@ -851,108 +908,53 @@ def _query_cards(
         for row in forecast_rows
     )
 
-    # MRR incremental: ganhas, não-projeto (opoFechadoRecorrencia <> 1) e não receita pontual
-    mrr_conditions = list(fechadas_conditions)
-    mrr_conditions.append(Oportunidade.opoStatusFechamento == "ganho")
-    mrr_conditions.append(
-        func.coalesce(Oportunidade.opoFechadoRecorrencia, 0) != 1,
-    )
-    mrr_conditions.append(Oportunidade.opoReceitaPontual.is_(False))
+    # MRR incremental: ganhas recorrentes. Valor de projeto: ganhas fechadas como projeto.
+    # Os dois recortes são mutuamente exclusivos por construção.
+    mrr_conditions = [*fechadas_conditions, *_mrr_incremental_condicoes()]
+    projeto_conditions = [*fechadas_conditions, *_valor_projeto_condicoes()]
 
-    mrr_stmt = select(
-        func.coalesce(func.sum(Oportunidade.opoValorFechado), 0),
-    ).where(
-        *mrr_conditions,
-        Oportunidade.opoAtivo.is_(True),
-    )
-    mrr_total = float(db.scalar(mrr_stmt) or 0)
-
-    mrr_periodos_stmt = (
-        select(
-            func.coalesce(
-                func.sum(
-                    case(
-                        (
-                            and_(
-                                Oportunidade.opoDataFechamento >= primeiro_dia_12m,
-                                Oportunidade.opoDataFechamento < primeiro_dia_proximo_mes,
-                                Oportunidade.opoStatusFechamento == "ganho",
-                                func.coalesce(Oportunidade.opoFechadoRecorrencia, 0) != 1,
-                                Oportunidade.opoReceitaPontual.is_(False),
-                            ),
-                            Oportunidade.opoValorFechado,
-                        ),
-                        else_=0,
-                    )
-                ),
-                0,
-            ).label("total_12m"),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (
-                            and_(
-                                Oportunidade.opoDataFechamento >= primeiro_dia_mes_anterior,
-                                Oportunidade.opoDataFechamento < primeiro_dia_mes_corrente,
-                                Oportunidade.opoStatusFechamento == "ganho",
-                                func.coalesce(Oportunidade.opoFechadoRecorrencia, 0) != 1,
-                                Oportunidade.opoReceitaPontual.is_(False),
-                            ),
-                            Oportunidade.opoValorFechado,
-                        ),
-                        else_=0,
-                    )
-                ),
-                0,
-            ).label("total_ultimo_mes"),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (
-                            and_(
-                                Oportunidade.opoDataFechamento >= primeiro_dia_mes_corrente,
-                                Oportunidade.opoDataFechamento < primeiro_dia_proximo_mes,
-                                Oportunidade.opoStatusFechamento == "ganho",
-                                func.coalesce(Oportunidade.opoFechadoRecorrencia, 0) != 1,
-                                Oportunidade.opoReceitaPontual.is_(False),
-                            ),
-                            Oportunidade.opoValorFechado,
-                        ),
-                        else_=0,
-                    )
-                ),
-                0,
-            ).label("total_mes_corrente"),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (
-                            and_(
-                                Oportunidade.opoDataFechamento >= inicio_ultimos_7_dias,
-                                Oportunidade.opoDataFechamento <= today,
-                                Oportunidade.opoStatusFechamento == "ganho",
-                                func.coalesce(Oportunidade.opoFechadoRecorrencia, 0) != 1,
-                                Oportunidade.opoReceitaPontual.is_(False),
-                            ),
-                            Oportunidade.opoValorFechado,
-                        ),
-                        else_=0,
-                    )
-                ),
-                0,
-            ).label("total_ultimos_7_dias"),
-        )
-        .where(
-            *base_conditions,
+    def _total_fechado(conds: list) -> float:
+        stmt = select(func.coalesce(func.sum(Oportunidade.opoValorFechado), 0)).where(
+            *conds,
             Oportunidade.opoAtivo.is_(True),
-            Oportunidade.opoDataFechamento.is_not(None),
         )
+        return float(db.scalar(stmt) or 0)
+
+    mrr_total = _total_fechado(mrr_conditions)
+    projeto_total = _total_fechado(projeto_conditions)
+
+    janelas = (
+        ("12m", primeiro_dia_12m, primeiro_dia_proximo_mes, False),
+        ("ultimo_mes", primeiro_dia_mes_anterior, primeiro_dia_mes_corrente, False),
+        ("mes_corrente", primeiro_dia_mes_corrente, primeiro_dia_proximo_mes, False),
+        ("ultimos_7_dias", inicio_ultimos_7_dias, today, True),
     )
-    mrr_periodos = db.execute(mrr_periodos_stmt).first()
-    mrr_12m = float(mrr_periodos.total_12m) if mrr_periodos is not None else 0.0  # type: ignore[attr-defined]
-    mrr_ultimo_mes = float(mrr_periodos.total_ultimo_mes) if mrr_periodos is not None else 0.0  # type: ignore[attr-defined]
-    mrr_mes_corrente = float(mrr_periodos.total_mes_corrente) if mrr_periodos is not None else 0.0  # type: ignore[attr-defined]
-    mrr_ultimos_7_dias = float(mrr_periodos.total_ultimos_7_dias) if mrr_periodos is not None else 0.0  # type: ignore[attr-defined]
+    colunas = []
+    for prefixo, conds in (("mrr", _mrr_incremental_condicoes()), ("projeto", _valor_projeto_condicoes())):
+        for sufixo, ini, fim, inclusivo in janelas:
+            colunas.append(
+                _soma_valor_fechado_na_janela(ini, fim, conds, fim_inclusivo=inclusivo).label(
+                    f"{prefixo}_{sufixo}"
+                )
+            )
+    periodos_stmt = select(*colunas).where(
+        *base_conditions,
+        Oportunidade.opoAtivo.is_(True),
+        Oportunidade.opoDataFechamento.is_not(None),
+    )
+    periodos = db.execute(periodos_stmt).first()
+
+    def _janela(nome: str) -> float:
+        return float(getattr(periodos, nome)) if periodos is not None else 0.0
+
+    mrr_12m = _janela("mrr_12m")
+    mrr_ultimo_mes = _janela("mrr_ultimo_mes")
+    mrr_mes_corrente = _janela("mrr_mes_corrente")
+    mrr_ultimos_7_dias = _janela("mrr_ultimos_7_dias")
+    projeto_12m = _janela("projeto_12m")
+    projeto_ultimo_mes = _janela("projeto_ultimo_mes")
+    projeto_mes_corrente = _janela("projeto_mes_corrente")
+    projeto_ultimos_7_dias = _janela("projeto_ultimos_7_dias")
 
     # Taxa de conversão
     base_conversao = ganhas_total + perdidas_total
@@ -986,6 +988,11 @@ def _query_cards(
         mrrIncrementalUltimoMes=float(round(mrr_ultimo_mes, 2)),
         mrrIncrementalMesCorrente=float(round(mrr_mes_corrente, 2)),
         mrrIncrementalUltimos7Dias=float(round(mrr_ultimos_7_dias, 2)),
+        valorProjeto=float(round(projeto_total, 2)),
+        valorProjeto12m=float(round(projeto_12m, 2)),
+        valorProjetoUltimoMes=float(round(projeto_ultimo_mes, 2)),
+        valorProjetoMesCorrente=float(round(projeto_mes_corrente, 2)),
+        valorProjetoUltimos7Dias=float(round(projeto_ultimos_7_dias, 2)),
     )
 
 
@@ -1260,6 +1267,18 @@ def _forecast_sql_expr():
     )
 
 
+def _normalizar_metrica_drill(metrica: str | None) -> str | None:
+    """Normaliza a métrica do drill-down; None quando ausente ou desconhecida."""
+    bruto = (metrica or "").strip().lower()
+    if bruto == "mrrincremental":
+        return "mrr_incremental"
+    if bruto == "valorprojeto":
+        return "valor_projeto"
+    if bruto in ("recebidas", "ganhas", "perdidas", "ativas"):
+        return bruto
+    return None
+
+
 def _oportunidade_mrr_valor_sql():
     return case(
         (
@@ -1329,6 +1348,7 @@ def _query_rankings_analiticos(
     ).label("solucao")
 
     mrr_expr = _mrr_incremental_expr()
+    projeto_expr = _valor_projeto_expr()
 
     stmt_resp = (
         select(
@@ -1339,6 +1359,7 @@ def _query_rankings_analiticos(
             func.sum(case((perd_cond, 1), else_=0)).label("perd"),
             func.sum(case((atv_cond, 1), else_=0)).label("atv"),
             func.coalesce(func.sum(mrr_expr), 0).label("mrr"),
+            func.coalesce(func.sum(projeto_expr), 0).label("projeto"),
         )
         .select_from(Oportunidade)
         .join(Usuario, Oportunidade.opoUsuResponsavelId == Usuario.usuId, isouter=True)
@@ -1353,6 +1374,7 @@ def _query_rankings_analiticos(
         perd = int(row.perd)  # type: ignore[attr-defined]
         atv = int(row.atv)  # type: ignore[attr-defined]
         mrr = float(row.mrr)  # type: ignore[attr-defined]
+        projeto = float(row.projeto)  # type: ignore[attr-defined]
         fech = gan + perd
         taxa = round((gan / fech) * 100, 2) if fech > 0 else 0.0
         ticket = round(mrr / gan, 2) if gan > 0 else 0.0
@@ -1367,6 +1389,7 @@ def _query_rankings_analiticos(
                 ativas=atv,
                 taxaConversao=taxa,
                 mrrIncremental=round(mrr, 2),
+                valorProjeto=round(projeto, 2),
                 ticketMedio=ticket,
             )
         )
@@ -1380,6 +1403,7 @@ def _query_rankings_analiticos(
             func.sum(case((gan_cond, 1), else_=0)).label("gan"),
             func.sum(case((perd_cond, 1), else_=0)).label("perd"),
             func.coalesce(func.sum(mrr_expr), 0).label("mrr"),
+            func.coalesce(func.sum(projeto_expr), 0).label("projeto"),
         )
         .select_from(Oportunidade)
         .join(ComoConheceu, Oportunidade.opoCcoId == ComoConheceu.ccoId, isouter=True)
@@ -1393,6 +1417,7 @@ def _query_rankings_analiticos(
         gan = int(row.gan)  # type: ignore[attr-defined]
         perd = int(row.perd)  # type: ignore[attr-defined]
         mrr = float(row.mrr)  # type: ignore[attr-defined]
+        projeto = float(row.projeto)  # type: ignore[attr-defined]
         fech_f = gan + perd
         fonte_items.append(
             CrmDashboardRankingFonteItem(
@@ -1402,6 +1427,7 @@ def _query_rankings_analiticos(
                 perdidas=perd,
                 taxaConversao=round((gan / fech_f) * 100, 2) if fech_f > 0 else 0.0,
                 mrrIncremental=round(mrr, 2),
+                valorProjeto=round(projeto, 2),
             )
         )
     fonte_items.sort(key=lambda x: x.mrrIncremental, reverse=True)
@@ -1414,6 +1440,7 @@ def _query_rankings_analiticos(
             func.sum(case((gan_cond, 1), else_=0)).label("gan"),
             func.sum(case((perd_cond, 1), else_=0)).label("perd"),
             func.coalesce(func.sum(mrr_expr), 0).label("mrr"),
+            func.coalesce(func.sum(projeto_expr), 0).label("projeto"),
         )
         .select_from(Oportunidade)
         .join(Produto, Oportunidade.opoProId == Produto.proId, isouter=True)
@@ -1427,6 +1454,7 @@ def _query_rankings_analiticos(
         gan = int(row.gan)  # type: ignore[attr-defined]
         perd = int(row.perd)  # type: ignore[attr-defined]
         mrr = float(row.mrr)  # type: ignore[attr-defined]
+        projeto = float(row.projeto)  # type: ignore[attr-defined]
         fech_s = gan + perd
         sol_items.append(
             CrmDashboardRankingSolucaoItem(
@@ -1436,6 +1464,7 @@ def _query_rankings_analiticos(
                 perdidas=perd,
                 taxaConversao=round((gan / fech_s) * 100, 2) if fech_s > 0 else 0.0,
                 mrrIncremental=round(mrr, 2),
+                valorProjeto=round(projeto, 2),
             )
         )
     sol_items.sort(key=lambda x: x.mrrIncremental, reverse=True)
@@ -1514,23 +1543,21 @@ def list_dashboard_oportunidades(
                 resumo=CrmDashboardOportunidadesResumo(
                     quantidade=0,
                     mrrTotal=0.0,
+                    valorProjetoTotal=0.0,
                     forecastTotal=0.0,
                     ticketMedio=0.0,
                 ),
             )
         di_g, df_g = inter
 
-    _m_raw = (filtros.metrica or "").strip().lower()
-    if _m_raw == "mrrincremental":
-        metrica_eff: str | None = "mrr_incremental"
-    elif _m_raw in ("recebidas", "ganhas", "perdidas", "ativas"):
-        metrica_eff = _m_raw
-    else:
-        metrica_eff = None
+    metrica_eff = _normalizar_metrica_drill(filtros.metrica)
 
-    if metrica_eff == "mrr_incremental":
+    if metrica_eff in ("mrr_incremental", "valor_projeto"):
         conditions.append(Oportunidade.opoAtivo.is_(True))
         conditions.append(Oportunidade.opoStatusFechamento == "ganho")
+        if metrica_eff == "valor_projeto":
+            # Só o tipo projeto: alinhado ao card de valor de projeto fechado.
+            conditions.append(func.coalesce(Oportunidade.opoFechadoRecorrencia, 0) == 1)
         bd = _between_dates(Oportunidade.opoDataFechamento, di_g, df_g)
         if bd is not None:
             conditions.append(bd)
@@ -1582,7 +1609,9 @@ def list_dashboard_oportunidades(
                 conditions.append(or_(*or_parts))
 
     mrr_sql = _oportunidade_mrr_valor_sql()
+    projeto_sql = _valor_projeto_expr()
     mrr_agg_sql = _mrr_perdido_expr() if metrica_eff == "perdidas" else mrr_sql
+    projeto_agg_sql = literal(0) if metrica_eff == "perdidas" else projeto_sql
     forecast_sql = _forecast_sql_expr()
     forecast_agg_sql = literal(0) if metrica_eff == "perdidas" else forecast_sql
 
@@ -1600,16 +1629,26 @@ def list_dashboard_oportunidades(
         select(
             func.count(Oportunidade.opoId).label("tot"),
             func.coalesce(func.sum(mrr_agg_sql), 0).label("mrr_sum"),
+            func.coalesce(func.sum(projeto_agg_sql), 0).label("projeto_sum"),
             func.coalesce(func.sum(forecast_agg_sql), 0).label("fc_sum"),
         )
     ).where(*conditions)
     agg_row = db.execute(agg_stmt).first()
     total = int(agg_row.tot) if agg_row is not None else 0  # type: ignore[attr-defined]
     mrr_total = float(agg_row.mrr_sum) if agg_row is not None else 0.0  # type: ignore[attr-defined]
+    projeto_total = float(agg_row.projeto_sum) if agg_row is not None else 0.0  # type: ignore[attr-defined]
     fc_total = float(agg_row.fc_sum) if agg_row is not None else 0.0  # type: ignore[attr-defined]
-    ticket = round(mrr_total / total, 2) if total > 0 and metrica_eff in ("perdidas", "ganhas", "mrr_incremental") else 0.0
+    # No recorte de projeto o ticket médio é do valor de projeto, não do MRR.
+    base_ticket = projeto_total if metrica_eff == "valor_projeto" else mrr_total
+    ticket = (
+        round(base_ticket / total, 2)
+        if total > 0 and metrica_eff in ("perdidas", "ganhas", "mrr_incremental", "valor_projeto")
+        else 0.0
+    )
 
     valor_row_sql = _mrr_perdido_expr() if metrica_eff == "perdidas" else mrr_sql
+    # Ordenação pelo valor que o recorte destaca.
+    ordem_valor_sql = projeto_sql if metrica_eff == "valor_projeto" else valor_row_sql
     data_ord = func.coalesce(
         Oportunidade.opoDataFechamento,
         Oportunidade.opoDataRecebimento,
@@ -1626,19 +1665,21 @@ def list_dashboard_oportunidades(
             solucao_nome,
             motivo_nome,
             valor_row_sql.label("valor_mrr"),
+            projeto_sql.label("valor_projeto"),
             forecast_sql.label("forecast_v"),
             Oportunidade.opoDataCriacao,
             Oportunidade.opoDataFechamento,
             Oportunidade.opoDataRecebimento,
             EtapaKanban.etkNome,
         )
-    ).where(*conditions).order_by(data_ord.desc(), valor_row_sql.desc()).limit(100)
+    ).where(*conditions).order_by(data_ord.desc(), ordem_valor_sql.desc()).limit(100)
     rows = db.execute(list_stmt).all()
 
     itens: list[CrmDashboardOportunidadeResumoItem] = []
     for r in rows:
         st = _status_label(r.opoStatusFechamento)  # type: ignore[attr-defined]
         mrr_v = float(r.valor_mrr)  # type: ignore[attr-defined]
+        projeto_v = float(r.valor_projeto)  # type: ignore[attr-defined]
         fc_v = float(r.forecast_v)  # type: ignore[attr-defined]
         dc = r.opoDataCriacao  # type: ignore[attr-defined]
         if isinstance(dc, datetime):
@@ -1660,6 +1701,7 @@ def list_dashboard_oportunidades(
                 solucao=str(r.solucao_nome),
                 motivoPerda=None if st != "Perdida" else str(r.motivo_nome),
                 valorMrr=round(mrr_v, 2) if mrr_v != 0 else None,
+                valorProjeto=round(projeto_v, 2) if projeto_v != 0 else None,
                 forecast=round(fc_v, 2) if fc_v > 0 else None,
                 dataCriacao=data_cri,
                 dataFechamento=data_fec,
@@ -1673,6 +1715,7 @@ def list_dashboard_oportunidades(
         resumo=CrmDashboardOportunidadesResumo(
             quantidade=total,
             mrrTotal=round(mrr_total, 2),
+            valorProjetoTotal=round(projeto_total, 2),
             forecastTotal=round(fc_total, 2),
             ticketMedio=ticket,
         ),

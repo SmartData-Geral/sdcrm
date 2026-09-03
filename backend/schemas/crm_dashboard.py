@@ -26,7 +26,7 @@ class CrmDashboardOportunidadesFiltroParams(CrmDashboardFiltroParams):
     periodo: str | None = Field(default=None, description="YYYY-MM")
     metrica: str | None = Field(
         default=None,
-        description="recebidas|ganhas|perdidas|ativas|mrrIncremental",
+        description="recebidas|ganhas|perdidas|ativas|mrrIncremental|valorProjeto",
     )
 
 
@@ -55,6 +55,11 @@ class CrmDashboardCards(BaseModel):
     mrrIncrementalUltimoMes: float
     mrrIncrementalMesCorrente: float
     mrrIncrementalUltimos7Dias: float
+    valorProjeto: float
+    valorProjeto12m: float
+    valorProjetoUltimoMes: float
+    valorProjetoMesCorrente: float
+    valorProjetoUltimos7Dias: float
 
 
 class CrmDashboardGraficoPorMesItem(BaseModel):
@@ -100,6 +105,7 @@ class CrmDashboardResumoMetas(BaseModel):
     recebimento: CrmDashboardResumoMetaLinha
     fechamento: CrmDashboardResumoMetaLinha
     mrrIncremental: CrmDashboardResumoMetaLinha
+    valorProjeto: CrmDashboardResumoMetaLinha
 
 
 class CrmDashboardMotivoPerdaItem(BaseModel):
@@ -119,10 +125,12 @@ class CrmDashboardSerieMensalItem(BaseModel):
     taxaConversao: float = 0.0
     mrrIncremental: float = 0.0
     mrrMedio: float = 0.0
+    valorProjeto: float = 0.0
     forecast: float = 0.0
     metaRecebidas: float | None = None
     metaGanhas: float | None = None
     metaMrr: float | None = None
+    metaValorProjeto: float | None = None
 
 
 class CrmDashboardRankingResponsavelItem(BaseModel):
@@ -134,6 +142,7 @@ class CrmDashboardRankingResponsavelItem(BaseModel):
     ativas: int = 0
     taxaConversao: float = 0.0
     mrrIncremental: float = 0.0
+    valorProjeto: float = 0.0
     ticketMedio: float = 0.0
 
 
@@ -144,6 +153,7 @@ class CrmDashboardRankingFonteItem(BaseModel):
     perdidas: int = 0
     taxaConversao: float = 0.0
     mrrIncremental: float = 0.0
+    valorProjeto: float = 0.0
 
 
 class CrmDashboardRankingSolucaoItem(BaseModel):
@@ -153,6 +163,7 @@ class CrmDashboardRankingSolucaoItem(BaseModel):
     perdidas: int = 0
     taxaConversao: float = 0.0
     mrrIncremental: float = 0.0
+    valorProjeto: float = 0.0
 
 
 class CrmDashboardRankingsResponse(BaseModel):
@@ -171,6 +182,7 @@ class CrmDashboardOportunidadeResumoItem(BaseModel):
     solucao: str | None = None
     motivoPerda: str | None = None
     valorMrr: float | None = None
+    valorProjeto: float | None = None
     forecast: float | None = None
     dataCriacao: str | None = None
     dataFechamento: str | None = None
@@ -180,6 +192,7 @@ class CrmDashboardOportunidadeResumoItem(BaseModel):
 class CrmDashboardOportunidadesResumo(BaseModel):
     quantidade: int
     mrrTotal: float
+    valorProjetoTotal: float = 0.0
     forecastTotal: float
     ticketMedio: float
 

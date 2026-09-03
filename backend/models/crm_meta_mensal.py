@@ -24,5 +24,10 @@ class CrmMetaMensal(Base):
     cmmMrrMedio: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     cmmQtdFechamento: Mapped[int] = mapped_column(Integer, nullable=False)
     cmmMrrIncremental: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    # Meta de valor de projeto (venda pontual). Valor direto em R$, sem derivação:
+    # projeto não segue o funil recebimento x conversão x ticket usado pelo MRR.
+    cmmValorProjeto: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), nullable=False, server_default="0"
+    )
     cmmDataCriacao: Mapped[datetime] = AuditColumnFactory.datetime_criacao("cmmDataCriacao")
     cmmDataAtualizacao: Mapped[datetime | None] = AuditColumnFactory.datetime_atualizacao("cmmDataAtualizacao")

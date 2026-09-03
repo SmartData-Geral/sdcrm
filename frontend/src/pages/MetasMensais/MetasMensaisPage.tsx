@@ -17,6 +17,7 @@ interface MetaRow {
   cmmMrrMedio: number | string;
   cmmQtdFechamento: number;
   cmmMrrIncremental: number | string;
+  cmmValorProjeto: number | string;
 }
 
 interface ResumoResponse {
@@ -68,6 +69,7 @@ function fillFormFromRow(row: MetaRow) {
     formQtdRec: String(row.cmmQtdRecebimento),
     formTaxa: String(num(row.cmmTaxaConversao)),
     formMrr: String(num(row.cmmMrrMedio)),
+    formProjeto: String(num(row.cmmValorProjeto ?? 0)),
   };
 }
 
@@ -88,6 +90,7 @@ const MetasMensaisPage: React.FC = () => {
   const [formQtdRec, setFormQtdRec] = useState("12");
   const [formTaxa, setFormTaxa] = useState("0.30");
   const [formMrr, setFormMrr] = useState("3000");
+  const [formProjeto, setFormProjeto] = useState("0");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,6 +137,7 @@ const MetasMensaisPage: React.FC = () => {
     setFormQtdRec("12");
     setFormTaxa("0.30");
     setFormMrr("3000");
+    setFormProjeto("0");
     setIsModalOpen(true);
   };
 
@@ -145,6 +149,7 @@ const MetasMensaisPage: React.FC = () => {
     setFormQtdRec(f.formQtdRec);
     setFormTaxa(f.formTaxa);
     setFormMrr(f.formMrr);
+    setFormProjeto(f.formProjeto);
     setIsModalOpen(true);
   };
 
@@ -156,6 +161,7 @@ const MetasMensaisPage: React.FC = () => {
     setFormQtdRec(f.formQtdRec);
     setFormTaxa(f.formTaxa);
     setFormMrr(f.formMrr);
+    setFormProjeto(f.formProjeto);
     setIsModalOpen(true);
   };
 
@@ -164,15 +170,18 @@ const MetasMensaisPage: React.FC = () => {
     const qRec = Number.parseInt(formQtdRec, 10);
     const taxa = Number.parseFloat(String(formTaxa).replace(",", "."));
     const mrr = Number.parseFloat(String(formMrr).replace(",", "."));
+    const projeto = Number.parseFloat(String(formProjeto || "0").replace(",", "."));
     if (Number.isNaN(qRec) || qRec < 0) return;
     if (Number.isNaN(taxa) || taxa < 0 || taxa > 1) return;
     if (Number.isNaN(mrr) || mrr < 0) return;
+    if (Number.isNaN(projeto) || projeto < 0) return;
 
     const bodyBase = {
       cmmMesReferencia: isoPrimeiroDoMes(formMes),
       cmmQtdRecebimento: qRec,
       cmmTaxaConversao: taxa,
       cmmMrrMedio: mrr,
+      cmmValorProjeto: projeto,
     };
 
     try {
@@ -306,6 +315,11 @@ const MetasMensaisPage: React.FC = () => {
                 render: (r) => formatCurrencyBRL(num(r.cmmMrrIncremental)),
               },
               {
+                key: "cmmValorProjeto",
+                header: "Valor de projeto",
+                render: (r) => formatCurrencyBRL(num(r.cmmValorProjeto ?? 0)),
+              },
+              {
                 key: "cmmId",
                 header: "Ações",
                 render: (r) => (
@@ -376,6 +390,19 @@ const MetasMensaisPage: React.FC = () => {
               value={formMrr}
               onChange={(e) => setFormMrr(e.target.value)}
             />
+          </label>
+          <label>
+            Meta de valor de projeto (R$)
+            <input
+              type="text"
+              inputMode="decimal"
+              placeholder="Ex.: 20000 ou 20000,00"
+              value={formProjeto}
+              onChange={(e) => setFormProjeto(e.target.value)}
+            />
+            <small style={{ display: "block", marginTop: "0.25rem", opacity: 0.75 }}>
+              Vendas pontuais fechadas como projeto. Valor informado direto, sem cálculo pelo funil.
+            </small>
           </label>
           <div style={{ padding: "0.75rem 1rem", borderRadius: "8px", background: "#f8fafc", border: "1px solid #e2e8f0" }}>
             <strong>Calculado no salvamento:</strong>

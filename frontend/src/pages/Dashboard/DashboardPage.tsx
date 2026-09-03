@@ -29,6 +29,11 @@ interface CrmDashboardCards {
   mrrIncrementalUltimoMes: number;
   mrrIncrementalMesCorrente: number;
   mrrIncrementalUltimos7Dias: number;
+  valorProjeto: number;
+  valorProjeto12m: number;
+  valorProjetoUltimoMes: number;
+  valorProjetoMesCorrente: number;
+  valorProjetoUltimos7Dias: number;
 }
 
 interface CrmDashboardGraficoPorMesItem {
@@ -63,6 +68,7 @@ interface CrmDashboardResumoMetas {
   recebimento: CrmDashboardResumoMetaLinha;
   fechamento: CrmDashboardResumoMetaLinha;
   mrrIncremental: CrmDashboardResumoMetaLinha;
+  valorProjeto: CrmDashboardResumoMetaLinha;
 }
 
 interface CrmDashboardMotivoPerdaItem {
@@ -80,6 +86,7 @@ type MetricaSerie =
   | "taxaConversao"
   | "mrrIncremental"
   | "mrrMedio"
+  | "valorProjeto"
   | "forecast";
 
 /* Gráfico "Meta x Realizado" suprimido — comparação com meta na Evolução mensal.
@@ -95,10 +102,12 @@ interface CrmDashboardSerieMensalItem {
   taxaConversao: number;
   mrrIncremental: number;
   mrrMedio: number;
+  valorProjeto: number;
   forecast: number;
   metaRecebidas: number | null;
   metaGanhas: number | null;
   metaMrr: number | null;
+  metaValorProjeto: number | null;
 }
 
 function getValorPorMetrica(item: CrmDashboardSerieMensalItem, metrica: MetricaSerie): number {
@@ -115,6 +124,8 @@ function getValorPorMetrica(item: CrmDashboardSerieMensalItem, metrica: MetricaS
       return item.mrrIncremental;
     case "mrrMedio":
       return item.mrrMedio;
+    case "valorProjeto":
+      return item.valorProjeto;
     case "forecast":
       return item.forecast;
     default:
@@ -130,6 +141,8 @@ function getMetaSerie(item: CrmDashboardSerieMensalItem, metrica: MetricaSerie):
       return item.metaGanhas;
     case "mrrIncremental":
       return item.metaMrr;
+    case "valorProjeto":
+      return item.metaValorProjeto;
     default:
       return null;
   }
@@ -169,6 +182,7 @@ function labelMetricaSerie(metrica: MetricaSerie): string {
     taxaConversao: "Conversão",
     mrrIncremental: "MRR incremental",
     mrrMedio: "MRR médio",
+    valorProjeto: "Valor de projeto",
     forecast: "Forecast",
   };
   return map[metrica];
@@ -183,6 +197,7 @@ interface CrmDashboardRankingResponsavel {
   ativas: number;
   taxaConversao: number;
   mrrIncremental: number;
+  valorProjeto: number;
   ticketMedio: number;
 }
 
@@ -193,6 +208,7 @@ interface CrmDashboardRankingFonte {
   perdidas: number;
   taxaConversao: number;
   mrrIncremental: number;
+  valorProjeto: number;
 }
 
 interface CrmDashboardRankingSolucao {
@@ -202,6 +218,7 @@ interface CrmDashboardRankingSolucao {
   perdidas: number;
   taxaConversao: number;
   mrrIncremental: number;
+  valorProjeto: number;
 }
 
 interface CrmDashboardRankings {
@@ -220,6 +237,7 @@ interface CrmDashboardOportunidadeResumo {
   solucao: string | null;
   motivoPerda: string | null;
   valorMrr: number | null;
+  valorProjeto: number | null;
   forecast: number | null;
   dataCriacao: string | null;
   dataFechamento: string | null;
@@ -232,6 +250,7 @@ interface CrmDashboardOportunidadesListResponse {
   resumo: {
     quantidade: number;
     mrrTotal: number;
+    valorProjetoTotal: number;
     forecastTotal: number;
     ticketMedio: number;
   };
@@ -255,7 +274,13 @@ interface CrmDashboardResponse {
   rankings?: CrmDashboardRankings;
 }
 
-export type MetricaDetalhamento = "recebidas" | "ganhas" | "perdidas" | "ativas" | "mrrIncremental";
+export type MetricaDetalhamento =
+  | "recebidas"
+  | "ganhas"
+  | "perdidas"
+  | "ativas"
+  | "mrrIncremental"
+  | "valorProjeto";
 
 export interface DetalhamentoParams {
   metrica?: MetricaDetalhamento;
@@ -283,6 +308,8 @@ function serieMetricaParaDrill(metrica: MetricaSerie): MetricaDetalhamento {
       return "perdidas";
     case "mrrIncremental":
       return "mrrIncremental";
+    case "valorProjeto":
+      return "valorProjeto";
     case "forecast":
       return "ativas";
     case "taxaConversao":
@@ -332,6 +359,7 @@ const SERIE_METRIC_TABS: { value: MetricaSerie; label: string }[] = [
   { value: "taxaConversao", label: "Conversão" },
   { value: "mrrIncremental", label: "MRR" },
   { value: "mrrMedio", label: "MRR médio" },
+  { value: "valorProjeto", label: "Projeto" },
   { value: "forecast", label: "Forecast" },
 ];
 
@@ -495,7 +523,12 @@ const DashboardPage: React.FC = () => {
 
   const formatSerieMetricValue = (valor: number, metrica: MetricaSerie) => {
     if (metrica === "taxaConversao") return formatPercent(valor);
-    if (metrica === "mrrIncremental" || metrica === "mrrMedio" || metrica === "forecast")
+    if (
+      metrica === "mrrIncremental" ||
+      metrica === "mrrMedio" ||
+      metrica === "valorProjeto" ||
+      metrica === "forecast"
+    )
       return formatCurrencyBRL(valor);
     return Math.round(valor).toLocaleString("pt-BR");
   };
@@ -528,13 +561,13 @@ const DashboardPage: React.FC = () => {
     return lines;
   };
 
-  const renderKpiMetaLinha = (linha: CrmDashboardResumoMetaLinha | undefined, isMrr: boolean) => {
+  const renderKpiMetaLinha = (linha: CrmDashboardResumoMetaLinha | undefined, isMoeda: boolean) => {
     if (!temMeta || !linha || linha.meta == null) return null;
     const gap = linha.gap;
     const gapClass =
       gap == null ? "" : gap >= 0 ? "dashboard-card-meta-gap--pos" : "dashboard-card-meta-gap--neg";
-    const metaTxt = isMrr ? formatCurrencyBRL(linha.meta) : Math.round(linha.meta).toLocaleString("pt-BR");
-    const gapTxt = isMrr ? formatCurrencyBRL(gap ?? 0) : Math.round(gap ?? 0).toLocaleString("pt-BR");
+    const metaTxt = isMoeda ? formatCurrencyBRL(linha.meta) : Math.round(linha.meta).toLocaleString("pt-BR");
+    const gapTxt = isMoeda ? formatCurrencyBRL(gap ?? 0) : Math.round(gap ?? 0).toLocaleString("pt-BR");
     return (
       <div className="dashboard-card-meta">
         <span>
@@ -978,6 +1011,45 @@ const DashboardPage: React.FC = () => {
               {renderKpiMetaLinha(resumoMetas?.mrrIncremental, true)}
               <span className="dashboard-click-hint">Clique para ver detalhes</span>
             </div>
+
+            <div
+              role="button"
+              tabIndex={0}
+              className="dashboard-card dashboard-card--cyan dashboard-card--clickable"
+              onClick={() =>
+                abrirDetalhamento({
+                  titulo: "Valor de projeto fechado",
+                  params: { metrica: "valorProjeto" },
+                })
+              }
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  abrirDetalhamento({
+                    titulo: "Valor de projeto fechado",
+                    params: { metrica: "valorProjeto" },
+                  });
+                }
+              }}
+            >
+              <div className="dashboard-card-header">
+                <span className="dashboard-card-icon" aria-hidden>
+                  <svg viewBox="0 0 24 24">
+                    <path d="M3 7l9-4 9 4-9 4-9-4zm0 5l9 4 9-4M3 17l9 4 9-4" />
+                  </svg>
+                </span>
+                <strong className="dashboard-card-value">{formatCurrencyBRL(cards.valorProjeto)}</strong>
+              </div>
+              <span className="dashboard-card-label">Valor de Projeto</span>
+              <div className="dashboard-card-subvalues">
+                <span className="dashboard-card-subvalue"><span>12 meses</span><span>{formatCurrencyBRL(cards.valorProjeto12m)}</span></span>
+                <span className="dashboard-card-subvalue"><span>Últ. mês</span><span>{formatCurrencyBRL(cards.valorProjetoUltimoMes)}</span></span>
+                <span className="dashboard-card-subvalue"><span>Mês atual</span><span>{formatCurrencyBRL(cards.valorProjetoMesCorrente)}</span></span>
+                <span className="dashboard-card-subvalue"><span>Últ. 7 dias</span><span>{formatCurrencyBRL(cards.valorProjetoUltimos7Dias)}</span></span>
+              </div>
+              {renderKpiMetaLinha(resumoMetas?.valorProjeto, true)}
+              <span className="dashboard-click-hint">Clique para ver detalhes</span>
+            </div>
           </section>
 
           {/* Charts */}
@@ -1411,6 +1483,7 @@ const DashboardPage: React.FC = () => {
                             <th>Ativas</th>
                             <th>Conversão</th>
                             <th>MRR</th>
+                            <th>Projeto</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1446,6 +1519,7 @@ const DashboardPage: React.FC = () => {
                               <td>{row.ativas}</td>
                               <td>{formatPercent(row.taxaConversao)}</td>
                               <td>{formatCurrencyBRL(row.mrrIncremental)}</td>
+                              <td>{formatCurrencyBRL(row.valorProjeto)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1461,6 +1535,7 @@ const DashboardPage: React.FC = () => {
                             <th>Perdidas</th>
                             <th>Conversão</th>
                             <th>MRR</th>
+                            <th>Projeto</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1491,6 +1566,7 @@ const DashboardPage: React.FC = () => {
                               <td>{row.perdidas}</td>
                               <td>{formatPercent(row.taxaConversao)}</td>
                               <td>{formatCurrencyBRL(row.mrrIncremental)}</td>
+                              <td>{formatCurrencyBRL(row.valorProjeto)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1506,6 +1582,7 @@ const DashboardPage: React.FC = () => {
                             <th>Perdidas</th>
                             <th>Conversão</th>
                             <th>MRR</th>
+                            <th>Projeto</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1536,6 +1613,7 @@ const DashboardPage: React.FC = () => {
                               <td>{row.perdidas}</td>
                               <td>{formatPercent(row.taxaConversao)}</td>
                               <td>{formatCurrencyBRL(row.mrrIncremental)}</td>
+                              <td>{formatCurrencyBRL(row.valorProjeto)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1599,6 +1677,10 @@ const DashboardPage: React.FC = () => {
                       <strong>{formatCurrencyBRL(detalhePayload.resumo.mrrTotal)}</strong>
                     </div>
                     <div>
+                      Projeto total
+                      <strong>{formatCurrencyBRL(detalhePayload.resumo.valorProjetoTotal)}</strong>
+                    </div>
+                    <div>
                       Forecast total
                       <strong>{formatCurrencyBRL(detalhePayload.resumo.forecastTotal)}</strong>
                     </div>
@@ -1623,6 +1705,7 @@ const DashboardPage: React.FC = () => {
                           <th>Fonte</th>
                           <th>Solução</th>
                           <th>MRR</th>
+                          <th>Projeto</th>
                           <th>Forecast</th>
                           <th />
                         </tr>
@@ -1642,6 +1725,7 @@ const DashboardPage: React.FC = () => {
                             <td>{row.fonte ?? "—"}</td>
                             <td>{row.solucao ?? "—"}</td>
                             <td>{row.valorMrr != null ? formatCurrencyBRL(row.valorMrr) : "—"}</td>
+                            <td>{row.valorProjeto != null ? formatCurrencyBRL(row.valorProjeto) : "—"}</td>
                             <td>{row.forecast != null ? formatCurrencyBRL(row.forecast) : "—"}</td>
                             <td>
                               <Link to={`/oportunidades/${row.id}`}>Abrir</Link>

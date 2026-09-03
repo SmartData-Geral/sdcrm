@@ -13,6 +13,7 @@ class CrmMetaMensalCreate(BaseModel):
     cmmQtdRecebimento: int = Field(..., ge=0)
     cmmTaxaConversao: Decimal = Field(..., ge=0, le=1)
     cmmMrrMedio: Decimal = Field(..., ge=Decimal("0"))
+    cmmValorProjeto: Decimal = Field(default=Decimal("0"), ge=Decimal("0"))
 
     @field_validator("cmmMesReferencia")
     @classmethod
@@ -25,6 +26,7 @@ class CrmMetaMensalUpdate(BaseModel):
     cmmQtdRecebimento: int | None = Field(default=None, ge=0)
     cmmTaxaConversao: Decimal | None = Field(default=None, ge=0, le=1)
     cmmMrrMedio: Decimal | None = Field(default=None, ge=Decimal("0"))
+    cmmValorProjeto: Decimal | None = Field(default=None, ge=Decimal("0"))
 
     @field_validator("cmmMesReferencia")
     @classmethod
@@ -43,6 +45,7 @@ class CrmMetaMensalResponse(BaseModel):
     cmmMrrMedio: Decimal
     cmmQtdFechamento: int
     cmmMrrIncremental: Decimal
+    cmmValorProjeto: Decimal
     cmmDataCriacao: datetime
     cmmDataAtualizacao: datetime | None
 

@@ -102,6 +102,7 @@ def create_meta(db: Session, company_id: int, data: CrmMetaMensalCreate) -> CrmM
         cmmMrrMedio=data.cmmMrrMedio,
         cmmQtdFechamento=qfe,
         cmmMrrIncremental=mir,
+        cmmValorProjeto=data.cmmValorProjeto,
     )
     db.add(obj)
     db.commit()
