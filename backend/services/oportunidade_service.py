@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 from typing import Literal, Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..exceptions import BadRequestError, NotFoundError
@@ -114,6 +114,8 @@ def list_oportunidades(
     status_fechamento: Optional[Literal["ativo", "ganho", "perdido", "stand-by"]] = None,
     page: int = 1,
     page_size: int = 20,
+    busca: Optional[str] = None,
+    temperatura: Optional[str] = None,
 ) -> OportunidadeListResponse:
     stmt = select(Oportunidade)
     if pipeline:
@@ -124,6 +126,18 @@ def list_oportunidades(
             stmt = stmt.where(EtapaKanban.etkEmpId == company_id)
     if titulo:
         stmt = stmt.where(Oportunidade.opoTitulo.ilike(f"%{titulo}%"))
+    if busca and busca.strip():
+        termo = f"%{busca.strip()}%"
+        stmt = stmt.where(
+            or_(
+                Oportunidade.opoTitulo.ilike(termo),
+                Oportunidade.opoNomeContato.ilike(termo),
+                Oportunidade.opoEmpresaContato.ilike(termo),
+                Oportunidade.opoEmail.ilike(termo),
+            )
+        )
+    if temperatura:
+        stmt = stmt.where(func.lower(Oportunidade.opoTemperatura) == temperatura.strip().lower())
     if pipeline:
         stmt = stmt.where(EtapaKanban.etkPipeline == pipeline)
     if status == "ativos":
