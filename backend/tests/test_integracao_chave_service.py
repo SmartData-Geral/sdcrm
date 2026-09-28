@@ -1,11 +1,15 @@
 import os
 import unittest
+from datetime import timedelta
+from types import SimpleNamespace
 
 # O pepper e obrigatorio em producao; nos testes fixamos um valor conhecido.
 os.environ.setdefault("API_KEY_PEPPER", "pepper-de-teste")
 
+from backend.core.tempo import utcnow
 from backend.exceptions import BadRequestError
 from backend.services import integracao_chave_service as servico
+from backend.services.integracao_chave_service import chave_utilizavel
 
 
 class GeracaoDeChaveTests(unittest.TestCase):
@@ -69,6 +73,28 @@ class EscoposTests(unittest.TestCase):
     def test_escopo_desconhecido_recusado(self) -> None:
         with self.assertRaises(BadRequestError):
             servico.normalizar_escopos(["inventado:x"])
+
+
+class ChaveUtilizavelTests(unittest.TestCase):
+    def _chave(self, **kw):
+        base = dict(ichAtivo=True, ichRevogadaEm=None, ichExpiraEm=None)
+        base.update(kw)
+        return SimpleNamespace(**base)
+
+    def test_ativa_sem_revogacao_nem_expiracao(self) -> None:
+        self.assertTrue(chave_utilizavel(self._chave()))
+
+    def test_inativa(self) -> None:
+        self.assertFalse(chave_utilizavel(self._chave(ichAtivo=False)))
+
+    def test_revogada(self) -> None:
+        self.assertFalse(chave_utilizavel(self._chave(ichRevogadaEm=utcnow())))
+
+    def test_expirada(self) -> None:
+        self.assertFalse(chave_utilizavel(self._chave(ichExpiraEm=utcnow() - timedelta(seconds=1))))
+
+    def test_expira_no_futuro(self) -> None:
+        self.assertTrue(chave_utilizavel(self._chave(ichExpiraEm=utcnow() + timedelta(days=1))))
 
 
 if __name__ == "__main__":

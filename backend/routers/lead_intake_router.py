@@ -11,13 +11,12 @@ Autenticacao por X-API-Key. Estas rotas NAO usam CompanyIdDep: a empresa vem da 
 
 from __future__ import annotations
 
-import os
 import time
-from urllib.parse import urlparse
 
 from fastapi import APIRouter, Request, Response, status
 
 from ..api_key import ApiKeyDep, exigir_escopo
+from ..core.links import url_da_oportunidade as _url_da_oportunidade
 from ..dependencies import DbSessionDep
 from ..exceptions import ConflictError
 from ..schemas.lead_integracao import LeadIntakeRequest, LeadIntakeResponse, PingResponse
@@ -26,17 +25,6 @@ from ..services import integracao_log_service, lead_intake_service
 router = APIRouter(prefix="/api/v1", tags=["integracao-externa"])
 
 ROTA_LEADS = "/api/v1/leads"
-
-
-def _url_da_oportunidade(opo_id: int) -> str | None:
-    """Mesma fonte que proposta_service usa para montar links publicos."""
-    base = (os.getenv("VITE_PUBLIC_BASE_URL") or "").strip().rstrip("/")
-    if not base:
-        return None
-    parsed = urlparse(base)
-    if not parsed.scheme:
-        return None
-    return base + "/oportunidades/" + str(opo_id)
 
 
 def _ip(request: Request) -> str | None:

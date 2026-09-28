@@ -1,5 +1,6 @@
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
+fastapi==0.135.2
+starlette==1.0.0
+uvicorn[standard]==0.42.0
 SQLAlchemy==2.0.35
 alembic==1.13.2
 PyMySQL==1.1.1
@@ -7,8 +8,8 @@ python-jose[cryptography]==3.3.0
 # passlib 1.7.x não suporta bcrypt>=4.1 (remoção de __about__.__version__)
 bcrypt==4.0.1
 passlib[bcrypt]==1.7.4
-pydantic==2.9.2
-pydantic-settings==2.5.2
+pydantic==2.12.5
+pydantic-settings==2.13.1
 email-validator==2.2.0
 python-dotenv==1.0.1
 python-multipart==0.0.22
@@ -17,4 +18,9 @@ openai==1.68.2
 # Cliente HTTP das entregas de webhook. Ate agora vinha so como
 # dependencia transitiva do openai; fixado aqui porque passamos a depender dele.
 httpx==0.28.1
+# Servidor MCP (conectores do Claude). Mesma versão do SDFin; exige pydantic>=2.12
+# e uvicorn>=0.31.1, por isso os pins acima foram alinhados ao SDFin.
+mcp==2.0.0
+# Base de fusos para ZoneInfo("America/Sao_Paulo") -- o Windows não traz uma.
+tzdata==2025.2
 

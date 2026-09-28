@@ -37,6 +37,15 @@ _INTERVALO_REGISTRO_USO = timedelta(minutes=5)
 _HASH_INEXISTENTE = "0" * 64
 
 
+def chave_utilizavel(chave: IntegracaoChave) -> bool:
+    """Ativa, não revogada e não expirada. Não confere o segredo."""
+    if not chave.ichAtivo or chave.ichRevogadaEm is not None:
+        return False
+    if chave.ichExpiraEm is not None and chave.ichExpiraEm <= utcnow():
+        return False
+    return True
+
+
 def _pepper() -> bytes:
     valor = (settings.API_KEY_PEPPER or "").strip()
     if not valor:
@@ -114,11 +123,7 @@ def autenticar(db: Session, valor_header: str | None) -> IntegracaoChave | None:
     if not hmac.compare_digest(chave.ichHashSecret, calcular_hash(valor_header or "")):
         return None
 
-    if not chave.ichAtivo or chave.ichRevogadaEm is not None:
-        return None
-    if chave.ichExpiraEm is not None and chave.ichExpiraEm <= utcnow():
-        return None
-    return chave
+    return chave if chave_utilizavel(chave) else None
 
 
 def registrar_uso(db: Session, chave: IntegracaoChave) -> None:
