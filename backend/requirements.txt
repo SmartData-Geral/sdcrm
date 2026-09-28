@@ -1,7 +1,8 @@
 fastapi==0.135.2
 starlette==1.0.0
 uvicorn[standard]==0.42.0
-SQLAlchemy==2.0.35
+# 2.0.48: mesma versão do SDFin; 2.0.35 não roda no Python 3.14.
+SQLAlchemy==2.0.48
 alembic==1.13.2
 PyMySQL==1.1.1
 python-jose[cryptography]==3.3.0
