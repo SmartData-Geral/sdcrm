@@ -49,6 +49,18 @@ class ComumTests(unittest.TestCase):
         s.db.scalar.return_value = 1
         _comum.validar_produto(s, 1)
 
+    def test_validar_responsavel_por_email_desconhecido(self) -> None:
+        s = contexto_falso()
+        s.db.scalar.return_value = None
+        with self.assertRaises(BadRequestError) as cm:
+            _comum.validar_responsavel_por_email(s, "foo@bar.com")
+        self.assertEqual(cm.exception.detail, "Responsável com e-mail foo@bar.com não existe nesta empresa.")
+
+    def test_validar_responsavel_por_email_existente(self) -> None:
+        s = contexto_falso()
+        s.db.scalar.return_value = 3
+        _comum.validar_responsavel_por_email(s, " foo@bar.com ")
+
 
 if __name__ == "__main__":
     unittest.main()

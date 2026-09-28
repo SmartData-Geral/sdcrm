@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from backend.exceptions import BadRequestError
 from backend.mcp_crm.ferramentas import funil, historico, oportunidades
+from backend.mcp_crm.serializacao import Nomes
 from backend.tests.mcp_apoio import contexto_falso, oportunidade_falsa, usar_sessao
 
 OPO = "backend.mcp_crm.ferramentas.oportunidades"
@@ -38,6 +39,30 @@ class CriarLeadTests(unittest.TestCase):
             with self.assertRaises(ValidationError):
                 oportunidades.criar_lead(ctx=None, nome="Maria")
         pl.assert_not_called()
+
+    def test_responsavel_email_de_outra_empresa_e_recusado_antes_do_intake(self) -> None:
+        s = contexto_falso(emp_id=7)
+        with usar_sessao(OPO, s), \
+             patch(
+                 f"{OPO}.validar_responsavel_por_email",
+                 side_effect=BadRequestError("Responsável com e-mail x@y.com não existe nesta empresa."),
+             ) as vr, \
+             patch(f"{OPO}.lead_intake_service.processar_lead") as pl:
+            with self.assertRaises(BadRequestError):
+                oportunidades.criar_lead(ctx=None, nome="Maria", email="maria@acme.com", responsavel_email="x@y.com")
+        vr.assert_called_once_with(s, "x@y.com")
+        pl.assert_not_called()
+
+    def test_responsavel_email_valido_deixa_seguir_para_o_intake(self) -> None:
+        s = contexto_falso(emp_id=7)
+        res = SimpleNamespace(status="created", opo_id=41, deduped_by=None, ciclo_anterior_id=None)
+        with usar_sessao(OPO, s), \
+             patch(f"{OPO}.validar_responsavel_por_email") as vr, \
+             patch(f"{OPO}.lead_intake_service.processar_lead", return_value=res) as pl, \
+             patch(f"{OPO}.url_da_oportunidade", return_value=None):
+            oportunidades.criar_lead(ctx=None, nome="Maria", email="maria@acme.com", responsavel_email="ok@acme.com")
+        vr.assert_called_once_with(s, "ok@acme.com")
+        pl.assert_called_once()
 
 
 class AtualizarOportunidadeTests(unittest.TestCase):
@@ -76,6 +101,41 @@ class AtualizarOportunidadeTests(unittest.TestCase):
                 oportunidades.atualizar_oportunidade(ctx=None, oportunidade_id=5, titulo="x")
         up.assert_not_called()
 
+    def test_strings_vazias_ou_so_espaco_nao_contam_como_valor(self) -> None:
+        s = contexto_falso(emp_id=7)
+        with usar_sessao(OPO, s), \
+             patch(f"{OPO}.obter_oportunidade_ativa", return_value=oportunidade_falsa()), \
+             patch(f"{OPO}.oportunidade_service.update_oportunidade") as up, \
+             patch(f"{OPO}.responder_oportunidade", return_value={"id": 5}):
+            oportunidades.atualizar_oportunidade(ctx=None, oportunidade_id=5, email="  ", titulo="Novo")
+        data = up.call_args[0][2]
+        self.assertEqual(data.model_dump(exclude_unset=True), {"opoTitulo": "Novo"})
+
+    def test_produto_invalido_impede_a_gravacao(self) -> None:
+        s = contexto_falso(emp_id=7)
+        with usar_sessao(OPO, s), \
+             patch(f"{OPO}.obter_oportunidade_ativa", return_value=oportunidade_falsa()), \
+             patch(
+                 f"{OPO}.validar_produto",
+                 side_effect=BadRequestError("Produto 99 não existe nesta empresa."),
+             ), \
+             patch(f"{OPO}.oportunidade_service.update_oportunidade") as up:
+            with self.assertRaises(BadRequestError):
+                oportunidades.atualizar_oportunidade(ctx=None, oportunidade_id=5, produto_id=99)
+        up.assert_not_called()
+
+    def test_usa_a_oportunidade_ativa_para_montar_a_resposta(self) -> None:
+        """F1: o retorno usa o objeto ORM devolvido por obter_oportunidade_ativa (que o
+        service atualiza na mesma sessão), não o valor de retorno do service."""
+        s = contexto_falso(emp_id=7)
+        opo = oportunidade_falsa(opoOrigemSistema="zapier", opoUtmSource="google")
+        with usar_sessao(OPO, s), \
+             patch(f"{OPO}.obter_oportunidade_ativa", return_value=opo), \
+             patch(f"{OPO}.oportunidade_service.update_oportunidade"), \
+             patch("backend.mcp_crm.ferramentas._comum.carregar_nomes", return_value=Nomes()):
+            r = oportunidades.atualizar_oportunidade(ctx=None, oportunidade_id=5, titulo="Novo título")
+        self.assertEqual(r["origem_externa"], {"sistema": "zapier", "utm_source": "google", "utm_campaign": None})
+
 
 class FunilEscritaTests(unittest.TestCase):
     def test_mover_etapa(self) -> None:
@@ -89,13 +149,27 @@ class FunilEscritaTests(unittest.TestCase):
         db, opo_id, data, emp = me.call_args[0]
         self.assertEqual((opo_id, data.opoEtkId, emp), (5, 9, 7))
 
+    def test_mover_etapa_usa_a_oportunidade_ativa_para_montar_a_resposta(self) -> None:
+        """F1: o retorno usa o objeto ORM devolvido por obter_oportunidade_ativa (que o
+        service atualiza na mesma sessão), não o valor de retorno do service."""
+        s = contexto_falso(emp_id=7)
+        opo = oportunidade_falsa(opoOrigemSistema="zapier", opoUtmSource="google")
+        with usar_sessao(FUN, s), \
+             patch(f"{FUN}.obter_oportunidade_ativa", return_value=opo), \
+             patch(f"{FUN}.oportunidade_service.mover_etapa"), \
+             patch("backend.mcp_crm.ferramentas._comum.carregar_nomes", return_value=Nomes()):
+            r = funil.mover_etapa(ctx=None, oportunidade_id=5, etapa_id=9)
+        self.assertEqual(r["origem_externa"]["sistema"], "zapier")
+        self.assertEqual(r["origem_externa"]["utm_source"], "google")
+
     def test_qualificacao_chama_so_o_que_veio(self) -> None:
         s = contexto_falso(emp_id=7)
         with usar_sessao(FUN, s), \
-             patch(f"{FUN}.obter_oportunidade_ativa", return_value=oportunidade_falsa()), \
+             patch(f"{FUN}.obter_oportunidade_ativa", return_value=oportunidade_falsa()) as ativa, \
              patch(f"{FUN}.oportunidade_service") as svc, \
              patch(f"{FUN}.responder_oportunidade", return_value={"id": 5}):
             funil.atualizar_qualificacao(ctx=None, oportunidade_id=5, temperatura="morno", reuniao_confirmada=False)
+        ativa.assert_called_once_with(s, 5)
         self.assertEqual(svc.set_temperatura.call_args[0][2].opoTemperatura, "morno")
         svc.set_reuniao_confirmada.assert_called_once_with(s.db, 5, False, 7)
         svc.set_lead_score.assert_not_called()
@@ -113,14 +187,25 @@ class RegistrarInteracaoTests(unittest.TestCase):
         s = contexto_falso(emp_id=7, usu_padrao=3, nome="Claude")
         criado = SimpleNamespace(ophId=30, ophUsuId=3, ophDataRegistro=datetime(2026, 9, 27, tzinfo=timezone.utc), ophConteudo="[via MCP · Claude] Ligou.")
         with usar_sessao(HIS, s), \
-             patch(f"{HIS}.obter_oportunidade_ativa"), \
+             patch(f"{HIS}.obter_oportunidade_ativa") as ativa, \
              patch(f"{HIS}.oportunidade_historico_service.create_historico", return_value=criado) as ch, \
              patch(f"{HIS}.carregar_autores", return_value={3: "Carlos"}):
             r = historico.registrar_interacao(ctx=None, oportunidade_id=5, conteudo="  Ligou. ")
+        ativa.assert_called_once_with(s, 5)
         db, opo_id, data = ch.call_args[0]
         self.assertEqual((opo_id, data.ophConteudo), (5, "[via MCP · Claude] Ligou."))
         self.assertEqual(ch.call_args.kwargs, {"company_id": 7, "usu_id": 3})
         self.assertEqual(r["autor"], {"id": 3, "nome": "Carlos"})
+
+    def test_conteudo_so_espaco_e_recusado(self) -> None:
+        s = contexto_falso()
+        with usar_sessao(HIS, s), \
+             patch(f"{HIS}.obter_oportunidade_ativa"), \
+             patch(f"{HIS}.oportunidade_historico_service.create_historico") as ch:
+            with self.assertRaises(BadRequestError) as cm:
+                historico.registrar_interacao(ctx=None, oportunidade_id=5, conteudo="   ")
+        self.assertEqual(cm.exception.detail, "O conteúdo da interação não pode ficar vazio.")
+        ch.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@ from ._comum import (
     validar_origem,
     validar_produto,
     validar_responsavel,
+    validar_responsavel_por_email,
 )
 
 Status = Literal["ativo", "ganho", "perdido", "stand-by"]
@@ -116,6 +117,8 @@ def criar_lead(
     duplicar (o retorno diz `status` created/updated e por qual critério deduplicou)."""
     argumentos = dict(locals())
     with executar_ferramenta(ctx, "criar_lead", escrita=True, argumentos=argumentos) as s:
+        if responsavel_email is not None:
+            validar_responsavel_por_email(s, responsavel_email)
         payload = LeadIntakeRequest(
             source=origem,
             name=nome,
@@ -161,7 +164,7 @@ def atualizar_oportunidade(
     ferramentas próprias (mover_etapa, atualizar_qualificacao, marcar_*)."""
     argumentos = dict(locals())
     with executar_ferramenta(ctx, "atualizar_oportunidade", escrita=True, argumentos=argumentos, opo_id=oportunidade_id) as s:
-        obter_oportunidade_ativa(s, oportunidade_id)
+        opo = obter_oportunidade_ativa(s, oportunidade_id)
         mapa = {
             "opoTitulo": titulo,
             "opoNomeContato": contato,
@@ -178,7 +181,11 @@ def atualizar_oportunidade(
             "opoComentarios": comentarios,
             "opoDataRecebimento": data_recebimento,
         }
-        campos = {k: v for k, v in mapa.items() if v is not None}
+        # Uma string vazia/só espaços não é um valor a gravar: como este endpoint não
+        # apaga campo nenhum, ela também significa "não mudar", assim como None.
+        campos = {
+            k: v for k, v in mapa.items() if v is not None and not (isinstance(v, str) and not v.strip())
+        }
         if not campos:
             raise BadRequestError("Nenhum campo para atualizar.")
         if produto_id is not None:
@@ -187,7 +194,5 @@ def atualizar_oportunidade(
             validar_responsavel(s, responsavel_id)
         if origem_id is not None:
             validar_origem(s, origem_id)
-        atualizada = oportunidade_service.update_oportunidade(
-            s.db, oportunidade_id, OportunidadeUpdate(**campos), s.empId
-        )
-        return responder_oportunidade(s, atualizada)
+        oportunidade_service.update_oportunidade(s.db, oportunidade_id, OportunidadeUpdate(**campos), s.empId)
+        return responder_oportunidade(s, opo)

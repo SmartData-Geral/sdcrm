@@ -4,6 +4,7 @@ from pydantic import Field
 
 from mcp.server.mcpserver import Context
 
+from ...exceptions import BadRequestError
 from ...schemas.oportunidade_historico import OportunidadeHistoricoCreate
 from ...services import oportunidade_historico_service
 from ..ferramenta import executar_ferramenta
@@ -49,6 +50,8 @@ def registrar_interacao(
     argumentos = dict(locals())
     with executar_ferramenta(ctx, "registrar_interacao", escrita=True, argumentos=argumentos, opo_id=oportunidade_id) as s:
         obter_oportunidade_ativa(s, oportunidade_id)
+        if not conteudo.strip():
+            raise BadRequestError("O conteúdo da interação não pode ficar vazio.")
         criado = oportunidade_historico_service.create_historico(
             s.db,
             oportunidade_id,

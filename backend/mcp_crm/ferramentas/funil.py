@@ -74,11 +74,9 @@ def mover_etapa(ctx: Context, oportunidade_id: int, etapa_id: int) -> dict:
     e dispara o webhook deal.stage_changed. Use listar_cadastros para os IDs de etapa."""
     argumentos = dict(locals())
     with executar_ferramenta(ctx, "mover_etapa", escrita=True, argumentos=argumentos, opo_id=oportunidade_id) as s:
-        obter_oportunidade_ativa(s, oportunidade_id)
-        atualizada = oportunidade_service.mover_etapa(
-            s.db, oportunidade_id, OportunidadeMoverEtapaRequest(opoEtkId=etapa_id), s.empId
-        )
-        return responder_oportunidade(s, atualizada)
+        opo = obter_oportunidade_ativa(s, oportunidade_id)
+        oportunidade_service.mover_etapa(s.db, oportunidade_id, OportunidadeMoverEtapaRequest(opoEtkId=etapa_id), s.empId)
+        return responder_oportunidade(s, opo)
 
 
 @mcp.tool()
@@ -99,11 +97,11 @@ def atualizar_qualificacao(
         opo = obter_oportunidade_ativa(s, oportunidade_id)
         db, emp = s.db, s.empId
         if temperatura is not None:
-            opo = oportunidade_service.set_temperatura(db, oportunidade_id, OportunidadeTemperaturaRequest(opoTemperatura=temperatura), emp)
+            oportunidade_service.set_temperatura(db, oportunidade_id, OportunidadeTemperaturaRequest(opoTemperatura=temperatura), emp)
         if lead_score is not None:
-            opo = oportunidade_service.set_lead_score(db, oportunidade_id, OportunidadeLeadScoreRequest(opoLeadScore=lead_score), emp)
+            oportunidade_service.set_lead_score(db, oportunidade_id, OportunidadeLeadScoreRequest(opoLeadScore=lead_score), emp)
         if reuniao_confirmada is not None:
-            opo = oportunidade_service.set_reuniao_confirmada(db, oportunidade_id, reuniao_confirmada, emp)
+            oportunidade_service.set_reuniao_confirmada(db, oportunidade_id, reuniao_confirmada, emp)
         if proposta_enviada is not None:
-            opo = oportunidade_service.set_proposta_enviada(db, oportunidade_id, proposta_enviada, emp)
+            oportunidade_service.set_proposta_enviada(db, oportunidade_id, proposta_enviada, emp)
         return responder_oportunidade(s, opo)

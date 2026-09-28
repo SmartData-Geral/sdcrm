@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from ...exceptions import BadRequestError, NotFoundError
 from ...models.como_conheceu import ComoConheceu
@@ -101,3 +101,21 @@ def validar_responsavel(sessao: ContextoMCP, usuario_id: int) -> None:
         "Responsável",
         usuario_id,
     )
+
+
+def validar_responsavel_por_email(sessao: ContextoMCP, email: str) -> None:
+    """`lead_intake_service._resolver_responsavel` busca o responsável só pelo
+    e-mail, sem filtrar empresa: aqui recusamos antes de chegar lá um e-mail que
+    pertença a um usuário de outra empresa (ou a nenhum usuário)."""
+    normalizado = email.strip()
+    encontrado = sessao.db.scalar(
+        select(Usuario.usuId)
+        .join(UsuarioEmpresa, UsuarioEmpresa.useUsuId == Usuario.usuId)
+        .where(
+            func.lower(Usuario.usuEmail) == func.lower(normalizado),
+            UsuarioEmpresa.useEmpId == sessao.empId,
+            Usuario.usuAtivo.is_(True),
+        )
+    )
+    if encontrado is None:
+        raise BadRequestError(f"Responsável com e-mail {email} não existe nesta empresa.")
