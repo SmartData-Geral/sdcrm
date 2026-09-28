@@ -281,3 +281,53 @@ worker dedicado.
 
 Retenção das entregas entregues: 30 dias (`WEBHOOK_RETENCAO_DIAS`), podadas pelo mesmo
 worker uma vez por hora.
+
+# Servidor MCP (Claude, n8n)
+
+O SDCRM expõe um servidor MCP para agentes de IA consultarem e operarem o CRM. Ele usa
+as mesmas chaves de integração desta página.
+
+## Chave
+
+Crie uma chave **exclusiva** para o MCP em Integrações → Chaves de API:
+
+- `mcp:read` — só consulta (busca, detalhe, histórico, funil, indicadores, metas).
+- `mcp:write` — consulta e altera (criar lead, editar, mover etapa, qualificação,
+  interações, ganho/perdido/stand-by/reativar).
+
+O "responsável padrão" da chave é quem aparece como autor das anotações feitas pelo MCP.
+
+## Conectar
+
+- **claude.ai** (conector personalizado): URL `https://<host>/crm/api/mcp/<chave>`.
+- **Claude Code**: `claude mcp add --transport http sdcrm https://<host>/crm/api/mcp/<chave>`.
+- **n8n** (nó MCP Client, Streamable HTTP): URL `https://<host>/crm/api/mcp/` e header
+  `X-API-Key: <chave>`.
+
+> A chave vai na URL porque o conector do claude.ai não envia headers próprios, e pode
+> aparecer em logs de acesso do proxy. Use uma chave só para o MCP e revogue-a ao trocar
+> de conector. Revogar corta o acesso na chamada seguinte. O backend redige o segredo da
+> chave no seu próprio log de acesso (só o prefixo aparece), mas o log de acesso do
+> proxy (nginx) ainda pode conter a chave completa.
+
+## Ferramentas
+
+| Ferramenta | Escopo | O que faz |
+|---|---|---|
+| `contexto` | leitura | Empresa, chave, responsável padrão, data de hoje e pipelines. |
+| `listar_cadastros` | leitura | Etapas, produtos, origens, motivos de perda e responsáveis (IDs). |
+| `buscar_oportunidades` | leitura | Busca com filtros de texto, status, etapa, responsável, temperatura e último contato. |
+| `obter_oportunidade` | leitura | Detalhe, histórico recente, ciclo anterior e link. |
+| `listar_historico` | leitura | Histórico paginado. |
+| `resumo_funil` | leitura | Quantidade e valor por etapa. |
+| `obter_indicadores` | leitura | Cards do painel, meta x realizado, motivos de perda, rankings. |
+| `detalhar_indicador` | leitura | Oportunidades por trás de um número do painel (até 100). |
+| `obter_metas` | leitura | Metas e realizado do ano. |
+| `criar_lead` | escrita | Cria lead com a deduplicação da API. |
+| `atualizar_oportunidade` | escrita | Edita dados cadastrais. |
+| `mover_etapa` | escrita | Troca de etapa (histórico + webhook). |
+| `atualizar_qualificacao` | escrita | Temperatura, lead score, reunião, proposta. |
+| `registrar_interacao` | escrita | Anotação no histórico. |
+| `marcar_ganho` / `marcar_perdido` / `colocar_stand_by` / `reativar_oportunidade` | escrita | Fechamento. |
+
+Cada chamada aparece no log de requisições como `mcp:<ferramenta>`.

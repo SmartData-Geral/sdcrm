@@ -204,7 +204,9 @@ const ChavesApiPage: React.FC = () => {
               </label>
             ))}
             <span className="field-hint">
-              Para o Zap de entrada de leads, <code>leads:write</code> basta.
+              Para o Zap de entrada de leads, <code>leads:write</code> basta. Para conectar o
+              Claude ou o n8n pelo MCP, use <code>mcp:read</code> (só consulta) ou{" "}
+              <code>mcp:write</code> (consulta e altera).
             </span>
           </fieldset>
           <div className="modal-actions">

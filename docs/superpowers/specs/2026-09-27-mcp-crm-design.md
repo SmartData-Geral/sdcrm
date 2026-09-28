@@ -68,7 +68,7 @@ crm_dashboard_service, crm_meta_mensal_service, oportunidade_historico_service, 
 | `servidor.py` | Cria `MCPServer(name="SDCRM", title="SDCRM - CRM Smart Data", instructions=..., version="1.0.0")`, importa os módulos de ferramentas (que se registram no import) e define `build_mcp_asgi_app()`. |
 | `autenticacao.py` | Wrapper ASGI `AutenticacaoMCPASGI` (seção 4.1). |
 | `sessao.py` | `ContextoMCP` (dataclass) e o gerenciador de contexto `abrir_sessao(ctx)` (seção 4.2). |
-| `ferramenta.py` | Decorador `@ferramenta(escrita: bool)` (seção 6). |
+| `ferramenta.py` | Gerenciador de contexto `executar_ferramenta(ctx, nome, escrita=..., argumentos=..., opo_id=...)` (seção 6). |
 | `serializacao.py` | Conversão de `Oportunidade`/histórico/etapa para o JSON enxuto (seção 5.3) e resolução de nomes em lote. |
 | `ferramentas/contexto.py` | `contexto`, `listar_cadastros` |
 | `ferramentas/oportunidades.py` | `buscar_oportunidades`, `obter_oportunidade`, `criar_lead`, `atualizar_oportunidade` |
@@ -88,8 +88,9 @@ O nome `mcp_crm` evita sombrear o pacote `mcp` do SDK.
 
 ### 3.3 Dependência
 
-`mcp==2.0.0` em `backend/requirements.txt`. A imagem Docker usa Python 3.11 e o ambiente local
-usa 3.14: a instalação e os testes devem passar nos dois.
+`mcp==2.0.0` e `tzdata==2025.2` em `backend/requirements.txt`, com `fastapi==0.135.2`,
+`starlette==1.0.0`, `uvicorn[standard]==0.42.0`, `pydantic==2.12.5`, `pydantic-settings==2.13.1`
+e `SQLAlchemy==2.0.48` (exigência do SDK; mesmas versões do SDFin em produção).
 
 ## 4. Autenticação
 
@@ -111,7 +112,8 @@ Para requisições `http`:
    `x-sdcrm-ich-id: <ichId>`, reescreve `path`/`raw_path` para o restante após a chave
    (`/` se vazio), zera `root_path` e repassa ao app do MCP.
 
-Requisições que não são `http` (lifespan) passam direto.
+Requisições `lifespan` passam direto. Qualquer outro escopo ASGI que não seja `http` é recusado:
+`websocket` é fechado com código 1008; os demais simplesmente não são atendidos.
 
 ### 4.2 Sessão por chamada — `abrir_sessao(ctx)`
 
@@ -137,7 +139,10 @@ Toda ferramenta roda dentro de `abrir_sessao`, que:
 A chave vai na URL porque o conector personalizado do claude.ai não envia headers próprios.
 Ela pode aparecer em logs de acesso do nginx. Mitigações: o log da aplicação grava só o
 prefixo; a documentação orienta a criar uma chave exclusiva para o MCP e revogá-la ao trocar
-de conector. É o mesmo risco já aceito no SDFin.
+de conector. É o mesmo risco já aceito no SDFin. Além disso, o backend instala um
+`logging.Filter` (`FiltroChaveNoLogAcesso`, em `backend/mcp_crm/autenticacao.py`) no logger
+`uvicorn.access`, que redige o segredo da chave mantendo só o prefixo no log de acesso do
+próprio backend — o log de acesso do proxy (nginx) continua exposto.
 
 ## 5. Ferramentas
 
@@ -169,11 +174,11 @@ indicadores. Datas no formato YYYY-MM-DD."
 
 | Ferramenta | Parâmetros | Implementação | Regras |
 |---|---|---|---|
-| `criar_lead` | `nome?`, `empresa?`, `email?`, `telefone?`, `origem="mcp"`, `observacoes?`, `responsavel_email?`, `valor?` | Monta `LeadIntakeRequest` e chama `lead_intake_service.processar_lead(db, emp_id, ich_id, payload)`. | Mesmas validações da API (e-mail ou telefone obrigatório). `ConflictError` vira mensagem clara. Retorna `{status: created\|updated, oportunidade_id, deduplicado_por, ciclo_anterior_id, url}`. |
-| `atualizar_oportunidade` | `oportunidade_id` + opcionais: `titulo`, `contato`, `empresa`, `email`, `telefone`, `solucao`, `produto_id`, `responsavel_id`, `origem_id`, `valor`, `receita_pontual`, `dores`, `comentarios`, `data_recebimento` | `oportunidade_service.update_oportunidade` com um `OportunidadeUpdate` contendo **só** os campos informados. | O esquema da ferramenta não tem campos de etapa, status, fechamento ou ativo. IDs de produto/responsável/origem são validados contra a empresa da chave. Sem nenhum campo → erro "Nenhum campo para atualizar". |
+| `criar_lead` | `nome?`, `empresa?`, `email?`, `telefone?`, `origem="mcp"`, `observacoes?`, `responsavel_email?`, `valor?` | Monta `LeadIntakeRequest` e chama `lead_intake_service.processar_lead(db, emp_id, ich_id, payload)`. | Mesmas validações da API (e-mail ou telefone obrigatório). `responsavel_email`, quando informado, precisa pertencer a um usuário ativo da empresa da chave, senão erro "Responsável com e-mail <email> não existe nesta empresa." `ConflictError` vira mensagem clara. Retorna `{status: created\|updated, oportunidade_id, deduplicado_por, ciclo_anterior_id, url}`. |
+| `atualizar_oportunidade` | `oportunidade_id` + opcionais: `titulo`, `contato`, `empresa`, `email`, `telefone`, `solucao`, `produto_id`, `responsavel_id`, `origem_id`, `valor`, `receita_pontual`, `dores`, `comentarios`, `data_recebimento` | `oportunidade_service.update_oportunidade` com um `OportunidadeUpdate` contendo **só** os campos informados. | O esquema da ferramenta não tem campos de etapa, status, fechamento ou ativo. IDs de produto/responsável/origem são validados contra a empresa da chave. Uma string vazia ou só com espaços também conta como "não mexer" no campo, e não como valor a gravar. Sem nenhum campo → erro "Nenhum campo para atualizar". |
 | `mover_etapa` | `oportunidade_id`, `etapa_id` | `oportunidade_service.mover_etapa`. | Validação de funil existente; histórico e webhook `deal.stage_changed` já disparam no service. |
 | `atualizar_qualificacao` | `oportunidade_id` + opcionais: `temperatura` (`quente`\|`morno`\|`frio`), `lead_score` (0–10), `reuniao_confirmada`, `proposta_enviada` | Chama `set_temperatura`, `set_lead_score`, `set_reuniao_confirmada`, `set_proposta_enviada` só para os campos informados. | Pelo menos um campo. Retorna a oportunidade atualizada. |
-| `registrar_interacao` | `oportunidade_id`, `conteudo` (1–10.000 caracteres) | `oportunidade_historico_service.create_historico(..., usu_id=usuResponsavelPadraoId)` com conteúdo prefixado `[via MCP · <nome da chave>] `. | O service grava com a data/hora atual e atualiza `opoDataUltimoContato` para hoje. |
+| `registrar_interacao` | `oportunidade_id`, `conteudo` (1–10.000 caracteres) | `oportunidade_historico_service.create_historico(..., usu_id=usuResponsavelPadraoId)` com conteúdo prefixado `[via MCP · <nome da chave>] `. | Conteúdo só com espaços é recusado. O service grava com a data/hora atual e atualiza `opoDataUltimoContato` para hoje. |
 | `marcar_ganho` | `oportunidade_id`, `data_fechamento`, `tipo` (`recorrencia`\|`projeto`), `valor_fechado` (> 0) | `set_oportunidade_status_fechamento(..., "ganho", data=OportunidadeGanharRequest(...))`, com `tipo` → `opoFechadoRecorrencia` 0/1. | Se já estiver ganha: não altera e responde "A oportunidade já está marcada como ganha". |
 | `marcar_perdido` | `oportunidade_id`, `motivo_id`, `observacao?` | Valida oportunidade e motivo (ativo, da empresa) **antes de qualquer gravação**; depois grava `opoMcaId` via `update_oportunidade`, chama `set_oportunidade_status_fechamento(..., "perdido")` e, com `observacao`, registra uma interação (prefixada). | Cada service faz o próprio commit, então as gravações não são uma transação única; por isso toda validação vem antes. Se já estiver perdida: não altera e avisa. |
 | `colocar_stand_by` | `oportunidade_id`, `data_retorno` (≥ hoje) | `set_oportunidade_stand_by` com `OportunidadeStandByRequest(opoDataUltimoContato=data_retorno)`. | Data no passado → erro. |
@@ -221,9 +226,11 @@ e toda ferramenta que recebe `oportunidade_id` passa por ele antes de chamar o s
 - A `url` usa a mesma regra de `_url_da_oportunidade` do `lead_intake_router`, que passa a
   ficar num lugar compartilhado (`core/`) para os dois usarem.
 
-## 6. Erros e log — decorador `@ferramenta(escrita: bool)`
+## 6. Erros e log — `executar_ferramenta`
 
-Cada ferramenta é registrada como `@mcp.tool()` + `@ferramenta(escrita=...)`. O decorador:
+Cada ferramenta é registrada com `@mcp.tool()` e roda o corpo dentro de
+`with executar_ferramenta(...) as sessao:`. É um gerenciador de contexto porque o SDK monta o
+esquema de entrada pela assinatura da função, e um decorador a esconderia.
 
 1. Abre `abrir_sessao(ctx)` e checa o escopo (4.3).
 2. Mede a duração e executa a função passando o `ContextoMCP`.
