@@ -304,6 +304,10 @@ O "responsável padrão" da chave é quem aparece como autor das anotações fei
 - **n8n** (nó MCP Client, Streamable HTTP): URL `https://<host>/crm/api/mcp/` e header
   `X-API-Key: <chave>`.
 
+> Na URL da forma com header (`.../crm/api/mcp/`), mantenha a barra final: sem ela
+> (`.../crm/api/mcp`), o servidor responde com um redirect que perde o prefixo `/crm` do
+> proxy reverso.
+
 > A chave vai na URL porque o conector do claude.ai não envia headers próprios, e pode
 > aparecer em logs de acesso do proxy. Use uma chave só para o MCP e revogue-a ao trocar
 > de conector. Revogar corta o acesso na chamada seguinte. O backend redige o segredo da

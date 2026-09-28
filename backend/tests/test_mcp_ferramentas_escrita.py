@@ -53,6 +53,18 @@ class CriarLeadTests(unittest.TestCase):
         vr.assert_called_once_with(s, "x@y.com")
         pl.assert_not_called()
 
+    def test_responsavel_email_vazio_ou_so_espaco_e_tratado_como_ausente(self) -> None:
+        s = contexto_falso(emp_id=7)
+        res = SimpleNamespace(status="created", opo_id=42, deduped_by=None, ciclo_anterior_id=None)
+        with usar_sessao(OPO, s), \
+             patch(f"{OPO}.validar_responsavel_por_email") as vr, \
+             patch(f"{OPO}.lead_intake_service.processar_lead", return_value=res) as pl, \
+             patch(f"{OPO}.url_da_oportunidade", return_value=None):
+            oportunidades.criar_lead(ctx=None, email="x@y.com", responsavel_email="  ")
+        vr.assert_not_called()
+        payload = pl.call_args.kwargs["payload"]
+        self.assertIsNone(payload.owner_email)
+
     def test_responsavel_email_valido_deixa_seguir_para_o_intake(self) -> None:
         s = contexto_falso(emp_id=7)
         res = SimpleNamespace(status="created", opo_id=41, deduped_by=None, ciclo_anterior_id=None)

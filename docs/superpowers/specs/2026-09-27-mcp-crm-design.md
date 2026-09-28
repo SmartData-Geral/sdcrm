@@ -100,8 +100,9 @@ Para requisições `http`:
 
 1. Calcula o caminho efetivo dentro do mount, tratando `root_path` como o SDFin faz (com
    `root_path` presente ou com o proxy removendo o prefixo).
-2. Obtém a chave, nesta ordem: primeiro segmento do caminho efetivo (`/api/mcp/<chave>/...`) ou,
-   se o caminho estiver vazio, o header `X-API-Key`.
+2. Obtém a chave: se o primeiro segmento do caminho efetivo começar com `sdcrm_`, usa esse
+   segmento como a chave e o restante do caminho vira o novo `path` (passo 5); caso contrário,
+   lê a chave do header `X-API-Key` e mantém o caminho efetivo inteiro como `path`.
 3. Autentica com `integracao_chave_service.autenticar(db, chave)` numa `SessionLocal` própria.
 4. Recusa com **401** `{"detail": "Chave de API invalida ou revogada"}` (mesma mensagem da API)
    quando a chave não existe, é inválida, revogada, inativa, expirada, **ou não tem nenhum dos

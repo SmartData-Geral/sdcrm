@@ -164,10 +164,13 @@ def _registro_acesso_uvicorn(path: str) -> logging.LogRecord:
 class FiltroLogAcessoTests(unittest.TestCase):
     def setUp(self) -> None:
         self.logger = logging.getLogger("uvicorn.access")
+        self.logger_erro = logging.getLogger("uvicorn.error")
         self._filtros_originais = list(self.logger.filters)
+        self._filtros_originais_erro = list(self.logger_erro.filters)
 
     def tearDown(self) -> None:
         self.logger.filters = self._filtros_originais
+        self.logger_erro.filters = self._filtros_originais_erro
 
     def test_mascara_o_segredo_mantendo_o_prefixo(self) -> None:
         registro = _registro_acesso_uvicorn(f"/api/mcp/{CHAVE}")
@@ -181,11 +184,15 @@ class FiltroLogAcessoTests(unittest.TestCase):
         self.assertTrue(FiltroChaveNoLogAcesso().filter(registro))
         self.assertIn("/api/health", registro.getMessage())
 
-    def test_instalar_duas_vezes_adiciona_um_filtro_so(self) -> None:
+    def test_instalar_duas_vezes_adiciona_um_filtro_so_em_cada_logger(self) -> None:
+        """uvicorn loga o handshake de websocket recusado (fechado com 1008 pelo
+        wrapper) em uvicorn.error, com o path completo -- inclusive a chave -- por
+        isso o filtro precisa estar em uvicorn.access E uvicorn.error."""
         instalar_filtro_log_acesso()
         instalar_filtro_log_acesso()
-        instalados = [f for f in self.logger.filters if isinstance(f, FiltroChaveNoLogAcesso)]
-        self.assertEqual(len(instalados), 1)
+        for logger in (self.logger, self.logger_erro):
+            instalados = [f for f in logger.filters if isinstance(f, FiltroChaveNoLogAcesso)]
+            self.assertEqual(len(instalados), 1)
 
 
 if __name__ == "__main__":

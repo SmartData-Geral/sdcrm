@@ -117,8 +117,12 @@ def criar_lead(
     duplicar (o retorno diz `status` created/updated e por qual critério deduplicou)."""
     argumentos = dict(locals())
     with executar_ferramenta(ctx, "criar_lead", escrita=True, argumentos=argumentos) as s:
-        if responsavel_email is not None:
+        # Uma string vazia/só espaços não identifica responsável nenhum: tratamos
+        # como ausente, sem disparar a validação de empresa (que rejeitaria "").
+        if responsavel_email is not None and responsavel_email.strip():
             validar_responsavel_por_email(s, responsavel_email)
+        else:
+            responsavel_email = None
         payload = LeadIntakeRequest(
             source=origem,
             name=nome,

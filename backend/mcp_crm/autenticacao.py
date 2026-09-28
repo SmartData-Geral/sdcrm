@@ -55,10 +55,16 @@ class FiltroChaveNoLogAcesso(logging.Filter):
 
 
 def instalar_filtro_log_acesso() -> None:
-    """Instala o filtro no logger uvicorn.access, sem duplicar em chamadas repetidas."""
-    logger = logging.getLogger("uvicorn.access")
-    if not any(isinstance(f, FiltroChaveNoLogAcesso) for f in logger.filters):
-        logger.addFilter(FiltroChaveNoLogAcesso())
+    """Instala o filtro em uvicorn.access e uvicorn.error, sem duplicar em chamadas repetidas.
+
+    uvicorn.access loga as requisições HTTP normais, mas um handshake de websocket
+    recusado (nosso wrapper fecha com o código 1008) é logado pelo uvicorn em
+    uvicorn.error, com o path completo -- inclusive a chave. Os dois loggers
+    precisam do filtro."""
+    for nome_logger in ("uvicorn.access", "uvicorn.error"):
+        logger = logging.getLogger(nome_logger)
+        if not any(isinstance(f, FiltroChaveNoLogAcesso) for f in logger.filters):
+            logger.addFilter(FiltroChaveNoLogAcesso())
 
 
 def caminho_efetivo(scope: dict) -> str:
