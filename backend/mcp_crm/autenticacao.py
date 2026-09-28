@@ -10,6 +10,8 @@ qualquer header x-sdcrm-* vindo de fora é descartado antes.
 from __future__ import annotations
 
 import json
+import logging
+import re
 
 import anyio
 
@@ -19,6 +21,44 @@ from .sessao import ESCOPOS_MCP, HEADER_ICH_ID, MENSAGEM_CHAVE_RECUSADA, escopos
 
 MONTAGEM = "/api/mcp"
 _PREFIXO_CHAVE = f"{integracao_chave_service.PREFIXO_LITERAL}_"
+
+_PADRAO_CHAVE_NO_LOG = re.compile(r"(sdcrm_[0-9a-f]{12})_[A-Za-z0-9_-]{43}")
+
+
+def _redigir(texto: str) -> str:
+    return _PADRAO_CHAVE_NO_LOG.sub(r"\1_***", texto)
+
+
+class FiltroChaveNoLogAcesso(logging.Filter):
+    """
+    Redige o segredo da chave de integração no log de acesso do uvicorn.
+
+    O uvicorn loga o path ORIGINAL da requisição (o scope que nosso wrapper reescreve
+    não afeta o que o access logger já capturou), então sem este filtro o segredo
+    completo da chave vazaria para stdout/arquivo de log a cada chamada MCP -- o que
+    a spec proíbe (só o prefixo pode ser logado).
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str):
+            record.msg = _redigir(record.msg)
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                _redigir(arg) if isinstance(arg, str) else arg for arg in record.args
+            )
+        elif isinstance(record.args, dict):
+            record.args = {
+                chave: (_redigir(valor) if isinstance(valor, str) else valor)
+                for chave, valor in record.args.items()
+            }
+        return True
+
+
+def instalar_filtro_log_acesso() -> None:
+    """Instala o filtro no logger uvicorn.access, sem duplicar em chamadas repetidas."""
+    logger = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, FiltroChaveNoLogAcesso) for f in logger.filters):
+        logger.addFilter(FiltroChaveNoLogAcesso())
 
 
 def caminho_efetivo(scope: dict) -> str:
@@ -76,8 +116,13 @@ class AutenticacaoMCPASGI:
         self.app = app
 
     async def __call__(self, scope, receive, send) -> None:
-        if scope["type"] != "http":
+        if scope["type"] == "lifespan":
             await self.app(scope, receive, send)
+            return
+        if scope["type"] == "websocket":
+            await send({"type": "websocket.close", "code": 1008})
+            return
+        if scope["type"] != "http":
             return
 
         efetivo = caminho_efetivo(scope)

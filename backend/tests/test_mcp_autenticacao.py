@@ -1,13 +1,16 @@
 import asyncio
 import json
+import logging
 import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from backend.mcp_crm.autenticacao import (
     AutenticacaoMCPASGI,
+    FiltroChaveNoLogAcesso,
     autenticar_chave,
     caminho_efetivo,
+    instalar_filtro_log_acesso,
 )
 
 MOD = "backend.mcp_crm.autenticacao"
@@ -98,6 +101,18 @@ class WrapperTests(unittest.TestCase):
         _chamar(AutenticacaoMCPASGI(interno), {"type": "lifespan"})
         self.assertEqual(interno.scope, {"type": "lifespan"})
 
+    def test_websocket_e_fechado_sem_chamar_o_app(self) -> None:
+        interno = AppInterno()
+        scope = {
+            "type": "websocket",
+            "path": f"/api/mcp/{CHAVE}",
+            "root_path": "/api/mcp",
+            "headers": [],
+        }
+        enviados = _chamar(AutenticacaoMCPASGI(interno), scope)
+        self.assertIsNone(interno.scope)
+        self.assertEqual(enviados, [{"type": "websocket.close", "code": 1008}])
+
 
 class AutenticarChaveTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -131,6 +146,46 @@ class AutenticarChaveTests(unittest.TestCase):
         with patch(f"{MOD}.integracao_chave_service.autenticar", return_value=None):
             self.assertIsNone(autenticar_chave("lixo", metodo="POST", ip=None, user_agent=None))
         self.assertEqual(self.registrar.call_args.kwargs["prefixo_informado"], "(malformado)")
+
+
+def _registro_acesso_uvicorn(path: str) -> logging.LogRecord:
+    """Um LogRecord no mesmo formato que uvicorn.access usa (%-args, não f-string)."""
+    return logging.LogRecord(
+        name="uvicorn.access",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg='%s - "%s %s HTTP/%s" %d',
+        args=("127.0.0.1:12345", "POST", path, "1.1", 200),
+        exc_info=None,
+    )
+
+
+class FiltroLogAcessoTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.logger = logging.getLogger("uvicorn.access")
+        self._filtros_originais = list(self.logger.filters)
+
+    def tearDown(self) -> None:
+        self.logger.filters = self._filtros_originais
+
+    def test_mascara_o_segredo_mantendo_o_prefixo(self) -> None:
+        registro = _registro_acesso_uvicorn(f"/api/mcp/{CHAVE}")
+        self.assertTrue(FiltroChaveNoLogAcesso().filter(registro))
+        mensagem = registro.getMessage()
+        self.assertNotIn(CHAVE, mensagem)
+        self.assertIn("sdcrm_0123456789ab_***", mensagem)
+
+    def test_registro_sem_chave_fica_inalterado(self) -> None:
+        registro = _registro_acesso_uvicorn("/api/health")
+        self.assertTrue(FiltroChaveNoLogAcesso().filter(registro))
+        self.assertIn("/api/health", registro.getMessage())
+
+    def test_instalar_duas_vezes_adiciona_um_filtro_so(self) -> None:
+        instalar_filtro_log_acesso()
+        instalar_filtro_log_acesso()
+        instalados = [f for f in self.logger.filters if isinstance(f, FiltroChaveNoLogAcesso)]
+        self.assertEqual(len(instalados), 1)
 
 
 if __name__ == "__main__":

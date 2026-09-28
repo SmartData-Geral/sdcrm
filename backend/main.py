@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import settings
 from .dependencies import CurrentUserDep, require_admin
 from .mcp_crm import build_mcp_asgi_app, mcp as servidor_mcp
+from .mcp_crm.autenticacao import instalar_filtro_log_acesso
 from .routers import (
     auth_router,
     contrato_router,
@@ -106,6 +107,7 @@ app.include_router(webhook_router.router)
 # Servidor MCP (conectores do Claude, n8n) -- /api/mcp/{chave}. Autenticado pelas
 # chaves de integração com escopo mcp:read / mcp:write.
 app.mount("/api/mcp", build_mcp_asgi_app())
+instalar_filtro_log_acesso()
 
 logger = logging.getLogger(__name__)
 
