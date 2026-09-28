@@ -5,12 +5,23 @@ from pydantic import Field
 
 from mcp.server.mcpserver import Context
 
+from ...core.links import url_da_oportunidade
+from ...exceptions import BadRequestError
 from ...models.oportunidade import Oportunidade
-from ...services import oportunidade_historico_service, oportunidade_service
+from ...schemas.lead_integracao import LeadIntakeRequest
+from ...schemas.oportunidade import OportunidadeUpdate
+from ...services import lead_intake_service, oportunidade_historico_service, oportunidade_service
 from ..ferramenta import executar_ferramenta
 from ..serializacao import carregar_autores, carregar_nomes, historico_item, oportunidade_completa, resumo_oportunidade, status_de
 from ..servidor import mcp
-from ._comum import limitar_pagina, obter_oportunidade_ativa
+from ._comum import (
+    limitar_pagina,
+    obter_oportunidade_ativa,
+    responder_oportunidade,
+    validar_origem,
+    validar_produto,
+    validar_responsavel,
+)
 
 Status = Literal["ativo", "ganho", "perdido", "stand-by"]
 Temperatura = Literal["quente", "morno", "frio"]
@@ -86,3 +97,97 @@ def obter_oportunidade(ctx: Context, oportunidade_id: int) -> dict:
                     "status": status_de(anterior),
                 }
         return dados
+
+
+@mcp.tool()
+def criar_lead(
+    ctx: Context,
+    nome: str | None = None,
+    empresa: str | None = None,
+    email: str | None = None,
+    telefone: str | None = None,
+    origem: Annotated[str, Field(min_length=2, max_length=60)] = "mcp",
+    observacoes: str | None = None,
+    responsavel_email: str | None = None,
+    valor: Annotated[float | None, Field(ge=0)] = None,
+) -> dict:
+    """Cria um lead no CRM com a mesma regra da API de entrada: exige e-mail ou
+    telefone, e se já existir oportunidade aberta do mesmo contato, atualiza em vez de
+    duplicar (o retorno diz `status` created/updated e por qual critério deduplicou)."""
+    argumentos = dict(locals())
+    with executar_ferramenta(ctx, "criar_lead", escrita=True, argumentos=argumentos) as s:
+        payload = LeadIntakeRequest(
+            source=origem,
+            name=nome,
+            company=empresa,
+            email=email,
+            phone=telefone,
+            notes=observacoes,
+            owner_email=responsavel_email,
+            value=valor,
+        )
+        resultado = lead_intake_service.processar_lead(s.db, emp_id=s.empId, ich_id=s.ichId, payload=payload)
+        s.opo_id = resultado.opo_id
+        return {
+            "status": resultado.status,
+            "oportunidade_id": resultado.opo_id,
+            "deduplicado_por": resultado.deduped_by,
+            "ciclo_anterior_id": resultado.ciclo_anterior_id,
+            "url": url_da_oportunidade(resultado.opo_id),
+        }
+
+
+@mcp.tool()
+def atualizar_oportunidade(
+    ctx: Context,
+    oportunidade_id: int,
+    titulo: Annotated[str | None, Field(max_length=300)] = None,
+    contato: Annotated[str | None, Field(max_length=200)] = None,
+    empresa: Annotated[str | None, Field(max_length=200)] = None,
+    email: str | None = None,
+    telefone: Annotated[str | None, Field(max_length=50)] = None,
+    solucao: Annotated[str | None, Field(max_length=500)] = None,
+    produto_id: int | None = None,
+    responsavel_id: int | None = None,
+    origem_id: int | None = None,
+    valor: Annotated[float | None, Field(ge=0)] = None,
+    receita_pontual: bool | None = None,
+    dores: str | None = None,
+    comentarios: str | None = None,
+    data_recebimento: date | None = None,
+) -> dict:
+    """Edita dados cadastrais de uma oportunidade. Só os campos informados mudam;
+    não é possível apagar um campo por aqui. Etapa, qualificação e fechamento têm
+    ferramentas próprias (mover_etapa, atualizar_qualificacao, marcar_*)."""
+    argumentos = dict(locals())
+    with executar_ferramenta(ctx, "atualizar_oportunidade", escrita=True, argumentos=argumentos, opo_id=oportunidade_id) as s:
+        obter_oportunidade_ativa(s, oportunidade_id)
+        mapa = {
+            "opoTitulo": titulo,
+            "opoNomeContato": contato,
+            "opoEmpresaContato": empresa,
+            "opoEmail": email,
+            "opoTelefone": telefone,
+            "opoSolucao": solucao,
+            "opoProId": produto_id,
+            "opoUsuResponsavelId": responsavel_id,
+            "opoCcoId": origem_id,
+            "opoValorOportunidade": valor,
+            "opoReceitaPontual": receita_pontual,
+            "opoDoresMotivadores": dores,
+            "opoComentarios": comentarios,
+            "opoDataRecebimento": data_recebimento,
+        }
+        campos = {k: v for k, v in mapa.items() if v is not None}
+        if not campos:
+            raise BadRequestError("Nenhum campo para atualizar.")
+        if produto_id is not None:
+            validar_produto(s, produto_id)
+        if responsavel_id is not None:
+            validar_responsavel(s, responsavel_id)
+        if origem_id is not None:
+            validar_origem(s, origem_id)
+        atualizada = oportunidade_service.update_oportunidade(
+            s.db, oportunidade_id, OportunidadeUpdate(**campos), s.empId
+        )
+        return responder_oportunidade(s, atualizada)
