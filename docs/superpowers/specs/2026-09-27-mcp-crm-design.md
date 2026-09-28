@@ -54,7 +54,7 @@ AutenticacaoMCPASGI  ── valida a chave, injeta x-sdcrm-ich-id, reescreve o p
         ▼
 MCPServer("SDCRM").streamable_http_app(stateless, json_response)
         ▼
-@ferramenta(...)  ── sessão de banco, revalida chave, escopo, erros, log
+executar_ferramenta(...)  ── SessionLocal + carregar_contexto revalida chave, escopo, erros, log
         ▼
 services existentes (oportunidade_service, lead_intake_service,
 crm_dashboard_service, crm_meta_mensal_service, oportunidade_historico_service, ...)
@@ -67,7 +67,7 @@ crm_dashboard_service, crm_meta_mensal_service, oportunidade_historico_service, 
 | `__init__.py` | Exporta `mcp` e `build_mcp_asgi_app`. |
 | `servidor.py` | Cria `MCPServer(name="SDCRM", title="SDCRM - CRM Smart Data", instructions=..., version="1.0.0")`, importa os módulos de ferramentas (que se registram no import) e define `build_mcp_asgi_app()`. |
 | `autenticacao.py` | Wrapper ASGI `AutenticacaoMCPASGI` (seção 4.1). |
-| `sessao.py` | `ContextoMCP` (dataclass) e o gerenciador de contexto `abrir_sessao(ctx)` (seção 4.2). |
+| `sessao.py` | `ErroMCP` (exceção com mensagem pronta para o Claude), `ContextoMCP` (dataclass) e as funções `ich_id_do_contexto(ctx)` e `carregar_contexto(db, ich_id)` (seção 4.2). |
 | `ferramenta.py` | Gerenciador de contexto `executar_ferramenta(ctx, nome, escrita=..., argumentos=..., opo_id=...)` (seção 6). |
 | `serializacao.py` | Conversão de `Oportunidade`/histórico/etapa para o JSON enxuto (seção 5.3) e resolução de nomes em lote. |
 | `ferramentas/contexto.py` | `contexto`, `listar_cadastros` |
@@ -115,18 +115,24 @@ Para requisições `http`:
 Requisições `lifespan` passam direto. Qualquer outro escopo ASGI que não seja `http` é recusado:
 `websocket` é fechado com código 1008; os demais simplesmente não são atendidos.
 
-### 4.2 Sessão por chamada — `abrir_sessao(ctx)`
+### 4.2 Sessão por chamada — `carregar_contexto`
 
-Toda ferramenta roda dentro de `abrir_sessao`, que:
+`executar_ferramenta` (seção 6) abre `SessionLocal()` no início de cada chamada e, dentro dela:
 
-1. Lê `x-sdcrm-ich-id` dos headers do contexto MCP. Ausente → erro "Requisição MCP sem
-   autenticação. Verifique a URL do conector."
-2. Abre `SessionLocal()` e **recarrega a `IntegracaoChave`**, conferindo de novo ativa, não
-   revogada, não expirada. Assim, revogar a chave corta o acesso mesmo com uma sessão MCP aberta.
-3. Monta `ContextoMCP(db, ichId, empId, nome, escopos, usuResponsavelPadraoId)`. O `empId`
-   vem **sempre** da chave; nenhuma ferramenta recebe empresa por parâmetro.
-4. Chama `integracao_chave_service.registrar_uso` (que já limita a gravação a uma a cada 5 min).
-5. Fecha a sessão no fim; faz `rollback` se houver exceção.
+1. `ich_id_do_contexto(ctx)` lê `x-sdcrm-ich-id` dos headers do contexto MCP. Ausente ou
+   inválido → `ErroMCP` "Requisição MCP sem autenticação. Verifique a URL do conector." (401).
+2. `carregar_contexto(db, ich_id)` **recarrega a `IntegracaoChave`** e revalida com
+   `integracao_chave_service.chave_utilizavel` (ativa, não revogada, não expirada) e confere que
+   ela tem pelo menos um dos escopos `mcp:read`/`mcp:write`; qualquer falha vira `ErroMCP`
+   "Chave de API invalida ou revogada" (401). Assim, revogar a chave corta o acesso mesmo com
+   uma sessão MCP aberta.
+3. Ainda dentro de `carregar_contexto`: chama `integracao_chave_service.registrar_uso` (que já
+   limita a gravação a uma a cada 5 min) e faz `commit`.
+4. Monta e devolve `ContextoMCP(db, ichId, empId, nome, escopos, usuResponsavelPadraoId)`. O
+   `empId` vem **sempre** da chave; nenhuma ferramenta recebe empresa por parâmetro.
+
+De volta em `executar_ferramenta`: checa o escopo com `exigir_escopo(sessao, escrita)` (4.3),
+faz `rollback` em qualquer exceção e fecha a sessão (`db.close()`) no fim (seção 6).
 
 ### 4.3 Escopos
 
@@ -232,7 +238,8 @@ Cada ferramenta é registrada com `@mcp.tool()` e roda o corpo dentro de
 `with executar_ferramenta(...) as sessao:`. É um gerenciador de contexto porque o SDK monta o
 esquema de entrada pela assinatura da função, e um decorador a esconderia.
 
-1. Abre `abrir_sessao(ctx)` e checa o escopo (4.3).
+1. Abre a sessão com `carregar_contexto(db, ich_id_do_contexto(ctx))` e checa o escopo
+   (`exigir_escopo`, 4.3).
 2. Mede a duração e executa a função passando o `ContextoMCP`.
 3. Traduz exceções para o erro de ferramenta do SDK (o Claude recebe `isError` com a mensagem):
 
@@ -247,7 +254,7 @@ esquema de entrada pela assinatura da função, e um decorador a esconderia.
 | Qualquer outra exceção | "Erro interno ao executar a ferramenta." | 500 / `error` (traceback só no `logger.exception`) |
 
 Parâmetros fora do esquema (tipo errado, enum inválido, limites) são rejeitados pelo SDK antes
-de chegar ao decorador.
+de entrar em `executar_ferramenta`.
 
 4. Faz `rollback` em qualquer exceção. Isso só desfaz o que ainda não foi commitado: os services
    de escrita fazem commit próprio, por isso as ferramentas validam tudo antes de chamar o
@@ -283,7 +290,7 @@ Padrão do projeto: `unittest` + `unittest.mock`, sem banco real.
 | `tests/test_mcp_ferramenta.py` | Tradução de cada exceção da tabela da seção 6; rollback; chamada ao log com rota, resultado e `opo_id`; chave só `mcp:read` barrada em escrita; chave revogada entre chamadas barrada. |
 | `tests/test_mcp_ferramentas.py` | Cada ferramenta chama o service certo com `company_id` da chave; `marcar_perdido` grava motivo + status + interação opcional; status repetido não altera; `atualizar_oportunidade` sem campos → erro; `colocar_stand_by` com data passada → erro; `registrar_interacao` usa o prefixo e o responsável padrão. |
 | `tests/test_mcp_serializacao.py` | Formato 5.3, resumo de lista, `fechamento` condicional, resolução de nomes em lote. |
-| `tests/test_mcp_protocolo.py` | Cliente MCP em memória do SDK: `initialize` → `list_tools` (18 ferramentas, nomes e esquemas) → `call_tool` com `abrir_sessao` e services simulados. |
+| `tests/test_mcp_protocolo.py` | Cliente MCP em memória do SDK: `initialize` → `list_tools` (18 ferramentas, nomes e esquemas) → `call_tool` com `SessionLocal`, `ich_id_do_contexto`, `carregar_contexto` e `integracao_log_service.registrar` (de `ferramenta.py`) e services simulados. |
 | `tests/test_oportunidade_busca.py` | `list_oportunidades` com `busca` e `temperatura`, e sem eles gerando a mesma consulta de antes. |
 
 ### Validação manual (obrigatória antes de dar como pronto)
