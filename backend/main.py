@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .dependencies import CurrentUserDep, require_admin
+from .mcp_crm import build_mcp_asgi_app, mcp as servidor_mcp
 from .routers import (
     auth_router,
     contrato_router,
@@ -41,12 +42,14 @@ from .routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Sobe e desce o worker de entrega de webhooks junto com a aplicacao."""
+    """Sobe e desce o worker de entrega de webhooks e o servidor MCP junto com a aplicacao."""
     from .workers import webhook_worker
 
     await webhook_worker.iniciar()
     try:
-        yield
+        async with servidor_mcp.session_manager.run():
+            logger.info("Servidor MCP disponível em /api/mcp/{chave}")
+            yield
     finally:
         await webhook_worker.parar()
 
@@ -99,6 +102,10 @@ app.include_router(reuniao_analise_router.router)
 app.include_router(integracao_router.router)
 app.include_router(lead_intake_router.router)
 app.include_router(webhook_router.router)
+
+# Servidor MCP (conectores do Claude, n8n) -- /api/mcp/{chave}. Autenticado pelas
+# chaves de integração com escopo mcp:read / mcp:write.
+app.mount("/api/mcp", build_mcp_asgi_app())
 
 logger = logging.getLogger(__name__)
 
