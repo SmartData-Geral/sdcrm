@@ -29,6 +29,7 @@ import {
   IcoSparkles,
 } from "../../components/oportunidades/OportunidadeIconButton";
 import { useAuth } from "../../contexts/AuthContext";
+import CampanhaMetaField from "../../components/metaAds/CampanhaMetaField";
 import { getPublicProposalUrl } from "../../utils/api";
 import { getOportunidadePipelineContext } from "../../utils/oportunidadePipeline";
 import { ContratoItem } from "../../components/contratos/wizardTypes";
@@ -45,6 +46,8 @@ interface OportunidadeDetail {
   opoEtkId: number | null;
   opoUsuResponsavelId: number | null;
   opoCcoId: number | null;
+  opoMcgId: number | null;
+  opoMcgManual: boolean;
   opoMcaId: number | null;
   opoLeadScore: number | null;
   opoTemperatura: string | null;
@@ -746,6 +749,14 @@ const OportunidadeDetalhePage: React.FC = () => {
                           ))}
                         </select>
                       </div>
+                      {oportunidade && (
+                        <CampanhaMetaField
+                          opoId={oportunidade.opoId}
+                          opoMcgId={oportunidade.opoMcgId ?? null}
+                          opoMcgManual={Boolean(oportunidade.opoMcgManual)}
+                          onSalvo={() => void loadOportunidade()}
+                        />
+                      )}
                     </div>
                   </div>
 

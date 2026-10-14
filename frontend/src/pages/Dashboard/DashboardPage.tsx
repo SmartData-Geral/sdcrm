@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import Layout from "../../components/Layout";
 import Loader from "../../components/Loader";
 import { useAuth } from "../../contexts/AuthContext";
+import MetaAdsResumoFaixa from "../../components/metaAds/MetaAdsResumoFaixa";
 
 interface CrmDashboardCards {
   recebidas: number;
@@ -1028,6 +1029,8 @@ const DashboardPage: React.FC = () => {
               <span className="dashboard-click-hint">Clique para ver detalhes</span>
             </div>
           </section>
+
+          <MetaAdsResumoFaixa dataInicial={dataInicial} dataFinal={dataFinal} />
 
           {/* Charts */}
           <section className="dashboard-charts-grid">
