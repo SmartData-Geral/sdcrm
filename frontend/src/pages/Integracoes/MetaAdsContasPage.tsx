@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Layout from "../../components/Layout";
 import ListingTableCard from "../../components/ListingTableCard";
 import Loader from "../../components/Loader";
 import Modal from "../../components/Modal";
 import { useAuth } from "../../contexts/AuthContext";
+import { dataBR } from "../Campanhas/metaAdsTipos";
 
 interface Conta {
   macId: number;
@@ -69,12 +70,15 @@ const MetaAdsContasPage: React.FC = () => {
   const [aviso, setAviso] = useState<string | null>(null);
   const [logsDe, setLogsDe] = useState<Conta | null>(null);
   const [logs, setLogs] = useState<SyncLog[]>([]);
+  const [logsCarregando, setLogsCarregando] = useState(false);
   const [periodoOpen, setPeriodoOpen] = useState(false);
   const [periodo, setPeriodo] = useState({ inicio: "", fim: "", macId: "" });
+  const timerAviso = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const avisar = (texto: string) => {
     setAviso(texto);
-    setTimeout(() => setAviso(null), 7000);
+    if (timerAviso.current) clearTimeout(timerAviso.current);
+    timerAviso.current = setTimeout(() => setAviso(null), 7000);
   };
 
   const mensagemErro = (err: any, padrao: string) => {
@@ -87,12 +91,21 @@ const MetaAdsContasPage: React.FC = () => {
   const carregar = async () => {
     setLoading(true);
     try {
-      const [lista, cco] = await Promise.all([
+      const [lista, cco] = await Promise.allSettled([
         api.get<{ items: Conta[] }>("/meta-ads/contas"),
         api.get<{ items: Origem[] }>("/como-conheceu", { params: { status: "ativos", page_size: 100 } }),
       ]);
-      setItems(lista.data.items ?? []);
-      setOrigens((cco.data.items ?? []).sort((a, b) => a.ccoNome.localeCompare(b.ccoNome)));
+      if (lista.status === "fulfilled") {
+        setItems(lista.value.data.items ?? []);
+      } else {
+        setItems([]);
+        avisar(mensagemErro(lista.reason, "Não foi possível carregar as contas."));
+      }
+      if (cco.status === "fulfilled") {
+        setOrigens((cco.value.data.items ?? []).sort((a, b) => a.ccoNome.localeCompare(b.ccoNome)));
+      } else {
+        setOrigens([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -143,13 +156,17 @@ const MetaAdsContasPage: React.FC = () => {
   };
 
   const testar = async (row: Conta) => {
-    const res = await api.post<{ ok: boolean; nome: string | null; moeda: string | null; fuso: string | null; mensagem: string | null }>(
-      `/meta-ads/contas/${row.macId}/testar`
-    );
-    if (res.data.ok) {
-      avisar(`Conexão OK: "${res.data.nome}" (${res.data.moeda ?? "?"}, ${res.data.fuso ?? "?"}).`);
-    } else {
-      avisar(`Falha na conexão: ${res.data.mensagem}`);
+    try {
+      const res = await api.post<{ ok: boolean; nome: string | null; moeda: string | null; fuso: string | null; mensagem: string | null }>(
+        `/meta-ads/contas/${row.macId}/testar`
+      );
+      if (res.data.ok) {
+        avisar(`Conexão OK: "${res.data.nome}" (${res.data.moeda ?? "?"}, ${res.data.fuso ?? "?"}).`);
+      } else {
+        avisar(`Falha na conexão: ${res.data.mensagem}`);
+      }
+    } catch (err: any) {
+      avisar(mensagemErro(err, "Não foi possível testar a conexão."));
     }
     await carregar();
   };
@@ -181,14 +198,33 @@ const MetaAdsContasPage: React.FC = () => {
   };
 
   const alternarAtivo = async (row: Conta) => {
-    await api.put(`/meta-ads/contas/${row.macId}`, { macAtivo: !row.macAtivo });
+    try {
+      await api.put(`/meta-ads/contas/${row.macId}`, { macAtivo: !row.macAtivo });
+    } catch (err: any) {
+      avisar(mensagemErro(err, "Não foi possível alterar a conta."));
+    }
     await carregar();
   };
 
   const verLogs = async (row: Conta) => {
     setLogsDe(row);
-    const res = await api.get<{ items: SyncLog[] }>(`/meta-ads/contas/${row.macId}/logs`);
-    setLogs(res.data.items ?? []);
+    setLogs([]);
+    setLogsCarregando(true);
+    try {
+      const res = await api.get<{ items: SyncLog[] }>(`/meta-ads/contas/${row.macId}/logs`);
+      setLogs(res.data.items ?? []);
+    } catch (err: any) {
+      setLogsDe(null);
+      avisar(mensagemErro(err, "Não foi possível carregar o log."));
+    } finally {
+      setLogsCarregando(false);
+    }
+  };
+
+  const fecharLogs = () => {
+    setLogsDe(null);
+    setLogs([]);
+    setLogsCarregando(false);
   };
 
   const alternarOrigem = (id: number) =>
@@ -398,8 +434,10 @@ const MetaAdsContasPage: React.FC = () => {
         </form>
       </Modal>
 
-      <Modal isOpen={Boolean(logsDe)} title={`Log: ${logsDe?.macNome ?? ""}`} onClose={() => setLogsDe(null)}>
-        {logs.length === 0 ? (
+      <Modal isOpen={Boolean(logsDe)} title={`Log: ${logsDe?.macNome ?? ""}`} onClose={fecharLogs}>
+        {logsCarregando ? (
+          <Loader />
+        ) : logs.length === 0 ? (
           <p className="muted-text">Nenhuma sincronização registrada ainda.</p>
         ) : (
           <table className="datatable">
@@ -418,7 +456,7 @@ const MetaAdsContasPage: React.FC = () => {
                 <tr key={l.mslId}>
                   <td>{dataHora(l.mslDataExecucao)}</td>
                   <td>
-                    {l.mslInicio} → {l.mslFim}
+                    {dataBR(l.mslInicio)} → {dataBR(l.mslFim)}
                   </td>
                   <td>{l.mslOrigem}</td>
                   <td>
