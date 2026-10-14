@@ -477,6 +477,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   <NavLink to="/integracoes/webhooks" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
                     Webhooks
                   </NavLink>
+                  <NavLink to="/integracoes/meta-ads" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
+                    Meta Ads
+                  </NavLink>
                   <NavLink to="/integracoes/logs" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
                     Log de integração
                   </NavLink>

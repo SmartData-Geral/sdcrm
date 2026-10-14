@@ -19,6 +19,7 @@ import ContratoEditorPage from "./pages/Contratos/ContratoEditorPage";
 import MetasMensaisPage from "./pages/MetasMensais/MetasMensaisPage";
 import ChavesApiPage from "./pages/Integracoes/ChavesApiPage";
 import WebhooksPage from "./pages/Integracoes/WebhooksPage";
+import MetaAdsContasPage from "./pages/Integracoes/MetaAdsContasPage";
 import IntegracaoLogsPage from "./pages/Integracoes/IntegracaoLogsPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
@@ -215,6 +216,14 @@ function App() {
         element={
           <ProtectedRoute>
             <WebhooksPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/integracoes/meta-ads"
+        element={
+          <ProtectedRoute>
+            <MetaAdsContasPage />
           </ProtectedRoute>
         }
       />
