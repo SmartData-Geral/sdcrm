@@ -43,15 +43,17 @@ from .routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Sobe e desce o worker de entrega de webhooks e o servidor MCP junto com a aplicacao."""
-    from .workers import webhook_worker
+    """Sobe e desce os workers (webhooks e Meta Ads) e o servidor MCP junto com a aplicacao."""
+    from .workers import meta_ads_worker, webhook_worker
 
     await webhook_worker.iniciar()
+    await meta_ads_worker.iniciar()
     try:
         async with servidor_mcp.session_manager.run():
             logger.info("Servidor MCP disponível em /api/mcp/{chave}")
             yield
     finally:
+        await meta_ads_worker.parar()
         await webhook_worker.parar()
 
 
