@@ -31,6 +31,7 @@ from ..models.oportunidade import Oportunidade
 from ..models.oportunidade_historico import OportunidadeHistorico
 from ..models.usuario import Usuario
 from . import webhook_emitter
+from .meta_ads import vinculo as vinculo_meta_ads
 from .lead_normalizacao import (
     normalizar_email,
     normalizar_telefone,
@@ -369,6 +370,16 @@ def _historico(db: Session, oportunidade: Oportunidade, conteudo: str) -> None:
     oportunidade.opoDataUltimoContato = registro.date()
 
 
+def _vincular_campanha_meta(db: Session, oportunidade: Oportunidade) -> None:
+    # Best-effort: o lead nunca deixa de entrar por causa do vinculo com o Meta Ads.
+    try:
+        vinculo_meta_ads.vincular_oportunidade(db, oportunidade)
+    except Exception:
+        logger.exception(
+            "Falha ao vincular campanha Meta na oportunidade %s", oportunidade.opoId
+        )
+
+
 # ---------------------------------------------------------------------------------
 # Orquestracao
 # ---------------------------------------------------------------------------------
@@ -539,6 +550,7 @@ def _criar(
             )
     _historico(db, oportunidade, conteudo)
 
+    _vincular_campanha_meta(db, oportunidade)
     # Antes do commit, para o evento cair na MESMA transacao do lead.
     # lead.created e nao deal.created: esta linha nasceu pela integracao.
     webhook_emitter.enfileirar(
@@ -597,6 +609,7 @@ def _atualizar(
         conteudo += " " + observacao
     _historico(db, oportunidade, conteudo)
 
+    _vincular_campanha_meta(db, oportunidade)
     webhook_emitter.enfileirar(
         db, tipo="lead.updated", emp_id=emp_id, oportunidade=oportunidade, origem="api"
     )
