@@ -76,6 +76,41 @@ class RotasTests(unittest.TestCase):
         args = rodar.call_args.args
         self.assertEqual((args[0], args[1], str(args[2]), str(args[3])), (conta["macId"], "periodo", "2026-09-01", "2026-09-30"))
 
+    def test_conta_de_outra_empresa_da_404(self) -> None:
+        from backend.models.meta_ads_conta import STATUS_PENDENTE, MetaAdsConta
+
+        conta = self._criar()
+        id_a = conta["macId"]
+        empresa_b = b.criar_empresa(self.db, "B")
+        hb = {"X-Company-Id": str(empresa_b.empId)}
+        with patch.object(meta_ads_router.sincronizacao, "executar_em_sessao_propria") as rodar:
+            respostas = [
+                self.http.post(f"/api/meta-ads/contas/{id_a}/sincronizar", headers=hb),
+                self.http.post(f"/api/meta-ads/contas/{id_a}/testar", headers=hb),
+                self.http.put(f"/api/meta-ads/contas/{id_a}", headers=hb, json={"macNome": "x"}),
+                self.http.get(f"/api/meta-ads/contas/{id_a}/logs", headers=hb),
+            ]
+        for r in respostas:
+            self.assertEqual(r.status_code, 404, r.text)
+        rodar.assert_not_called()
+        self.db.expire_all()
+        existente = self.db.get(MetaAdsConta, id_a)
+        self.assertEqual(existente.macStatus, STATUS_PENDENTE)
+        self.assertEqual(existente.macNome, "Conta")
+
+    def test_periodo_com_conta_de_outra_empresa_da_409(self) -> None:
+        conta = self._criar()
+        empresa_b = b.criar_empresa(self.db, "B")
+        hb = {"X-Company-Id": str(empresa_b.empId)}
+        with patch.object(meta_ads_router.sincronizacao, "executar_em_sessao_propria") as rodar:
+            r = self.http.post(
+                "/api/meta-ads/sincronizar-periodo",
+                headers=hb,
+                json={"data_inicial": "2026-09-01", "data_final": "2026-09-30", "macId": conta["macId"]},
+            )
+        self.assertEqual(r.status_code, 409, r.text)
+        rodar.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
