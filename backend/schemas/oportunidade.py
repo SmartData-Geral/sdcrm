@@ -92,6 +92,8 @@ class OportunidadeInDBBase(OportunidadeBase):
     opoAtivo: bool
     opoDataCriacao: datetime
     opoDataAtualizacao: datetime | None
+    opoMcgId: int | None = None
+    opoMcgManual: bool = False
 
     class Config:
         from_attributes = True

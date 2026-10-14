@@ -97,6 +97,16 @@ class Oportunidade(Base):
         nullable=True,
         index=True,
     )
+    # Campanha do Meta Ads ligada ao lead (services/meta_ads/vinculo.py).
+    opoMcgId: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("meta_ads_campanha.mcgId", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # True quando um usuario escolheu a campanha (ou "nenhuma") na tela; o vinculo
+    # automatico nunca mexe nessas oportunidades.
+    opoMcgManual: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     opoAtivo: Mapped[bool] = AtivoColumnFactory.bool_ativo("opoAtivo")
     opoDataCriacao: Mapped[datetime] = AuditColumnFactory.datetime_criacao("opoDataCriacao")
