@@ -9,6 +9,14 @@ class MetaAdsContaCreate(BaseModel):
     token: str = Field(min_length=20, max_length=2000)
     origens: list[int] = Field(default_factory=list)
 
+    @field_validator("macNome")
+    @classmethod
+    def _nome_sem_espacos(cls, valor: str) -> str:
+        valor = valor.strip()
+        if not valor:
+            raise ValueError("Informe o nome da conta")
+        return valor
+
     @field_validator("token")
     @classmethod
     def _sem_espacos(cls, valor: str) -> str:
@@ -21,6 +29,16 @@ class MetaAdsContaUpdate(BaseModel):
     token: str | None = Field(default=None, min_length=20, max_length=2000)
     origens: list[int] | None = None
     macAtivo: bool | None = None
+
+    @field_validator("macNome")
+    @classmethod
+    def _nome_sem_espacos(cls, valor: str | None) -> str | None:
+        if valor is None:
+            return None
+        valor = valor.strip()
+        if not valor:
+            raise ValueError("Informe o nome da conta")
+        return valor
 
     @field_validator("token")
     @classmethod

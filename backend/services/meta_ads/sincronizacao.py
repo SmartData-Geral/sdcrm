@@ -109,9 +109,14 @@ def sincronizar_conta(
             raise TokenInvalidoErro(
                 "Token ilegível (a chave de criptografia mudou) — cadastre o token de novo."
             )
+        conta_externa = conta.macContaExterna
+        # Encerra a transacao de leitura antes do HTTP demorado: evita snapshot velho
+        # (REPEATABLE READ) ao vincular leads depois.
+        db.rollback()
         with fabrica_cliente(token) as cliente:
-            campanhas = cliente.listar_campanhas(conta.macContaExterna)
-            insights = cliente.listar_insights(conta.macContaExterna, inicio, fim)
+            campanhas = cliente.listar_campanhas(conta_externa)
+            insights = cliente.listar_insights(conta_externa, inicio, fim)
+        conta = db.get(MetaAdsConta, mac_id, populate_existing=True)
         linhas = _gravar(db, conta, campanhas, insights, inicio, fim)
         vinculados = vinculo.vincular_pendentes(db, conta.macEmpId)
         resultado = ResultadoSync(STATUS_OK, linhas, vinculados)

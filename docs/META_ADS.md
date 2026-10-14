@@ -31,6 +31,6 @@ Para o vínculo funcionar, configure o Zapier/formulário para enviar o nome da 
 ## Limitações conhecidas
 
 - Nível de campanha (não conjunto nem anúncio).
-- Valores exibidos em reais; contas em outra moeda aparecem com o símbolo de R$.
+- Valores exibidos como R$, sem conversão de moeda (contas em outra moeda mostram o valor na moeda da conta com o símbolo de R$).
 - Formulários nativos do Meta (Lead Ads) não entram automaticamente; continuam vindo pela integração existente.
 - Sincronização diária às 4h (`META_ADS_SYNC_HORA`), regravando os últimos 30 dias.

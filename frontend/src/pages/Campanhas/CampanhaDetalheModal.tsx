@@ -54,14 +54,24 @@ const CampanhaDetalheModal: React.FC<{
 
   useEffect(() => {
     if (mcgId == null) return;
+    let ativo = true;
     setLoading(true);
     setDados(null);
     setErro(null);
     api
       .get<MetaAdsCampanhaDetalhe>(`/meta-ads/campanhas/${mcgId}`, { params: { data_inicial: inicio || undefined, data_final: fim || undefined } })
-      .then((res) => setDados(res.data))
-      .catch(() => setErro("Não foi possível carregar a campanha."))
-      .finally(() => setLoading(false));
+      .then((res) => {
+        if (ativo) setDados(res.data);
+      })
+      .catch(() => {
+        if (ativo) setErro("Não foi possível carregar a campanha.");
+      })
+      .finally(() => {
+        if (ativo) setLoading(false);
+      });
+    return () => {
+      ativo = false;
+    };
   }, [api, mcgId, inicio, fim]);
 
   const c = dados?.campanha;

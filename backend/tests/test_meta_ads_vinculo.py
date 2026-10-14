@@ -72,6 +72,28 @@ class VinculoTests(unittest.TestCase):
         b.criar_oportunidade(self.db, self.emp.empId, opoUtmSource="outra coisa")
         self.assertEqual(vinculo.vincular_pendentes(self.db, self.emp.empId), 2)
 
+    def test_ligar_se_pendente_nao_sobrescreve_manual(self) -> None:
+        opo = b.criar_oportunidade(self.db, self.emp.empId, opoUtmSource=NOME, opoMcgManual=True)
+        opo_id = opo.opoId
+        self.assertFalse(vinculo._ligar_se_pendente(self.db, opo_id, self.camp.mcgId))
+        self.db.expire_all()
+        self.assertIsNone(self.db.get(b.Oportunidade, opo_id).opoMcgId)
+
+    def test_ligar_se_pendente_nao_sobrescreve_ja_ligada(self) -> None:
+        outra = b.criar_campanha(self.db, self.conta, "555", "Outra campanha")
+        opo = b.criar_oportunidade(self.db, self.emp.empId, opoMcgId=outra.mcgId)
+        opo_id = opo.opoId
+        self.assertFalse(vinculo._ligar_se_pendente(self.db, opo_id, self.camp.mcgId))
+        self.db.expire_all()
+        self.assertEqual(self.db.get(b.Oportunidade, opo_id).opoMcgId, outra.mcgId)
+
+    def test_ligar_se_pendente_liga_pendente(self) -> None:
+        opo = b.criar_oportunidade(self.db, self.emp.empId, opoUtmSource=NOME)
+        opo_id = opo.opoId
+        self.assertTrue(vinculo._ligar_se_pendente(self.db, opo_id, self.camp.mcgId))
+        self.db.expire_all()
+        self.assertEqual(self.db.get(b.Oportunidade, opo_id).opoMcgId, self.camp.mcgId)
+
 
 class HookEntradaDeLeadsTests(unittest.TestCase):
     def setUp(self) -> None:

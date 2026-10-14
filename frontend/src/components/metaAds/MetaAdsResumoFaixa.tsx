@@ -8,12 +8,20 @@ const MetaAdsResumoFaixa: React.FC<{ dataInicial: string | null; dataFinal: stri
   const [resumo, setResumo] = useState<MetaAdsResumo | null>(null);
 
   useEffect(() => {
+    let ativo = true;
     api
       .get<MetaAdsResumo>("/meta-ads/resumo", {
         params: { data_inicial: dataInicial || undefined, data_final: dataFinal || undefined },
       })
-      .then((r) => setResumo(r.data))
-      .catch(() => setResumo(null));
+      .then((r) => {
+        if (ativo) setResumo(r.data);
+      })
+      .catch(() => {
+        if (ativo) setResumo(null);
+      });
+    return () => {
+      ativo = false;
+    };
   }, [api, dataInicial, dataFinal]);
 
   if (!resumo?.temConta) return null;
@@ -28,6 +36,7 @@ const MetaAdsResumoFaixa: React.FC<{ dataInicial: string | null; dataFinal: stri
     <section className="dashboard-meta-ads">
       <div className="dashboard-meta-ads-header">
         <h2 className="section-title">Meta Ads</h2>
+        <span className="muted-text">empresa toda — não filtra por responsável</span>
         <Link to="/campanhas">Ver campanhas</Link>
       </div>
       <div className="dashboard-cards-row">

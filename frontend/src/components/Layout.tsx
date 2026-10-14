@@ -215,6 +215,13 @@ function getHeaderData(pathname: string): HeaderData {
       description: "Cadastre e visualize metas de recebimento, conversão e MRR por mês.",
     };
   }
+  if (pathname.startsWith("/campanhas")) {
+    return {
+      breadcrumb: ["Dashboard", "CRM", "Campanhas"],
+      title: "Campanhas",
+      description: "Investimento do Meta Ads cruzado com leads e vendas.",
+    };
+  }
   if (pathname.startsWith("/clientes")) {
     return {
       breadcrumb: ["Dashboard", "CRM", "Clientes"],
@@ -282,7 +289,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         next = { ...next, upsell: true };
         setStoredOpen(next);
       }
-      if (path.startsWith("/contratos") && !prev.crm) {
+      if ((path.startsWith("/contratos") || path.startsWith("/campanhas")) && !prev.crm) {
         next = { ...prev, crm: true };
         setStoredOpen(next);
       }

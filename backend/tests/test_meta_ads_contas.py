@@ -1,8 +1,16 @@
 import unittest
+from datetime import datetime
+
+from pydantic import ValidationError
 
 from backend.core.cripto import decifrar
 from backend.exceptions import BadRequestError, ConflictError, NotFoundError
-from backend.models.meta_ads_conta import STATUS_PENDENTE, STATUS_TOKEN_INVALIDO, MetaAdsConta
+from backend.models.meta_ads_conta import (
+    STATUS_PENDENTE,
+    STATUS_SINCRONIZANDO,
+    STATUS_TOKEN_INVALIDO,
+    MetaAdsConta,
+)
 from backend.schemas.meta_ads import MetaAdsContaCreate, MetaAdsContaUpdate
 from backend.services.meta_ads import cliente_graph as g
 from backend.services.meta_ads import contas
@@ -15,8 +23,9 @@ class FabricaFalsa:
     def __init__(self, conta=None, erro=None):
         self.conta, self.erro = conta, erro
 
-    def __call__(self, token):
+    def __call__(self, token, **kw):
         self.token = token
+        self.kw = kw
         return self
 
     def __enter__(self):
@@ -87,6 +96,28 @@ class ContasTests(unittest.TestCase):
         resp = contas.atualizar_conta(self.db, self.emp.empId, resp.macId, MetaAdsContaUpdate(token=novo))
         self.assertEqual((resp.macStatus, resp.macMensagem, resp.macTokenFinal), (STATUS_PENDENTE, None, "5555"))
 
+    def test_trocar_token_durante_sync_nao_libera_a_trava(self) -> None:
+        resp = self._criar()
+        conta = self.db.get(MetaAdsConta, resp.macId)
+        inicio = datetime(2026, 10, 14, 10, 0, 0)
+        conta.macStatus, conta.macSyncIniciadaEm = STATUS_SINCRONIZANDO, inicio
+        self.db.commit()
+        novo = "EAAB-outro-token-de-teste-5555"
+        resp = contas.atualizar_conta(self.db, self.emp.empId, resp.macId, MetaAdsContaUpdate(token=novo))
+        self.assertEqual((resp.macStatus, resp.macTokenFinal), (STATUS_SINCRONIZANDO, "5555"))
+        conta = self.db.get(MetaAdsConta, resp.macId)
+        self.assertEqual(conta.macSyncIniciadaEm, inicio)
+        self.assertEqual(decifrar(conta.macToken), novo)
+
+    def test_nome_so_com_espacos_e_recusado(self) -> None:
+        with self.assertRaises(ValidationError):
+            MetaAdsContaCreate(macNome="   ", macContaExterna="act_1", token=TOKEN)
+        with self.assertRaises(ValidationError):
+            MetaAdsContaUpdate(macNome="   ")
+        self.assertEqual(
+            MetaAdsContaCreate(macNome="  Conta  ", macContaExterna="act_1", token=TOKEN).macNome, "Conta"
+        )
+
     def test_atualiza_origens_e_ativo(self) -> None:
         resp = self._criar()
         resp = contas.atualizar_conta(
@@ -100,6 +131,7 @@ class ContasTests(unittest.TestCase):
         r = contas.testar_conta(self.db, self.emp.empId, resp.macId, fabrica_cliente=fab)
         self.assertEqual((r.ok, r.nome, r.moeda), (True, "Conta no Meta", "BRL"))
         self.assertEqual(fab.token, TOKEN)
+        self.assertEqual(fab.kw, {"esperas": ()})
         self.assertEqual(self.db.get(MetaAdsConta, resp.macId).macFuso, "America/Sao_Paulo")
 
     def test_testar_conexao_com_erro_devolve_mensagem(self) -> None:

@@ -754,7 +754,11 @@ const OportunidadeDetalhePage: React.FC = () => {
                           opoId={oportunidade.opoId}
                           opoMcgId={oportunidade.opoMcgId ?? null}
                           opoMcgManual={Boolean(oportunidade.opoMcgManual)}
-                          onSalvo={() => void loadOportunidade()}
+                          onSalvo={(resp) =>
+                            setOportunidade((prev) =>
+                              prev ? { ...prev, opoMcgId: resp.opoMcgId, opoMcgManual: resp.opoMcgManual } : prev
+                            )
+                          }
                         />
                       )}
                     </div>

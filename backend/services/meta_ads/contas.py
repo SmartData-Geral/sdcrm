@@ -8,7 +8,12 @@ from sqlalchemy.orm import Session
 from ...core.cripto import cifrar, decifrar
 from ...exceptions import BadRequestError, ConflictError, NotFoundError
 from ...models.como_conheceu import ComoConheceu
-from ...models.meta_ads_conta import STATUS_PENDENTE, STATUS_TOKEN_INVALIDO, MetaAdsConta
+from ...models.meta_ads_conta import (
+    STATUS_PENDENTE,
+    STATUS_SINCRONIZANDO,
+    STATUS_TOKEN_INVALIDO,
+    MetaAdsConta,
+)
 from ...models.meta_ads_conta_origem import MetaAdsContaOrigem
 from ...models.meta_ads_sync_log import MetaAdsSyncLog
 from ...schemas.meta_ads import (
@@ -119,8 +124,10 @@ def atualizar_conta(
     if data.token is not None:
         conta.macToken = cifrar(data.token)
         conta.macTokenFinal = data.token[-4:]
-        conta.macStatus = STATUS_PENDENTE
-        conta.macMensagem = None
+        if conta.macStatus != STATUS_SINCRONIZANDO:
+            # Durante uma sync em andamento a trava (status/inicio) nao pode ser liberada aqui.
+            conta.macStatus = STATUS_PENDENTE
+            conta.macMensagem = None
     if data.origens is not None:
         _definir_origens(db, conta, _validar_origens(db, emp_id, data.origens))
     if data.macAtivo is not None:
@@ -139,7 +146,7 @@ def testar_conta(
             ok=False, mensagem="Token ilegível (a chave de criptografia mudou) — cadastre o token de novo."
         )
     try:
-        with fabrica_cliente(token) as cliente:
+        with fabrica_cliente(token, esperas=()) as cliente:
             info = cliente.obter_conta(conta.macContaExterna)
     except MetaGraphErro as exc:
         return MetaAdsTesteResponse(ok=False, mensagem=exc.mensagem)

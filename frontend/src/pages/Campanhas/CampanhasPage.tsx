@@ -40,6 +40,7 @@ const CampanhasPage: React.FC = () => {
   }, [api]);
 
   useEffect(() => {
+    let ativo = true;
     setLoading(true);
     setErro(null);
     api
@@ -51,9 +52,20 @@ const CampanhasPage: React.FC = () => {
           somente_ativas: somenteAtivas,
         },
       })
-      .then((r) => setPainel(r.data))
-      .catch(() => setErro("Não foi possível carregar as campanhas."))
-      .finally(() => setLoading(false));
+      .then((r) => {
+        if (ativo) setPainel(r.data);
+      })
+      .catch(() => {
+        if (!ativo) return;
+        setPainel(null);
+        setErro("Não foi possível carregar as campanhas.");
+      })
+      .finally(() => {
+        if (ativo) setLoading(false);
+      });
+    return () => {
+      ativo = false;
+    };
   }, [api, inicio, fim, macId, somenteAtivas]);
 
   const aplicar = () => {

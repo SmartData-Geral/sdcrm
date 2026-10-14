@@ -12,7 +12,7 @@ const CampanhaMetaField: React.FC<{
   opoId: number;
   opoMcgId: number | null;
   opoMcgManual: boolean;
-  onSalvo: () => void;
+  onSalvo: (resp: { opoId: number; opoMcgId: number | null; opoMcgManual: boolean }) => void;
 }> = ({ opoId, opoMcgId, opoMcgManual, onSalvo }) => {
   const { api } = useAuth();
   const [opcoes, setOpcoes] = useState<Opcao[] | null>(null);
@@ -32,8 +32,11 @@ const CampanhaMetaField: React.FC<{
     setErro(false);
     setSalvando(true);
     try {
-      await api.patch(`/meta-ads/oportunidades/${opoId}/campanha`, { opoMcgId: valor ? Number(valor) : null });
-      onSalvo();
+      const r = await api.patch<{ opoId: number; opoMcgId: number | null; opoMcgManual: boolean }>(
+        `/meta-ads/oportunidades/${opoId}/campanha`,
+        { opoMcgId: valor ? Number(valor) : null }
+      );
+      onSalvo(r.data);
     } catch {
       setErro(true);
     } finally {

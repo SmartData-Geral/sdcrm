@@ -255,7 +255,7 @@ def detalhe_campanha(
     )
 
     m = MetaAdsInsightDiario
-    conds = [m.midMcgId == mcg_id]
+    conds = [m.midMcgId == mcg_id, m.midEmpId == emp_id]
     periodo = _between_dates(m.midData, data_inicial, data_final)
     if periodo is not None:
         conds.append(periodo)
@@ -268,7 +268,9 @@ def detalhe_campanha(
     cond = condicoes_periodo(data_inicial, data_final)
     for r in db.execute(
         select(Oportunidade.opoDataRecebimento, func.count(Oportunidade.opoId).label("n"))
-        .where(Oportunidade.opoMcgId == mcg_id, cond.recebidas)
+        .where(
+            Oportunidade.opoMcgId == mcg_id, Oportunidade.opoEmpId == emp_id, cond.recebidas
+        )
         .group_by(Oportunidade.opoDataRecebimento)
     ):
         dia = dias.setdefault(r.opoDataRecebimento, {"investimento": 0.0, "leadsMeta": 0, "leadsCrm": 0})
@@ -279,6 +281,7 @@ def detalhe_campanha(
         select(Oportunidade)
         .where(
             Oportunidade.opoMcgId == mcg_id,
+            Oportunidade.opoEmpId == emp_id,
             or_(cond.recebidas, cond.ganhas, cond.perdidas),
         )
         .order_by(Oportunidade.opoDataRecebimento.desc(), Oportunidade.opoId.desc())
