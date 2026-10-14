@@ -19,6 +19,9 @@ openai==1.68.2
 # Cliente HTTP das entregas de webhook. Ate agora vinha so como
 # dependencia transitiva do openai; fixado aqui porque passamos a depender dele.
 httpx==0.28.1
+# Fernet para cifrar o token do Meta Ads no banco. Ja vinha via python-jose[cryptography];
+# fixado aqui porque passamos a depender dele diretamente.
+cryptography==46.0.6
 # Servidor MCP (conectores do Claude). Mesma versão do SDFin; exige pydantic>=2.12
 # e uvicorn>=0.31.1, por isso os pins acima foram alinhados ao SDFin.
 mcp==2.0.0

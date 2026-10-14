@@ -74,6 +74,18 @@ class Settings(BaseSettings):
     # Minutos ate uma entrega reivindicada por um processo morto ser recuperada.
     WEBHOOK_CLAIM_TIMEOUT_MINUTOS: int = 5
 
+    # --- Meta Ads ---
+    # Semente da cifra de segredos gravados no banco (tokens do Meta). Vazio = usa o
+    # JWT_SECRET_KEY. ATENCAO: trocar este valor torna os tokens gravados ilegiveis.
+    SECRETS_ENCRYPTION_KEY: str | None = None
+    # Versao da Graph API. Conferir a versao estavel vigente em
+    # https://developers.facebook.com/docs/graph-api/changelog antes de subir.
+    META_API_VERSION: str = "v26.0"
+    # Desligavel nas replicas de API se um dia houver um container de worker dedicado.
+    META_ADS_SYNC_ENABLED: bool = True
+    # Hora (0-23, America/Sao_Paulo) da sincronizacao diaria.
+    META_ADS_SYNC_HORA: int = Field(default=4, ge=0, le=23)
+
     LLM_PROVIDER: str = "openai"
     LLM_OPENAI_API_KEY: str | None = None
     LLM_OPENAI_BASE_URL: str | None = None
