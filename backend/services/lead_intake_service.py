@@ -372,8 +372,10 @@ def _historico(db: Session, oportunidade: Oportunidade, conteudo: str) -> None:
 
 def _vincular_campanha_meta(db: Session, oportunidade: Oportunidade) -> None:
     # Best-effort: o lead nunca deixa de entrar por causa do vinculo com o Meta Ads.
+    # O savepoint isola a falha: um erro SQL no vinculo nao aborta a transacao do lead.
     try:
-        vinculo_meta_ads.vincular_oportunidade(db, oportunidade)
+        with db.begin_nested():
+            vinculo_meta_ads.vincular_oportunidade(db, oportunidade)
     except Exception:
         logger.exception(
             "Falha ao vincular campanha Meta na oportunidade %s", oportunidade.opoId
@@ -551,6 +553,7 @@ def _criar(
     _historico(db, oportunidade, conteudo)
 
     _vincular_campanha_meta(db, oportunidade)
+
     # Antes do commit, para o evento cair na MESMA transacao do lead.
     # lead.created e nao deal.created: esta linha nasceu pela integracao.
     webhook_emitter.enfileirar(

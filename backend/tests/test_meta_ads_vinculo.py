@@ -1,5 +1,7 @@
 import unittest
+from unittest import mock
 
+from backend.services import lead_intake_service
 from backend.services.meta_ads import vinculo
 from backend.tests import banco_sqlite as b
 
@@ -69,6 +71,45 @@ class VinculoTests(unittest.TestCase):
         b.criar_oportunidade(self.db, self.emp.empId, opoUtmSource=NOME, opoMcgManual=True)
         b.criar_oportunidade(self.db, self.emp.empId, opoUtmSource="outra coisa")
         self.assertEqual(vinculo.vincular_pendentes(self.db, self.emp.empId), 2)
+
+
+class HookEntradaDeLeadsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.db = b.nova_sessao()
+        self.emp = b.criar_empresa(self.db)
+        self.conta = b.criar_conta(self.db, self.emp.empId, act="act_1")
+        self.camp = b.criar_campanha(self.db, self.conta, "120210000001", NOME)
+
+    def test_helper_liga_oportunidade_com_campanha(self) -> None:
+        opo = b.criar_oportunidade(self.db, self.emp.empId, opoUtmSource=NOME)
+        lead_intake_service._vincular_campanha_meta(self.db, opo)
+        self.assertEqual(opo.opoMcgId, self.camp.mcgId)
+
+    def test_falha_no_vinculo_nao_propaga_e_sessao_segue_usavel(self) -> None:
+        opo = b.criar_oportunidade(self.db, self.emp.empId, opoUtmSource=NOME)
+        opo_id = opo.opoId
+        with mock.patch(
+            "backend.services.lead_intake_service.vinculo_meta_ads.vincular_oportunidade",
+            side_effect=RuntimeError("falha simulada"),
+        ):
+            with self.assertLogs("backend.services.lead_intake_service", level="ERROR"):
+                lead_intake_service._vincular_campanha_meta(self.db, opo)
+        self.db.commit()
+        persistida = self.db.get(b.Oportunidade, opo_id)
+        self.assertIsNotNone(persistida)
+        self.assertIsNone(persistida.opoMcgId)
+
+    def test_falha_no_vinculo_usa_savepoint(self) -> None:
+        db = mock.MagicMock()
+        opo = mock.MagicMock()
+        with mock.patch(
+            "backend.services.lead_intake_service.vinculo_meta_ads.vincular_oportunidade",
+            side_effect=RuntimeError("falha simulada"),
+        ):
+            with self.assertLogs("backend.services.lead_intake_service", level="ERROR"):
+                lead_intake_service._vincular_campanha_meta(db, opo)
+        db.begin_nested.assert_called_once()
+        db.begin_nested.return_value.__exit__.assert_called_once()
 
 
 if __name__ == "__main__":
