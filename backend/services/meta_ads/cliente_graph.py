@@ -2,7 +2,8 @@
 Cliente minimo da Graph API do Meta, somente leitura (conta, campanhas e insights).
 
 O token vai sempre no cabecalho Authorization, nunca na URL: assim ele nao vaza em log de
-proxy, em paging.next nem em mensagem de erro. Erros do Meta viram tres excecoes:
+proxy nem em mensagem de erro. paging.next so e seguido se apontar para
+https://graph.facebook.com, e o access_token e removido dele antes da requisicao. Erros do Meta viram tres excecoes:
 TokenInvalidoErro (parar e pedir token novo), ErroTemporario (limite de chamadas, 5xx ou
 rede: retentado com espera crescente) e MetaGraphErro (o resto).
 """
@@ -16,6 +17,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
 
@@ -83,6 +85,18 @@ def _inteiro(valor) -> int:
     if valor in (None, ""):
         return 0
     return int(float(valor))
+
+
+def _sanitizar_proxima(url: str) -> str:
+    partes = urlsplit(url)
+    if partes.scheme != "https" or partes.hostname != "graph.facebook.com":
+        raise MetaGraphErro("Erro do Meta: link de paginação inesperado.")
+    consultas = [
+        (chave, valor)
+        for chave, valor in parse_qsl(partes.query, keep_blank_values=True)
+        if chave != "access_token"
+    ]
+    return urlunsplit((partes.scheme, partes.netloc, partes.path, urlencode(consultas), ""))
 
 
 def extrair_leads(actions: list | None) -> int:
@@ -168,7 +182,7 @@ class ClienteGraph:
             proxima = (dados.get("paging") or {}).get("next")
             if not proxima:
                 return
-            dados = self._get(proxima, None)
+            dados = self._get(_sanitizar_proxima(proxima), None)
 
     def _get(self, url: str, params: dict | None) -> dict:
         tentativa = 0

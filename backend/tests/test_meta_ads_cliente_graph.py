@@ -89,6 +89,32 @@ class ClienteTests(unittest.TestCase):
         self.assertEqual(len(feitas), 2)
         self.assertNotIn(TOKEN, str(feitas[1].url))
 
+    def test_paging_next_com_token_e_removido_da_url(self) -> None:
+        pagina1 = {
+            "data": [{"id": "1", "name": "A"}],
+            "paging": {
+                "next": "https://graph.facebook.com/v99.0/act_1/campaigns?after=x&access_token=" + TOKEN
+            },
+        }
+        pagina2 = {"data": [{"id": "2", "name": "B"}], "paging": {}}
+        cliente, feitas, _ = _cliente([(200, pagina1), (200, pagina2)])
+        with cliente:
+            campanhas = cliente.listar_campanhas("act_1")
+        self.assertEqual([c.id for c in campanhas], ["1", "2"])
+        self.assertNotIn(TOKEN, str(feitas[1].url))
+        self.assertNotIn("access_token", str(feitas[1].url))
+
+    def test_paging_next_de_outro_host_nao_e_seguido(self) -> None:
+        pagina1 = {
+            "data": [{"id": "1", "name": "A"}],
+            "paging": {"next": "https://evil.example.com/x"},
+        }
+        cliente, feitas, _ = _cliente([(200, pagina1)])
+        with cliente, self.assertRaises(g.MetaGraphErro) as ctx:
+            cliente.listar_campanhas("act_1")
+        self.assertEqual(len(feitas), 1)
+        self.assertNotIn("evil.example.com", ctx.exception.mensagem)
+
     def test_insights_convertem_tipos(self) -> None:
         corpo = {
             "data": [
