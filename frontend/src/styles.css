@@ -6514,3 +6514,104 @@ select.detail-inline-input {
   font-size: 0.82rem;
   width: 100%;
 }
+
+/* ---- Meta Ads: página Campanhas e faixa do Dashboard ---- */
+.campanhas-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.campanhas-cards .dashboard-card {
+  min-width: 140px;
+}
+
+.campanhas-tabela-scroll {
+  overflow-x: auto;
+}
+
+.campanhas-tabela th,
+.campanhas-tabela td {
+  white-space: nowrap;
+}
+
+.campanhas-tabela .campanhas-col-nome {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.campanhas-linha-nao-identificada td {
+  color: #64748b;
+  font-style: italic;
+}
+
+.campanhas-linha-total td {
+  font-weight: 600;
+  border-top: 2px solid #e2e8f0;
+}
+
+.campanha-detalhe-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.campanha-detalhe-kpis strong {
+  display: block;
+  color: #0f172a;
+  font-size: 1rem;
+}
+
+.campanha-grafico svg {
+  width: 100%;
+  height: auto;
+  max-height: 200px;
+}
+
+.campanha-grafico-barra {
+  fill: #93c5fd;
+}
+
+.campanha-grafico-linha {
+  fill: none;
+  stroke: #f97316;
+  stroke-width: 2;
+}
+
+.campanha-grafico-legenda {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  margin: 0.25rem 0 1rem;
+}
+
+.campanha-legenda-barra,
+.campanha-legenda-linha {
+  display: inline-block;
+  width: 12px;
+  height: 8px;
+  background: #93c5fd;
+}
+
+.campanha-legenda-linha {
+  height: 2px;
+  background: #f97316;
+  margin-left: 0.6rem;
+}
+
+.dashboard-meta-ads {
+  margin-top: 1rem;
+}
+
+.dashboard-meta-ads-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.5rem;
+}

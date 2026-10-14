@@ -20,6 +20,7 @@ import MetasMensaisPage from "./pages/MetasMensais/MetasMensaisPage";
 import ChavesApiPage from "./pages/Integracoes/ChavesApiPage";
 import WebhooksPage from "./pages/Integracoes/WebhooksPage";
 import MetaAdsContasPage from "./pages/Integracoes/MetaAdsContasPage";
+import CampanhasPage from "./pages/Campanhas/CampanhasPage";
 import IntegracaoLogsPage from "./pages/Integracoes/IntegracaoLogsPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
@@ -96,6 +97,14 @@ function App() {
         element={
           <ProtectedRoute>
             <OportunidadesKanbanPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/campanhas"
+        element={
+          <ProtectedRoute>
+            <CampanhasPage />
           </ProtectedRoute>
         }
       />

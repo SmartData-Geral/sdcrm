@@ -375,6 +375,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 <NavLink to="/oportunidades-kanban" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
                   Kanban
                 </NavLink>
+                <NavLink to="/campanhas" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
+                  Campanhas
+                </NavLink>
                 <NavLink to="/contratos/novo" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
                   Contratos (avulso)
                 </NavLink>
