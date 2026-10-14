@@ -2,7 +2,7 @@
 
 - **Data:** 14/10/2026
 - **Autor:** Carlos Souza (com Claude)
-- **Status:** aguardando revisão
+- **Status:** implementada
 
 ## 1. Objetivo
 
@@ -296,3 +296,16 @@ Novas variáveis em `config.py` / `.env.example`:
 - **API:** token nunca retornado; rotas de admin bloqueadas para não admin; isolamento entre
   empresas.
 - **Cripto:** ida e volta do token; chave trocada não quebra a listagem (token vira "inválido").
+
+## 11. Ajustes na implementação
+
+1. **Status `token_invalido` e coluna `macSyncIniciadaEm`.** A spec usa `erro` para token inválido e diz que a agendada "pula a conta até trocar o token" — sem um status próprio não há como distinguir token inválido de erro comum (que deve tentar de novo no dia seguinte). `macSyncIniciadaEm` guarda quando a trava foi pega, para liberar travas mortas após 30 min.
+2. **Sync manual em `BackgroundTasks`.** O worker cuida só da rodada diária; o clique em "Sincronizar agora" pega a trava na própria requisição (409 se ocupada) e roda a sync após a resposta. Mesmo efeito da spec, sem fila em memória.
+3. **Vínculo manual em rota própria** `PATCH /api/meta-ads/oportunidades/{opo_id}/campanha`, e não no `PUT /api/oportunidades/{id}` (a tela de detalhe envia o formulário inteiro no PUT; misturar quebraria a marca de "manual").
+4. **MRR/Projeto com a regra da aba Fontes.** A spec diz "somados sobre as vendas"; a aba Fontes soma o MRR das ganhas **recebidas ou fechadas** no período. Para cumprir o critério de sucesso 4 (números batendo), as condições de período viram um helper compartilhado `condicoes_periodo` no `crm_dashboard_service`.
+5. **Integrações → página própria** `/integracoes/meta-ads` (o menu Integrações usa páginas, não abas).
+6. **Alcance** é gravado mas não exibido: alcance diário não é somável.
+7. **Origem no log:** `agendada`, `manual`, `periodo`, `carga_inicial`.
+8. **Detalhe da campanha em `Modal`** (componente existente) em vez de painel lateral.
+9. **Rota extra** `GET /api/meta-ads/contas-opcoes` (não admin), para o filtro de conta da página Campanhas.
+10. Versão padrão da Graph API: `v26.0` (conferida no changelog do Meta na implementação).
