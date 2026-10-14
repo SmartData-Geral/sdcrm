@@ -1393,8 +1393,7 @@ def _query_rankings_analiticos(
                 ticketMedio=ticket,
             )
         )
-    resp_items.sort(key=lambda x: x.mrrIncremental, reverse=True)
-    resp_items = resp_items[:10]
+    resp_items.sort(key=lambda x: (x.mrrIncremental, x.recebidas), reverse=True)
 
     stmt_fonte = (
         select(
@@ -1430,8 +1429,7 @@ def _query_rankings_analiticos(
                 valorProjeto=round(projeto, 2),
             )
         )
-    fonte_items.sort(key=lambda x: x.mrrIncremental, reverse=True)
-    fonte_items = fonte_items[:10]
+    fonte_items.sort(key=lambda x: (x.mrrIncremental, x.recebidas), reverse=True)
 
     stmt_sol = (
         select(
@@ -1467,8 +1465,7 @@ def _query_rankings_analiticos(
                 valorProjeto=round(projeto, 2),
             )
         )
-    sol_items.sort(key=lambda x: x.mrrIncremental, reverse=True)
-    sol_items = sol_items[:10]
+    sol_items.sort(key=lambda x: (x.mrrIncremental, x.recebidas), reverse=True)
 
     return CrmDashboardRankingsResponse(
         responsaveis=resp_items,

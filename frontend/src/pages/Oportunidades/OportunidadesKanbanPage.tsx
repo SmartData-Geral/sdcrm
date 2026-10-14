@@ -18,6 +18,7 @@ interface OportunidadeItem {
   opoTelefone: string | null;
   opoEmpresaContato: string | null;
   opoProId: number | null;
+  opoCcoId: number | null;
   opoUsuResponsavelId: number | null;
   opoTemperatura: string | null;
   opoLeadScore: number | null;
@@ -243,6 +244,12 @@ const OportunidadesKanbanPage: React.FC = () => {
     return map;
   }, [produtos]);
 
+  const comoConheceuById = useMemo(() => {
+    const map = new Map<number, ComoConheceuItem>();
+    comoConheceu.forEach((c) => map.set(c.ccoId, c));
+    return map;
+  }, [comoConheceu]);
+
   const parseDate = (value: string | null) => {
     if (!value) return null;
     const onlyDateMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -312,6 +319,7 @@ const OportunidadesKanbanPage: React.FC = () => {
   const renderCard = (opo: OportunidadeItem) => {
     const responsavel = opo.opoUsuResponsavelId != null ? usuariosById.get(opo.opoUsuResponsavelId) : undefined;
     const produto = opo.opoProId != null ? produtosById.get(opo.opoProId) : undefined;
+    const origem = opo.opoCcoId != null ? comoConheceuById.get(opo.opoCcoId) : undefined;
     const temperatura = opo.opoTemperatura?.trim().toLowerCase();
 
     return (
@@ -398,6 +406,11 @@ const OportunidadesKanbanPage: React.FC = () => {
             </svg>
           </span>
           <span>{formatDate(getMaiorDataCard(opo))}</span>
+          {origem && (
+            <span className="kanban-card-origem" title={`Origem: ${origem.ccoNome}`}>
+              {origem.ccoNome}
+            </span>
+          )}
         </div>
       </div>
     );
