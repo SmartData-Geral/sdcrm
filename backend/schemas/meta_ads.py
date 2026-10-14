@@ -94,3 +94,92 @@ class MetaAdsSyncPeriodoRequest(BaseModel):
 class MetaAdsSyncIniciadaResponse(BaseModel):
     contas: list[int]
     mensagem: str
+
+
+class MetaAdsLinha(BaseModel):
+    mcgId: int | None
+    nome: str
+    status: str | None
+    macId: int | None
+    investimento: float
+    impressoes: int
+    cliques: int
+    leadsMeta: int
+    leadsCrm: int
+    vendas: int
+    mrr: float
+    projeto: float
+    ctr: float | None
+    cpc: float | None
+    cpl: float | None
+    cac: float | None
+    retorno: float | None
+
+
+class MetaAdsPainelResponse(BaseModel):
+    temConta: bool
+    total: MetaAdsLinha
+    campanhas: list[MetaAdsLinha]
+    naoIdentificada: MetaAdsLinha | None
+
+
+class MetaAdsSerieDia(BaseModel):
+    data: date
+    investimento: float
+    leadsMeta: int
+    leadsCrm: int
+
+
+class MetaAdsLeadItem(BaseModel):
+    opoId: int
+    opoTitulo: str
+    opoNomeContato: str | None
+    opoDataRecebimento: date | None
+    opoStatusFechamento: str | None
+    opoValorFechado: float | None
+
+
+class MetaAdsCampanhaDetalheResponse(BaseModel):
+    campanha: MetaAdsLinha
+    serie: list[MetaAdsSerieDia]
+    leads: list[MetaAdsLeadItem]
+
+
+class MetaAdsResumoResponse(BaseModel):
+    temConta: bool
+    investimento: float
+    leadsCrm: int
+    vendas: int
+    cpl: float | None
+    cac: float | None
+    retorno: float | None
+
+
+class MetaAdsCampanhaOpcao(BaseModel):
+    mcgId: int
+    nome: str
+    conta: str
+    status: str | None
+
+
+class MetaAdsCampanhaOpcoesResponse(BaseModel):
+    items: list[MetaAdsCampanhaOpcao]
+
+
+class MetaAdsContaOpcao(BaseModel):
+    macId: int
+    macNome: str
+
+
+class MetaAdsContaOpcoesResponse(BaseModel):
+    items: list[MetaAdsContaOpcao]
+
+
+class OportunidadeCampanhaMetaRequest(BaseModel):
+    opoMcgId: int | None
+
+
+class OportunidadeCampanhaMetaResponse(BaseModel):
+    opoId: int
+    opoMcgId: int | None
+    opoMcgManual: bool

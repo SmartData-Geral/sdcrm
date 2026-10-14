@@ -1,5 +1,6 @@
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import Integer, and_, case, func, literal, or_, select, true
 from sqlalchemy.orm import Session
@@ -1293,25 +1294,22 @@ def _oportunidade_mrr_valor_sql():
     )
 
 
-def _ranking_base_where(company_id: Optional[int], filtros: CrmDashboardFiltroParams) -> list:
-    conds: list = []
-    if company_id is not None:
-        conds.append(Oportunidade.opoEmpId == company_id)
-    if filtros.responsavel_id is not None:
-        conds.append(Oportunidade.opoUsuResponsavelId == filtros.responsavel_id)
-    return conds
+@dataclass(frozen=True)
+class CondicoesPeriodo:
+    """Condicoes de periodo das abas de ranking. Reusadas pelo Meta Ads para os numeros baterem."""
+
+    recebidas: Any
+    ganhas: Any
+    perdidas: Any
+    ativas: Any
+    escopo: Any
 
 
-def _query_rankings_analiticos(
-    db: Session,
-    company_id: Optional[int],
-    filtros: CrmDashboardFiltroParams,
-) -> CrmDashboardRankingsResponse:
-    di, df = filtros.data_inicial, filtros.data_final
-    bd_rec = _between_dates(Oportunidade.opoDataRecebimento, di, df)
-    bd_fec = _between_dates(Oportunidade.opoDataFechamento, di, df)
+def condicoes_periodo(data_inicial: Optional[date], data_final: Optional[date]) -> CondicoesPeriodo:
+    bd_rec = _between_dates(Oportunidade.opoDataRecebimento, data_inicial, data_final)
+    bd_fec = _between_dates(Oportunidade.opoDataFechamento, data_inicial, data_final)
     perd_ref = func.coalesce(Oportunidade.opoDataFechamento, Oportunidade.opoDataRecebimento)
-    bd_perd = _between_dates(perd_ref, di, df)
+    bd_perd = _between_dates(perd_ref, data_inicial, data_final)
     rec_date = bd_rec if bd_rec is not None else true()
     fec_date = bd_fec if bd_fec is not None else true()
     perd_date = bd_perd if bd_perd is not None else true()
@@ -1334,7 +1332,37 @@ def _query_rankings_analiticos(
         perd_date,
     )
     atv_cond = and_(Oportunidade.opoAtivo.is_(True), Oportunidade.opoStatusFechamento.is_(None))
-    scope = or_(rec_cond, gan_cond, perd_cond, atv_cond)
+    return CondicoesPeriodo(
+        recebidas=rec_cond,
+        ganhas=gan_cond,
+        perdidas=perd_cond,
+        ativas=atv_cond,
+        escopo=or_(rec_cond, gan_cond, perd_cond, atv_cond),
+    )
+
+
+def _ranking_base_where(company_id: Optional[int], filtros: CrmDashboardFiltroParams) -> list:
+    conds: list = []
+    if company_id is not None:
+        conds.append(Oportunidade.opoEmpId == company_id)
+    if filtros.responsavel_id is not None:
+        conds.append(Oportunidade.opoUsuResponsavelId == filtros.responsavel_id)
+    return conds
+
+
+def _query_rankings_analiticos(
+    db: Session,
+    company_id: Optional[int],
+    filtros: CrmDashboardFiltroParams,
+) -> CrmDashboardRankingsResponse:
+    cond = condicoes_periodo(filtros.data_inicial, filtros.data_final)
+    rec_cond, gan_cond, perd_cond, atv_cond, scope = (
+        cond.recebidas,
+        cond.ganhas,
+        cond.perdidas,
+        cond.ativas,
+        cond.escopo,
+    )
 
     base_where = _ranking_base_where(company_id, filtros)
 

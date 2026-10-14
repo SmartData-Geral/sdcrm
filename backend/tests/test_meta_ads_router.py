@@ -111,6 +111,13 @@ class RotasTests(unittest.TestCase):
         self.assertEqual(r.status_code, 409, r.text)
         rodar.assert_not_called()
 
+    def test_leitura_liberada_para_nao_admin(self) -> None:
+        self.usuario.usuAdmin = False
+        with patch.object(meta_ads_router, "require_user_in_company"):
+            r = self.http.get("/api/meta-ads/painel", headers=self.h, params={"data_inicial": "2026-10-01"})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertFalse(r.json()["temConta"])
+
 
 if __name__ == "__main__":
     unittest.main()

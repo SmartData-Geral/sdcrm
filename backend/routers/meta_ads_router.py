@@ -6,7 +6,9 @@ Rotas internas em portugues, JWT + X-Company-Id. Toda rota exige empresa selecio
 
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, status
+from datetime import date
+
+from fastapi import APIRouter, BackgroundTasks, Query, status
 
 from ..dependencies import (
     CompanyIdDep,
@@ -17,6 +19,13 @@ from ..dependencies import (
 )
 from ..exceptions import BadRequestError, ConflictError
 from ..schemas.meta_ads import (
+    MetaAdsCampanhaDetalheResponse,
+    MetaAdsCampanhaOpcoesResponse,
+    MetaAdsContaOpcoesResponse,
+    MetaAdsPainelResponse,
+    MetaAdsResumoResponse,
+    OportunidadeCampanhaMetaRequest,
+    OportunidadeCampanhaMetaResponse,
     MetaAdsContaCreate,
     MetaAdsContaListResponse,
     MetaAdsContaResponse,
@@ -26,7 +35,7 @@ from ..schemas.meta_ads import (
     MetaAdsSyncPeriodoRequest,
     MetaAdsTesteResponse,
 )
-from ..services.meta_ads import contas, sincronizacao
+from ..services.meta_ads import contas, indicadores, sincronizacao
 
 router = APIRouter(prefix="/api/meta-ads", tags=["meta-ads"])
 
@@ -131,3 +140,70 @@ def listar_logs(
     mac_id: int, db: DbSessionDep, current_user: CurrentUserDep, company_id: CompanyIdDep
 ) -> MetaAdsSyncLogListResponse:
     return contas.listar_logs(db, _admin(db, current_user, company_id), mac_id)
+
+
+@router.get("/painel", response_model=MetaAdsPainelResponse)
+def painel(
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    company_id: CompanyIdDep,
+    data_inicial: date | None = Query(default=None),
+    data_final: date | None = Query(default=None),
+    mac_id: int | None = Query(default=None, alias="macId"),
+    somente_ativas: bool = Query(default=False),
+) -> MetaAdsPainelResponse:
+    emp_id = empresa_obrigatoria(db, current_user, company_id)
+    return indicadores.painel(
+        db, emp_id, indicadores.FiltroPainel(data_inicial, data_final, mac_id, somente_ativas)
+    )
+
+
+@router.get("/campanhas-opcoes", response_model=MetaAdsCampanhaOpcoesResponse)
+def campanhas_opcoes(
+    db: DbSessionDep, current_user: CurrentUserDep, company_id: CompanyIdDep
+) -> MetaAdsCampanhaOpcoesResponse:
+    return indicadores.opcoes_campanhas(db, empresa_obrigatoria(db, current_user, company_id))
+
+
+@router.get("/contas-opcoes", response_model=MetaAdsContaOpcoesResponse)
+def contas_opcoes(
+    db: DbSessionDep, current_user: CurrentUserDep, company_id: CompanyIdDep
+) -> MetaAdsContaOpcoesResponse:
+    return indicadores.opcoes_contas(db, empresa_obrigatoria(db, current_user, company_id))
+
+
+@router.get("/campanhas/{mcg_id}", response_model=MetaAdsCampanhaDetalheResponse)
+def detalhe_campanha(
+    mcg_id: int,
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    company_id: CompanyIdDep,
+    data_inicial: date | None = Query(default=None),
+    data_final: date | None = Query(default=None),
+) -> MetaAdsCampanhaDetalheResponse:
+    emp_id = empresa_obrigatoria(db, current_user, company_id)
+    return indicadores.detalhe_campanha(db, emp_id, mcg_id, data_inicial, data_final)
+
+
+@router.get("/resumo", response_model=MetaAdsResumoResponse)
+def resumo(
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    company_id: CompanyIdDep,
+    data_inicial: date | None = Query(default=None),
+    data_final: date | None = Query(default=None),
+) -> MetaAdsResumoResponse:
+    emp_id = empresa_obrigatoria(db, current_user, company_id)
+    return indicadores.resumo(db, emp_id, data_inicial, data_final)
+
+
+@router.patch("/oportunidades/{opo_id}/campanha", response_model=OportunidadeCampanhaMetaResponse)
+def definir_campanha(
+    opo_id: int,
+    data: OportunidadeCampanhaMetaRequest,
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    company_id: CompanyIdDep,
+) -> OportunidadeCampanhaMetaResponse:
+    emp_id = empresa_obrigatoria(db, current_user, company_id)
+    return indicadores.definir_campanha_oportunidade(db, emp_id, opo_id, data.opoMcgId)
