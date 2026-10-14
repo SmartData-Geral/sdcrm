@@ -32,6 +32,7 @@ from .routers import (
     lead_intake_router,
     webhook_router,
     llm_agente_router,
+    meta_ads_router,
     motivo_cancelamento_router,
     oportunidade_router,
     proposta_router,
@@ -105,6 +106,7 @@ app.include_router(reuniao_analise_router.router)
 app.include_router(integracao_router.router)
 app.include_router(lead_intake_router.router)
 app.include_router(webhook_router.router)
+app.include_router(meta_ads_router.router)
 
 # Servidor MCP (conectores do Claude, n8n) -- /api/mcp/{chave}. Autenticado pelas
 # chaves de integração com escopo mcp:read / mcp:write.
