@@ -18,6 +18,12 @@ def main(argv: list[str] | None = None) -> dict:
     with SessionLocal() as db:
         resultado = etapa_historico.carga_retroativa(db, args.empresa, aplicar=args.aplicar)
     print("APLICADO" if args.aplicar else "SIMULACAO", resultado)
+    fora = resultado.get("sem_texto_fora_do_inicial", 0)
+    if fora:
+        print(
+            f"{fora} oportunidade(s) sem texto de mudança de etapa e fora do estágio inicial: "
+            "linha de criação não gravada."
+        )
     return resultado
 
 

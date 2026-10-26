@@ -25,6 +25,7 @@ class CriarLeadTests(unittest.TestCase):
             r = oportunidades.criar_lead(ctx=None, nome="Maria", email="maria@acme.com", observacoes="Veio do evento")
         kwargs = pl.call_args.kwargs
         self.assertEqual((kwargs["emp_id"], kwargs["ich_id"]), (7, 11))
+        self.assertEqual(kwargs["origem_etapa"], "mcp")
         payload = kwargs["payload"]
         self.assertEqual((payload.source, payload.name, payload.email, payload.notes), ("mcp", "Maria", "maria@acme.com", "Veio do evento"))
         self.assertEqual(s.opo_id, 40)

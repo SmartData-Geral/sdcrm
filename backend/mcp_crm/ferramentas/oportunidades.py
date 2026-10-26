@@ -133,7 +133,9 @@ def criar_lead(
             owner_email=responsavel_email,
             value=valor,
         )
-        resultado = lead_intake_service.processar_lead(s.db, emp_id=s.empId, ich_id=s.ichId, payload=payload)
+        resultado = lead_intake_service.processar_lead(
+            s.db, emp_id=s.empId, ich_id=s.ichId, payload=payload, origem_etapa="mcp"
+        )
         s.opo_id = resultado.opo_id
         return {
             "status": resultado.status,

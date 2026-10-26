@@ -46,11 +46,25 @@ def _chave_data(d: datetime) -> datetime:
 
 
 def carga_retroativa(db: Session, emp_id: int, *, aplicar: bool) -> dict:
+    """Le os textos "Etapa alterada" e grava as transicoes com origem "retroativo".
+
+    Criacao ("nenhum -> estagio") na data de criacao: com texto, o estagio e o "de" da transicao
+    mais antiga; sem texto e sem linha ao vivo, so se o estagio atual for o inicial do pipeline
+    (menor `etkOrdem` entre os ativos). Fora dele a linha nao e gravada (dataria MQL/oportunidade
+    cedo demais) e a oportunidade conta em `sem_texto_fora_do_inicial`.
+    """
     etapas = db.scalars(select(EtapaKanban).where(EtapaKanban.etkEmpId == emp_id)).all()
     por_nome: dict[str, list[EtapaKanban]] = {}
     for e in etapas:
         por_nome.setdefault(_norm(e.etkNome), []).append(e)
     pipeline_de = {e.etkId: e.etkPipeline for e in etapas}
+    menor_ordem: dict[str, int] = {}
+    for e in etapas:
+        if e.etkAtivo:
+            menor_ordem[e.etkPipeline] = min(menor_ordem.get(e.etkPipeline, e.etkOrdem), e.etkOrdem)
+    iniciais = {
+        e.etkId for e in etapas if e.etkAtivo and e.etkOrdem == menor_ordem.get(e.etkPipeline)
+    }
 
     def resolver(nome: str, pipeline: str | None) -> int | None:
         candidatas = por_nome.get(_norm(nome), [])
@@ -62,7 +76,7 @@ def carga_retroativa(db: Session, emp_id: int, *, aplicar: bool) -> dict:
                 return do_pipeline[0].etkId
         return candidatas[0].etkId
 
-    contagem = {"transicoes": 0, "criacoes": 0, "nao_casadas": 0}
+    contagem = {"transicoes": 0, "criacoes": 0, "nao_casadas": 0, "sem_texto_fora_do_inicial": 0}
     oportunidades = db.scalars(select(Oportunidade).where(Oportunidade.opoEmpId == emp_id)).all()
     for opo in oportunidades:
         existentes = db.scalars(select(Oeh).where(Oeh.oehOpoId == opo.opoId)).all()
@@ -101,7 +115,15 @@ def carga_retroativa(db: Session, emp_id: int, *, aplicar: bool) -> dict:
                 continue
             novas.append((de, para, data))
         if not encontradas:
-            estagio_inicial = mais_antiga.oehEtkIdDe if mais_antiga else opo.opoEtkId
+            if mais_antiga is not None:
+                estagio_inicial = mais_antiga.oehEtkIdDe
+            elif opo.opoEtkId is not None and opo.opoEtkId not in iniciais:
+                # Sem texto nem linha ao vivo e fora do estagio inicial: nao da para saber
+                # quando chegou ali; nao inventa a criacao direto nesse estagio.
+                contagem["sem_texto_fora_do_inicial"] += 1
+                estagio_inicial = None
+            else:
+                estagio_inicial = opo.opoEtkId
 
         for de, para, data in novas:
             contagem["transicoes"] += 1

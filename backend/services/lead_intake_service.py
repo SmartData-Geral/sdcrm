@@ -410,10 +410,18 @@ class ResultadoIntake:
 
 
 def processar_lead(
-    db: Session, *, emp_id: int, ich_id: Optional[int], payload: Any
+    db: Session,
+    *,
+    emp_id: int,
+    ich_id: Optional[int],
+    payload: Any,
+    origem_etapa: str = "api",
 ) -> ResultadoIntake:
     """
     Recebe um lead e devolve o resultado do upsert.
+
+    `origem_etapa`: origem gravada no historico de etapas quando o lead e criado
+    ("api" para a API de leads, "mcp" para o MCP do CRM).
 
     A secao critica roda dentro de um lock nomeado do MySQL. Um SELECT ... FOR UPDATE
     nao serviria: ele trava as linhas RETORNADAS, e a corrida acontece justamente
@@ -442,6 +450,7 @@ def processar_lead(
                 email_norm=email_norm,
                 fone_norm=fone_norm,
                 fones=fones,
+                origem_etapa=origem_etapa,
             )
         finally:
             conexao_lock.exec_driver_sql("SELECT RELEASE_LOCK(%s)", (nome_lock,))
@@ -456,6 +465,7 @@ def _processar_com_lock(
     email_norm: Optional[str],
     fone_norm: Optional[str],
     fones: set,
+    origem_etapa: str = "api",
 ) -> ResultadoIntake:
     external_id = (getattr(payload, "external_id", None) or "").strip() or None
     source = payload.source.strip()
@@ -481,6 +491,7 @@ def _processar_com_lock(
         payload=payload,
         email_norm=email_norm,
         fone_norm=fone_norm,
+        origem_etapa=origem_etapa,
     )
 
 
@@ -493,6 +504,7 @@ def _criar(
     payload: Any,
     email_norm: Optional[str],
     fone_norm: Optional[str],
+    origem_etapa: str = "api",
 ) -> ResultadoIntake:
     avisos: list = []
     etapa_id = resolver_etapa_novo_lead(db, emp_id)
@@ -539,7 +551,7 @@ def _criar(
     )
     db.add(oportunidade)
     db.flush()
-    etapa_historico.registrar_transicao(db, oportunidade, None, oportunidade.opoEtkId, "api")
+    etapa_historico.registrar_transicao(db, oportunidade, None, oportunidade.opoEtkId, origem_etapa)
 
     conteudo = resumo_para_historico(payload)
     if decisao.ciclo_anterior_id:
