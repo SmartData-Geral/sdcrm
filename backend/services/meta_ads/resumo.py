@@ -1,8 +1,13 @@
 """Resumo diario do monitoramento Meta: periodo, ranking de anuncios, dados agregados e leitura por IA.
 
 `dados` guarda so ids, nomes de campanha/anuncio e numeros: nunca `revisaoOrigem`, nome, telefone
-ou e-mail de lead (e nem a mensagem dos alertas, que pode ter nome de lead). A IA recebe so `dados`.
+ou e-mail de lead (e nem a mensagem dos alertas, que pode ter nome de lead). A IA recebe so as
+chaves de `CHAVES_IA` de `dados` (nunca as listas completas de campanhas e anuncios).
 Datas do resumo no fuso America/Sao_Paulo.
+
+Comparacao: a media diaria do periodo anterior contra a media diaria dos 7 dias ANTES dele
+(`janela_base`), para a base nao conter o proprio periodo. `ultimos7` (hoje-7..ontem) fica para
+exibicao e ranking.
 """
 from __future__ import annotations
 
@@ -42,6 +47,19 @@ PROMPT_SISTEMA = (
 )
 
 _METRICAS_COMPARADAS = ("investimento", "leadsMeta", "leadsCrm", "mqls")
+# O que vai para a IA: so agregados e o ranking (o prompt nao cresce com o numero de anuncios).
+CHAVES_IA = (
+    "periodo", "ultimos7", "comparacao", "melhores", "piores", "cobertura",
+    "horasPrimeiroContato", "alertasAbertos",
+)
+
+
+def hoje_local(agora: datetime | None = None) -> date:
+    """Data de hoje em America/Sao_Paulo (`agora` naive = UTC)."""
+    agora = agora or datetime.now(timezone.utc)
+    if agora.tzinfo is None:
+        agora = agora.replace(tzinfo=timezone.utc)
+    return agora.astimezone(FUSO).date()
 
 
 def periodo_anterior(hoje: date) -> tuple[date, date]:
@@ -52,6 +70,12 @@ def periodo_anterior(hoje: date) -> tuple[date, date]:
     return ontem, ontem
 
 
+def janela_base(hoje: date) -> tuple[date, date]:
+    """Os 7 dias antes do periodo anterior: [ini-7, ini-1] (segunda: ini = sexta)."""
+    ini, _ = periodo_anterior(hoje)
+    return ini - timedelta(days=DIAS_ULTIMOS), ini - timedelta(days=1)
+
+
 def _crescente(valor: float | None) -> tuple[int, float]:
     return (1, 0.0) if valor is None else (0, valor)
 
@@ -60,27 +84,28 @@ def _sem_lead(a: MetaAdsLinha) -> bool:
     return a.leadsMeta == 0 and a.leadsCrm == 0
 
 
-def ranking(anuncios: list[MetaAdsLinha], gasto_min: float) -> tuple[list[MetaAdsLinha], list[MetaAdsLinha]]:
-    """(melhores, piores), no maximo 3 cada, sem repeticao. So entra anuncio com gasto >= gasto_min."""
-    elegiveis = [a for a in anuncios if a.investimento >= gasto_min]
+def _chave_custo(a: MetaAdsLinha) -> tuple:
+    """Custo por MQL crescente (sem MQL vai depois de todos com MQL), desempate por CPL."""
+    return (_crescente(a.custoMql), _crescente(a.cpl))
 
-    com_mql = sorted(
-        (a for a in elegiveis if a.mqls > 0),
-        key=lambda a: (_crescente(a.custoMql), _crescente(a.cpl), a.id or 0),
-    )
-    so_leads = sorted(
-        (a for a in elegiveis if a.mqls == 0 and a.leadsMeta > 0),
-        key=lambda a: (_crescente(a.cpl), a.id or 0),
-    )
-    melhores = (com_mql + so_leads)[:MAX_RANKING]
+
+def ranking(anuncios: list[MetaAdsLinha], gasto_min: float) -> tuple[list[MetaAdsLinha], list[MetaAdsLinha]]:
+    """(melhores, piores), no maximo 3 cada, sem repeticao. So entra anuncio com gasto >= gasto_min.
+
+    Melhores: anuncios com MQL ou com lead da Meta, pela `_chave_custo`. Piores: primeiro os sem
+    lead (gasto decrescente); depois os com lead pelo inverso da mesma chave (custo por MQL
+    decrescente, sem MQL antes de todos com MQL; desempate por CPL decrescente).
+    """
+    elegiveis = sorted((a for a in anuncios if a.investimento >= gasto_min), key=lambda a: a.id or 0)
+
+    candidatos = [a for a in elegiveis if a.mqls > 0 or a.leadsMeta > 0]
+    melhores = sorted(candidatos, key=_chave_custo)[:MAX_RANKING]
     usados = {id(a) for a in melhores}
 
     restantes = [a for a in elegiveis if id(a) not in usados]
-    sem_lead = sorted((a for a in restantes if _sem_lead(a)), key=lambda a: (-a.investimento, a.id or 0))
-    demais = sorted(
-        (a for a in restantes if not _sem_lead(a)),
-        key=lambda a: (-(a.cpl if a.cpl is not None else -1.0), a.id or 0),
-    )
+    sem_lead = sorted((a for a in restantes if _sem_lead(a)), key=lambda a: -a.investimento)
+    # reverse=True mantem a ordem por id entre empates (sort estavel).
+    demais = sorted((a for a in restantes if not _sem_lead(a)), key=_chave_custo, reverse=True)
     piores = (sem_lead + demais)[:MAX_RANKING]
     return melhores, piores
 
@@ -133,25 +158,36 @@ def _contar_alertas_abertos(db: Session, emp_id: int) -> int:
 def montar_dados(db: Session, emp_id: int, hoje: date) -> dict:
     ini, fim = periodo_anterior(hoje)
     ini7, fim7 = hoje - timedelta(days=DIAS_ULTIMOS), hoje - timedelta(days=1)
+    ini_base, fim_base = janela_base(hoje)
     p_anterior = painel(db, emp_id, FiltroPainel(ini, fim))
     p_7 = painel(db, emp_id, FiltroPainel(ini7, fim7))
+    p_base = painel(db, emp_id, FiltroPainel(ini_base, fim_base))
 
     dias_anterior = (fim - ini).days + 1
     t_anterior, t_7 = _totais(p_anterior.total), _totais(p_7.total)
     media_anterior = _media_diaria(t_anterior, dias_anterior)
     media_7 = _media_diaria(t_7, DIAS_ULTIMOS)
+    media_base = _media_diaria(_totais(p_base.total), DIAS_ULTIMOS)
 
     anuncios = _anuncios_da_arvore(p_7.campanhas)
     gasto_min = float(obter_config(db, emp_id).mmcGastoMinRanking)
     melhores, piores = ranking(anuncios, gasto_min)
 
     return {
-        "periodo": {"inicio": ini.isoformat(), "fim": fim.isoformat(), "dias": dias_anterior, **t_anterior},
+        "periodo": {
+            "inicio": ini.isoformat(),
+            "fim": fim.isoformat(),
+            "dias": dias_anterior,
+            **t_anterior,
+            "cobertura": p_anterior.cobertura,
+        },
         "ultimos7": {"inicio": ini7.isoformat(), "fim": fim7.isoformat(), "dias": DIAS_ULTIMOS, **t_7},
         "comparacao": {
+            "base": {"inicio": ini_base.isoformat(), "fim": fim_base.isoformat(), "dias": DIAS_ULTIMOS},
             "mediaDiariaPeriodo": media_anterior,
+            "mediaDiariaBase": media_base,
             "mediaDiariaUltimos7": media_7,
-            "variacaoPct": {m: _variacao(media_anterior[m], media_7[m]) for m in _METRICAS_COMPARADAS},
+            "variacaoPct": {m: _variacao(media_anterior[m], media_base[m]) for m in _METRICAS_COMPARADAS},
         },
         "campanhas": [_item(c) for c in p_7.campanhas],
         "anuncios": [_item(a) for a in anuncios],
@@ -168,6 +204,10 @@ def _motivo(exc: Exception) -> str:
     return " ".join(str(texto).split())[:150]
 
 
+def _dados_para_ia(dados: dict) -> dict:
+    return {k: dados[k] for k in CHAVES_IA if k in dados}
+
+
 def gerar_leitura(dados: dict, provedor=None) -> tuple[str | None, str | None]:
     """(leitura, aviso). Qualquer falha (sem chave, erro da IA) vira (None, aviso)."""
     try:
@@ -178,7 +218,7 @@ def gerar_leitura(dados: dict, provedor=None) -> tuple[str | None, str | None]:
         texto = provedor.chat_completion(
             [
                 {"role": "system", "content": PROMPT_SISTEMA},
-                {"role": "user", "content": json.dumps(dados, ensure_ascii=False)},
+                {"role": "user", "content": json.dumps(_dados_para_ia(dados), ensure_ascii=False)},
             ],
             temperature=0.3,
         )

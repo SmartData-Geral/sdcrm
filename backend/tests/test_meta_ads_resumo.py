@@ -53,6 +53,12 @@ class PuroTests(unittest.TestCase):
         self.assertEqual(r.periodo_anterior(date(2026, 10, 26)), (date(2026, 10, 23), date(2026, 10, 25)))
         self.assertEqual(r.periodo_anterior(date(2026, 10, 27)), (date(2026, 10, 26), date(2026, 10, 26)))
 
+    def test_janela_base_sao_os_7_dias_antes_do_periodo(self) -> None:
+        # Segunda: periodo comeca na sexta 23/10 -> base 16/10..22/10 (sem sobrepor o periodo).
+        self.assertEqual(r.janela_base(SEGUNDA), (date(2026, 10, 16), date(2026, 10, 22)))
+        # Terca: periodo e a segunda 26/10 -> base 19/10..25/10.
+        self.assertEqual(r.janela_base(TERCA), (date(2026, 10, 19), date(2026, 10, 25)))
+
     def test_ranking_regras(self) -> None:
         mql_barato = linha(1, 100, leads=4, mqls=2, custo_mql=50, cpl=25)
         mql_caro = linha(2, 200, leads=4, mqls=1, custo_mql=200, cpl=50)
@@ -71,6 +77,18 @@ class PuroTests(unittest.TestCase):
         self.assertEqual([a.id for a in piores], [6, 7, 4])
         self.assertFalse({a.id for a in melhores} & {a.id for a in piores})
         self.assertNotIn(8, {a.id for a in melhores + piores})
+
+    def test_piores_com_lead_invertem_a_chave_dos_melhores(self) -> None:
+        m1 = linha(1, 100, leads=4, mqls=2, custo_mql=50, cpl=25)
+        m2 = linha(2, 120, leads=4, mqls=2, custo_mql=60, cpl=30)
+        m3 = linha(3, 140, leads=4, mqls=2, custo_mql=70, cpl=35)
+        m4 = linha(4, 400, leads=40, mqls=1, custo_mql=400, cpl=10)  # custo/MQL pior, CPL baixo
+        m5 = linha(5, 300, leads=3, mqls=1, custo_mql=300, cpl=90)
+        l1 = linha(6, 60, leads=12, cpl=5)  # sem MQL: abaixo de qualquer anuncio com MQL
+        melhores, piores = r.ranking([m1, m2, m3, m4, m5, l1], 50)
+        self.assertEqual([a.id for a in melhores], [1, 2, 3])
+        # Inverso da chave dos melhores: sem MQL primeiro, depois custo/MQL decrescente.
+        self.assertEqual([a.id for a in piores], [6, 4, 5])
 
     def test_ranking_poucos_anuncios_nao_repete(self) -> None:
         unico = linha(1, 100, leads=2, cpl=50)
@@ -129,10 +147,33 @@ class DadosTests(BaseResumo):
         self.assertEqual(d["ultimos7"]["investimento"], 180.0)
         self.assertEqual(d["comparacao"]["mediaDiariaPeriodo"]["investimento"], 40.0)
         self.assertEqual(d["comparacao"]["mediaDiariaUltimos7"]["investimento"], round(180 / 7, 2))
+        # Base da variacao: 7 dias antes do periodo (16-22/10), so o insight de 20/10.
+        self.assertEqual(d["comparacao"]["base"], {"inicio": "2026-10-16", "fim": "2026-10-22", "dias": 7})
+        base = round(60 / 7, 2)
+        self.assertEqual(d["comparacao"]["mediaDiariaBase"]["investimento"], base)
+        self.assertEqual(d["comparacao"]["variacaoPct"]["investimento"], round((40.0 - base) / base * 100, 1))
         self.assertEqual([a["nome"] for a in d["anuncios"]], ["Anúncio Beta"])
         self.assertEqual([a["nome"] for a in d["melhores"]], ["Anúncio Beta"])
         self.assertEqual(d["campanhas"][0]["nome"], "Campanha Alfa")
         self.assertEqual(d["alertasAbertos"], 1)
+
+    def test_terca_compara_com_19_a_25(self) -> None:
+        b.criar_insight(self.db, self.camp, date(2026, 10, 26), 70)
+        b.criar_insight_anuncio(self.db, self.anu, date(2026, 10, 26), 70)
+        b.criar_insight(self.db, self.camp, date(2026, 10, 18), 500)  # fora da base de terca
+        d = r.montar_dados(self.db, self.e, TERCA)
+        self.assertEqual(d["comparacao"]["base"], {"inicio": "2026-10-19", "fim": "2026-10-25", "dias": 7})
+        base = round(180 / 7, 2)
+        self.assertEqual(d["comparacao"]["mediaDiariaBase"]["investimento"], base)
+        self.assertEqual(d["comparacao"]["variacaoPct"]["investimento"], round((70.0 - base) / base * 100, 1))
+        # ultimos7 continua sendo hoje-7..ontem (20-26/10), so para exibicao e ranking.
+        self.assertEqual((d["ultimos7"]["inicio"], d["ultimos7"]["investimento"]), ("2026-10-20", 250.0))
+
+    def test_cobertura_do_periodo_anterior(self) -> None:
+        d = r.montar_dados(self.db, self.e, SEGUNDA)
+        self.assertEqual(d["periodo"]["cobertura"], 100.0)
+        self.assertEqual(d["cobertura"], 100.0)  # a dos 7 dias continua
+        self.assertIsNone(r.montar_dados(self.db, self.e, TERCA)["periodo"]["cobertura"])  # 26/10 sem lead
 
     def test_dados_sem_dados_pessoais(self) -> None:
         texto = json.dumps(r.montar_dados(self.db, self.e, SEGUNDA), ensure_ascii=False)
@@ -150,6 +191,21 @@ class LeituraTests(BaseResumo):
         self.assertEqual(mensagens[0]["role"], "system")
         self.assertTrue(mensagens[0]["content"].startswith("Você é um analista de mídia paga."))
         self.assertNotIn("Fulana", json.dumps(mensagens, ensure_ascii=False))
+
+    def test_prompt_nao_leva_listas_completas(self) -> None:
+        oculto = b.criar_anuncio(self.db, self.conj, "a2", "Anúncio Oculto")
+        b.criar_insight_anuncio(self.db, oculto, date(2026, 10, 21), 10)  # abaixo do gasto minimo
+        prov = ProvedorFalso()
+        res = r.gerar(self.db, self.e, SEGUNDA, provedor=prov)
+        self.assertIn("Anúncio Oculto", [a["nome"] for a in res.mrsDados["anuncios"]])
+        self.assertNotIn("Anúncio Oculto", json.dumps(res.mrsDados["melhores"] + res.mrsDados["piores"], ensure_ascii=False))
+        enviado = prov.chamadas[0][0][1]["content"]
+        self.assertNotIn("Anúncio Oculto", enviado)
+        self.assertEqual(
+            set(json.loads(enviado)),
+            {"periodo", "ultimos7", "comparacao", "melhores", "piores", "cobertura",
+             "horasPrimeiroContato", "alertasAbertos"},
+        )
 
     def test_leitura_falha_vira_aviso(self) -> None:
         res = r.gerar(self.db, self.e, SEGUNDA, provedor=ProvedorFalso(erro=RuntimeError("timeout")))
@@ -220,7 +276,7 @@ class RotasTests(BaseResumo):
 
     def test_rotas(self) -> None:
         with patch.object(meta_ads_router, "require_user_in_company") as exigir, patch.object(
-            r, "get_scope_provider", create=True
+            r, "hoje_local", return_value=TERCA
         ), patch(
             "backend.services.llm.llm_factory.get_scope_provider", return_value=ProvedorFalso("ok")
         ):
@@ -240,6 +296,22 @@ class RotasTests(BaseResumo):
             self.assertEqual(self.http.get("/api/meta-ads/resumos/xx", headers=self.h).status_code, 400)
             self.assertEqual(self.http.post("/api/meta-ads/resumos/ultimo/gerar", headers=self.h).status_code, 400)
         self.assertTrue(exigir.called)
+
+    def test_gerar_data_futura_da_400(self) -> None:
+        with patch.object(meta_ads_router, "require_user_in_company"), patch.object(
+            r, "hoje_local", return_value=SEGUNDA
+        ), patch(
+            "backend.services.llm.llm_factory.get_scope_provider", return_value=ProvedorFalso("ok")
+        ):
+            resp = self.http.post("/api/meta-ads/resumos/2026-10-27/gerar", headers=self.h)
+            self.assertEqual(resp.status_code, 400)
+            self.assertIn("Data futura", resp.text)
+            self.assertEqual(self._resumos(), [])
+            self.assertEqual(self.http.post("/api/meta-ads/resumos/2026-10-26/gerar", headers=self.h).status_code, 200)
+
+    def test_hoje_local_usa_fuso_de_sao_paulo(self) -> None:
+        # 01:30 UTC do dia 27 ainda e dia 26 em Sao Paulo.
+        self.assertEqual(r.hoje_local(datetime(2026, 10, 27, 1, 30, tzinfo=timezone.utc)), SEGUNDA)
 
 
 if __name__ == "__main__":

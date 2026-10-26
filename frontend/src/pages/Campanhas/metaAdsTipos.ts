@@ -180,6 +180,8 @@ export interface ResumoPeriodo extends ResumoTotais {
   inicio: string;
   fim: string;
   dias: number;
+  /** So no periodo anterior (resumos gerados antes desta versao nao tem). */
+  cobertura?: number | null;
 }
 
 export interface ResumoItem extends ResumoTotais {
@@ -193,7 +195,10 @@ export interface ResumoDados {
   periodo: ResumoPeriodo;
   ultimos7: ResumoPeriodo;
   comparacao: {
+    /** Janela da base da variacao: os 7 dias antes do periodo anterior. */
+    base?: { inicio: string; fim: string; dias: number };
     mediaDiariaPeriodo: Record<string, number>;
+    mediaDiariaBase?: Record<string, number>;
     mediaDiariaUltimos7: Record<string, number>;
     variacaoPct: Record<string, number | null>;
   };

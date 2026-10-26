@@ -31,6 +31,45 @@ const leadDoAlerta = (a: MetaAdsAlerta): string | null => {
   return m ? m[1] : null;
 };
 
+const horas = (v: number | null | undefined) =>
+  v == null ? "—" : v.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+
+const TabelaAnuncios: React.FC<{ itens: ResumoItem[]; campanhas: ResumoItem[] }> = ({ itens, campanhas }) => {
+  const nomeCampanha = new Map(campanhas.map((c) => [c.mcgId, c.nome]));
+  return (
+    <div className="campanhas-tabela-scroll">
+      <table className="dashboard-ranking-table campanhas-tabela">
+        <thead>
+          <tr>
+            <th>Anúncio</th>
+            <th>Campanha</th>
+            <th>Investimento</th>
+            <th>Leads Meta</th>
+            <th>CPL</th>
+            <th>MQLs</th>
+            <th>Custo/MQL</th>
+            <th>Oportunidades</th>
+          </tr>
+        </thead>
+        <tbody>
+          {itens.map((a) => (
+            <tr key={a.id ?? a.nome}>
+              <td className="campanhas-col-nome">{a.nome}</td>
+              <td className="campanhas-col-nome">{nomeCampanha.get(a.mcgId) ?? "—"}</td>
+              <td>{moeda(a.investimento)}</td>
+              <td>{a.leadsMeta}</td>
+              <td>{moeda(a.cpl)}</td>
+              <td>{a.mqls}</td>
+              <td>{moeda(a.custoMql)}</td>
+              <td>{a.oportunidades}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 const TabelaRanking: React.FC<{ titulo: string; itens: ResumoItem[] }> = ({ titulo, itens }) => (
   <div>
     <h4>{titulo}</h4>
@@ -184,16 +223,23 @@ const MonitoramentoPage: React.FC = () => {
   };
 
   const d = resumo?.mrsDados;
-  const cartoes = (p: NonNullable<typeof d>["periodo"], comVariacao: boolean, cobertura: number | null) => {
+  const cartoes = (
+    p: NonNullable<typeof d>["periodo"],
+    comVariacao: boolean,
+    cobertura: number | null | undefined,
+    horasPrimeiroContato?: number | null,
+  ) => {
     const v = d?.comparacao.variacaoPct ?? {};
     const itens: [string, string, string | undefined][] = [
       ["Gasto", moeda(p.investimento), comVariacao ? variacao(v.investimento) : undefined],
       ["Leads Meta", String(p.leadsMeta), comVariacao ? variacao(v.leadsMeta) : undefined],
+      ["Leads CRM", String(p.leadsCrm), comVariacao ? variacao(v.leadsCrm) : undefined],
       ["CPL", moeda(p.cpl), undefined],
       ["MQLs", String(p.mqls), comVariacao ? variacao(v.mqls) : undefined],
       ["Custo/MQL", moeda(p.custoMql), undefined],
+      ["Cobertura de rastreio", cobertura == null ? "—" : percentual(cobertura), undefined],
     ];
-    if (!comVariacao) itens.push(["Cobertura de rastreio", cobertura == null ? "—" : percentual(cobertura), undefined]);
+    if (horasPrimeiroContato !== undefined) itens.push(["Tempo até 1º contato (h)", horas(horasPrimeiroContato), undefined]);
     return (
       <section className="dashboard-cards-row campanhas-cards">
         {itens.map(([rotulo, valor, dica]) => (
@@ -246,7 +292,7 @@ const MonitoramentoPage: React.FC = () => {
         {!resumoCarregando && !resumo && (
           <div>
             {!resumoErro && <p>Nenhum resumo gerado ainda.</p>}
-            <button type="button" className="primary" onClick={() => void gerar(hojeISO())} disabled={gerando}>
+            <button type="button" className="primary" onClick={() => void gerar(dataSel || hojeISO())} disabled={gerando}>
               {gerando ? "Gerando…" : resumoErro ? "Tentar de novo" : "Gerar agora"}
             </button>
           </div>
@@ -263,12 +309,12 @@ const MonitoramentoPage: React.FC = () => {
               {d.periodo.dias > 1 ? "Sexta a domingo" : "Dia anterior"} ({dataBR(d.periodo.inicio)}
               {d.periodo.fim !== d.periodo.inicio ? ` a ${dataBR(d.periodo.fim)}` : ""})
             </h3>
-            {cartoes(d.periodo, true, null)}
+            {cartoes(d.periodo, true, d.periodo.cobertura)}
 
             <h3>
               Últimos 7 dias ({dataBR(d.ultimos7.inicio)} a {dataBR(d.ultimos7.fim)})
             </h3>
-            {cartoes(d.ultimos7, false, d.cobertura)}
+            {cartoes(d.ultimos7, false, d.cobertura, d.horasPrimeiroContato ?? null)}
 
             <h3>Leitura</h3>
             {resumo.mrsLeitura ? (
@@ -314,6 +360,13 @@ const MonitoramentoPage: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+            )}
+
+            <h3>Por anúncio (últimos 7 dias)</h3>
+            {(d.anuncios ?? []).length === 0 ? (
+              <p className="muted-text">Sem anúncios no período.</p>
+            ) : (
+              <TabelaAnuncios itens={d.anuncios} campanhas={d.campanhas} />
             )}
           </>
         )}

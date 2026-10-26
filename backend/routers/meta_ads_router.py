@@ -283,4 +283,7 @@ def gerar_resumo(
     data: str, db: DbSessionDep, current_user: CurrentUserDep, company_id: CompanyIdDep
 ) -> MetaAdsResumoDiarioResponse:
     emp_id = empresa_obrigatoria(db, current_user, company_id)
-    return resumo_diario.gerar(db, emp_id, _data_resumo(data, False))
+    dia = _data_resumo(data, False)
+    if dia > resumo_diario.hoje_local():
+        raise BadRequestError("Data futura")
+    return resumo_diario.gerar(db, emp_id, dia)
