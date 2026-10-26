@@ -13,6 +13,7 @@ from backend.database import get_db
 from backend.models.etapa_kanban import EtapaKanban
 from backend.models.meta_ads_alerta import MetaAdsAlerta
 from backend.models.meta_ads_conta import STATUS_AVISO, STATUS_OK, STATUS_TOKEN_INVALIDO
+from backend.models.meta_ads_sync_log import MetaAdsSyncLog
 from backend.models.oportunidade_etapa_historico import OportunidadeEtapaHistorico
 from backend.routers import meta_ads_router
 from backend.services.meta_ads import alertas as a
@@ -88,8 +89,8 @@ class ClienteFalso:
         return self.frequencias
 
 
-def _anuncio_meta(externo, status="ACTIVE", motivo=None):
-    return g.AnuncioMeta(externo, "Anúncio", "s1", "c1", status, motivo, None)
+def _anuncio_meta(externo, status="ACTIVE", motivo=None, campanha="c1"):
+    return g.AnuncioMeta(externo, "Anúncio", "s1", campanha, status, motivo, None)
 
 
 class BaseAlertas(unittest.TestCase):
@@ -101,10 +102,20 @@ class BaseAlertas(unittest.TestCase):
         self.conta.macStatus = STATUS_OK
         self.conta.macUltimaSync = datetime(2026, 10, 26, 7, 5)  # 04:05 em SP, hoje
         self.db.commit()
+        self.log_ok = self._log_sync(date(2026, 9, 26), HOJE)
         self.camp = b.criar_campanha(self.db, self.conta, "c1", "Campanha 1")
         self.conj = b.criar_conjunto(self.db, self.camp, "s1", "Conjunto 1")
         self.anu = b.criar_anuncio(self.db, self.conj, "a1", "Anúncio 1")
         self.cfg = obter_config(self.db, self.e)
+
+    def _log_sync(self, inicio, fim, status=STATUS_OK, quando=datetime(2026, 10, 26, 7, 5)):
+        log = MetaAdsSyncLog(
+            mslMacId=self.conta.macId, mslInicio=inicio, mslFim=fim, mslOrigem="agendada",
+            mslStatus=status, mslDataExecucao=quando,
+        )
+        self.db.add(log)
+        self.db.commit()
+        return log
 
     def _alertas(self, tipo=None):
         q = select(MetaAdsAlerta).where(MetaAdsAlerta.malEmpId == self.e)
@@ -317,7 +328,8 @@ class AvaliarHorariosTests(BaseAlertas):
         self.db.commit()
         cliente = self._cliente_ok(
             campanhas=[g.CampanhaMeta("c1", "Campanha 1", None, "ACTIVE")],
-            anuncios=[_anuncio_meta("a1", "DISAPPROVED", "Texto proibido")],
+            # a2 ainda nao sincronizado: nao entra como anuncio, mas conta como anuncio ativo da campanha.
+            anuncios=[_anuncio_meta("a1", "DISAPPROVED", "Texto proibido"), _anuncio_meta("a2")],
             status=g.StatusConta(3, 0),
         )
         a.avaliar_horarios(self.db, self.e, AGORA, fabrica_cliente=cliente)
@@ -348,6 +360,50 @@ class AvaliarHorariosTests(BaseAlertas):
         a.avaliar_horarios(self.db, self.e, AGORA, fabrica_cliente=cliente)
         alertas = self._alertas("parado")
         self.assertEqual([(x.malChave, x.malStatus) for x in alertas], [(f"campanha:{self.camp.mcgId}", "aberto")])
+
+    def test_campanha_ativa_com_todos_anuncios_pausados_nao_dispara(self) -> None:
+        cliente = self._cliente_ok(
+            campanhas=[g.CampanhaMeta("c1", "Campanha 1", None, "ACTIVE")],
+            anuncios=[_anuncio_meta("a1", "PAUSED"), _anuncio_meta("a9", "ACTIVE", campanha="outra")],
+        )
+        a.avaliar_horarios(self.db, self.e, AGORA, fabrica_cliente=cliente)
+        self.assertEqual(self._alertas("parado"), [])
+
+    def test_campanha_ativa_com_um_anuncio_ativo_dispara(self) -> None:
+        cliente = self._cliente_ok(
+            campanhas=[g.CampanhaMeta("c1", "Campanha 1", None, "ACTIVE")],
+            anuncios=[_anuncio_meta("a1", "PAUSED"), _anuncio_meta("a2", "ACTIVE")],
+        )
+        a.avaliar_horarios(self.db, self.e, AGORA, fabrica_cliente=cliente)
+        self.assertEqual([x.malChave for x in self._alertas("parado")], [f"campanha:{self.camp.mcgId}"])
+
+    def test_sync_de_hoje_que_nao_cobriu_ontem_nao_avalia_campanha(self) -> None:
+        # A ultima sync ok de hoje foi um reprocessamento de setembro: o "ontem" do banco nao e confiavel.
+        self._log_sync(date(2026, 9, 1), date(2026, 9, 30), quando=datetime(2026, 10, 26, 9, 0))
+        self._log_sync(date(2026, 10, 1), HOJE, status="erro", quando=datetime(2026, 10, 26, 10, 0))
+        self._abrir("parado", f"campanha:{self.camp.mcgId}")
+        cliente = self._cliente_ok(campanhas=[g.CampanhaMeta("c1", "Campanha 1", None, "ACTIVE")])
+        a.avaliar_horarios(self.db, self.e, AGORA, fabrica_cliente=cliente)
+        alertas = self._alertas("parado")
+        # Preservado como estava: nem resolvido nem reavaliado (mensagem antiga).
+        self.assertEqual(
+            [(x.malChave, x.malStatus, x.malMensagem) for x in alertas],
+            [(f"campanha:{self.camp.mcgId}", "aberto", "antigo")],
+        )
+
+    def test_sem_log_de_sync_ok_nao_avalia_campanha(self) -> None:
+        self.db.delete(self.log_ok)
+        self.db.commit()
+        cliente = self._cliente_ok(campanhas=[g.CampanhaMeta("c1", "Campanha 1", None, "ACTIVE")])
+        a.avaliar_horarios(self.db, self.e, AGORA, fabrica_cliente=cliente)
+        self.assertEqual(self._alertas("parado"), [])
+
+    def test_fabrica_padrao_nao_retenta(self) -> None:
+        cliente = self._cliente_ok()
+        with patch.object(a, "ClienteGraph", return_value=cliente) as construtor:
+            a.avaliar_horarios(self.db, self.e, AGORA)
+        construtor.assert_called_once_with("EAAB-token-de-teste-1234", esperas=())
+        self.assertEqual({"campanhas", "anuncios", "status"}, set(cliente.chamadas))
 
     def test_volta_ao_normal_resolve(self) -> None:
         self._abrir("parado", f"conta:{self.conta.macId}")
@@ -534,9 +590,33 @@ class TodasEmpresasTests(BaseAlertas):
             a.avaliar_horarios = original
         self.assertEqual(chamadas, sorted([self.e, outra.empId]))
         self.assertEqual(ok, 1)
-        # O resumo diario roda na mesma rodada, so para a empresa cuja avaliacao nao falhou.
-        self.assertEqual([c.args[1] for c in devido.call_args_list], [outra.empId])
+        # O resumo diario roda mesmo para a empresa cuja avaliacao de alertas falhou.
+        self.assertEqual([c.args[1] for c in devido.call_args_list], sorted([self.e, outra.empId]))
         self.assertEqual(devido.call_args_list[0].args[2], AGORA)
+
+    def test_falha_no_resumo_nao_bloqueia_alertas(self) -> None:
+        outra = b.criar_empresa(self.db, "Outra")
+        b.criar_conta(self.db, outra.empId, act="act_222")
+        avaliadas = []
+        original = a.avaliar_horarios
+
+        def avaliar(db, emp_id, agora, fabrica_cliente=None):
+            avaliadas.append(emp_id)
+            return {"criados": 0, "atualizados": 0, "resolvidos": 0, "erros": 0}
+
+        engine = self.db.get_bind()
+        a.avaliar_horarios = avaliar
+        try:
+            with patch(
+                "backend.services.meta_ads.resumo.gerar_se_devido", side_effect=RuntimeError("ia caiu")
+            ) as devido, self.assertLogs("backend.services.meta_ads.alertas", level="ERROR") as logs:
+                ok = a.avaliar_horarios_todas(AGORA, fabrica_sessao=lambda: Session(bind=engine))
+        finally:
+            a.avaliar_horarios = original
+        self.assertEqual(avaliadas, sorted([self.e, outra.empId]))
+        self.assertEqual(devido.call_count, 2)
+        self.assertEqual(ok, 2)  # alertas rodaram nas duas
+        self.assertTrue(all("falha no resumo diário" in m for m in logs.output))
 
 
 if __name__ == "__main__":

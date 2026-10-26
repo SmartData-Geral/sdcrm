@@ -8,7 +8,7 @@ os tipos avaliados e os disparos; alerta daqueles tipos sem disparo vira "resolv
 chaves em `preservar` (conta que nao pode ser avaliada por erro da Meta ou dados incompletos).
 
 Avaliacao diaria (depois da sync): cpl, gasto e ctr pelo banco; frequencia pela Meta.
-Avaliacao de hora em hora: parado (status frescos da Meta) e sem_contato.
+Avaliacao de hora em hora: parado (status frescos da Meta, sem retentativa) e sem_contato.
 Datas gravadas e comparadas em UTC naive.
 """
 from __future__ import annotations
@@ -34,12 +34,14 @@ from ...models.meta_ads_campanha import MetaAdsCampanha
 from ...models.meta_ads_conta import (
     STATUS_AVISO,
     STATUS_ERRO,
+    STATUS_OK,
     STATUS_PERMISSAO_EXCESSIVA,
     STATUS_TOKEN_INVALIDO,
     MetaAdsConta,
 )
 from ...models.meta_ads_insight_anuncio_diario import MetaAdsInsightAnuncioDiario
 from ...models.meta_ads_insight_diario import MetaAdsInsightDiario
+from ...models.meta_ads_sync_log import MetaAdsSyncLog
 from ...models.oportunidade import Oportunidade
 from ...schemas.meta_ads import STATUS_ALERTA, MetaAdsAlertaResponse
 from . import funil, sincronizacao
@@ -220,6 +222,11 @@ _TOKEN_RUIM = frozenset({STATUS_TOKEN_INVALIDO, STATUS_PERMISSAO_EXCESSIVA})
 # Ultima sync falhou: os insights do banco estao incompletos para a conta.
 _SYNC_FALHOU = frozenset({STATUS_ERRO, STATUS_AVISO, *_TOKEN_RUIM})
 LIMITE_LISTA = 500
+
+
+def cliente_sem_espera(token: str) -> ClienteGraph:
+    """Cliente da rodada horaria: sem as esperas de 30/60/120 s; erro temporario so falha a conta."""
+    return ClienteGraph(token, esperas=())
 
 
 def _utc_naive(dt: datetime | None) -> datetime | None:
@@ -515,6 +522,17 @@ def _chaves_parado_da_conta(db: Session, mac_id: int) -> set[tuple[str, str]]:
     }
 
 
+def _sync_ok_cobriu(db: Session, mac_id: int, dia: date) -> bool:
+    """A ultima sync ok da conta incluiu `dia` (um reprocessamento antigo nao cobre ontem)."""
+    fim = db.execute(
+        select(MetaAdsSyncLog.mslFim)
+        .where(MetaAdsSyncLog.mslMacId == mac_id, MetaAdsSyncLog.mslStatus == STATUS_OK)
+        .order_by(MetaAdsSyncLog.mslDataExecucao.desc(), MetaAdsSyncLog.mslId.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    return fim is not None and fim >= dia
+
+
 def _disparos_parado(db, conta: MetaAdsConta, agora: datetime, fabrica_cliente, preservar) -> list[Disparo]:
     """Status de conta, anuncios e campanhas lidos agora da Meta (nunca os gravados na sync)."""
     _exigir_token_bom(conta)
@@ -546,12 +564,19 @@ def _disparos_parado(db, conta: MetaAdsConta, agora: datetime, fabrica_cliente, 
         ).all()
     }
     hoje_local = sincronizacao.hoje_da_conta(conta, agora)
+    ontem = hoje_local - timedelta(days=1)
     ultima_sync = _utc_naive(conta.macUltimaSync)
-    if ultima_sync is None or sincronizacao.hoje_da_conta(conta, ultima_sync) < hoje_local:
-        # Sem sync bem-sucedida hoje, o "ontem" do banco esta parcial: campanhas ficam como estao.
+    if (
+        ultima_sync is None
+        or sincronizacao.hoje_da_conta(conta, ultima_sync) < hoje_local
+        or not _sync_ok_cobriu(db, mac_id, ontem)
+    ):
+        # Sem sync ok hoje que cobriu ontem, o "ontem" do banco esta parcial: campanhas ficam como estao.
         preservar |= {("parado", f"campanha:{mcg_id}") for mcg_id, _ in campanhas_banco.values()}
     else:
-        ontem = hoje_local - timedelta(days=1)
+        # Campanha cujos anuncios estao todos pausados nao "deveria" veicular: so conta a que tem
+        # ao menos um anuncio ACTIVE na leitura fresca desta mesma avaliacao.
+        com_anuncio_ativo = {a.campanha_id for a in anuncios if a.status == "ACTIVE"}
         impressoes = dict(
             db.execute(
                 select(MetaAdsInsightDiario.midMcgId, func.sum(MetaAdsInsightDiario.midImpressoes))
@@ -560,7 +585,7 @@ def _disparos_parado(db, conta: MetaAdsConta, agora: datetime, fabrica_cliente, 
             ).all()
         )
         for c in campanhas:
-            if c.id in campanhas_banco:
+            if c.id in campanhas_banco and c.id in com_anuncio_ativo:
                 mcg_id, nome = campanhas_banco[c.id]
                 # Campanha ativa sem linha de insight ontem conta como 0 impressao.
                 disparos.append(regra_campanha_sem_veicular(
@@ -604,8 +629,8 @@ def _disparos_sem_contato(db: Session, emp_id: int, agora: datetime, cfg) -> lis
     return disparos
 
 
-def avaliar_horarios(db: Session, emp_id: int, agora: datetime, fabrica_cliente=ClienteGraph) -> dict:
-    """parado (status frescos da Meta) e sem_contato.
+def avaliar_horarios(db: Session, emp_id: int, agora: datetime, fabrica_cliente=cliente_sem_espera) -> dict:
+    """parado (status frescos da Meta, por padrao sem retentativa) e sem_contato.
 
     Tipo desligado na config tem os alertas nao resolvidos encerrados. Conta que nao pode ser
     avaliada (erro da Meta, token ruim) nao tem os alertas "parado" dela resolvidos.
@@ -749,12 +774,27 @@ def avaliar_diarios_todas(hoje: date, *, fabrica_sessao=None) -> int:
 
 
 def avaliar_horarios_todas(agora: datetime, *, fabrica_sessao=None) -> int:
-    """Rodada horaria por empresa: alertas e, se for a hora, o resumo diario (mesmo try/except)."""
+    """Rodada horaria por empresa: alertas e, se for a hora, o resumo diario.
+
+    Cada um no seu try/except: falha nos alertas nao impede o resumo e vice-versa. A falha dos
+    alertas e relancada depois do resumo, para `_para_cada_empresa` registrar e nao contar a empresa.
+    """
 
     def avaliar(db: Session, emp_id: int) -> None:
         from . import resumo
 
-        avaliar_horarios(db, emp_id, agora)
-        resumo.gerar_se_devido(db, emp_id, agora)
+        falha_alertas: Exception | None = None
+        try:
+            avaliar_horarios(db, emp_id, agora)
+        except Exception as exc:
+            db.rollback()
+            falha_alertas = exc
+        try:
+            resumo.gerar_se_devido(db, emp_id, agora)
+        except Exception:
+            db.rollback()
+            logger.exception("Alertas Meta: falha no resumo diário da empresa %s", emp_id)
+        if falha_alertas is not None:
+            raise falha_alertas
 
     return _para_cada_empresa(avaliar, fabrica_sessao, "horaria")
