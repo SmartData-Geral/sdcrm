@@ -7,6 +7,7 @@ Rotas internas em portugues, JWT + X-Company-Id. Toda rota exige empresa selecio
 from __future__ import annotations
 
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Query, status
 
@@ -19,6 +20,8 @@ from ..dependencies import (
 )
 from ..exceptions import BadRequestError, ConflictError
 from ..schemas.meta_ads import (
+    MetaAdsAlertaListResponse,
+    MetaAdsAlertaResponse,
     MetaAdsCampanhaDetalheResponse,
     MetaAdsCampanhaOpcoesResponse,
     MetaAdsContaOpcoesResponse,
@@ -37,7 +40,7 @@ from ..schemas.meta_ads import (
     MetaAdsSyncPeriodoRequest,
     MetaAdsTesteResponse,
 )
-from ..services.meta_ads import config_monitor, contas, indicadores, sincronizacao
+from ..services.meta_ads import alertas, config_monitor, contas, indicadores, sincronizacao
 
 router = APIRouter(prefix="/api/meta-ads", tags=["meta-ads"])
 
@@ -226,3 +229,21 @@ def atualizar_config_monitoramento(
     company_id: CompanyIdDep,
 ) -> MetaAdsMonitorConfigResponse:
     return config_monitor.atualizar_config(db, _admin(db, current_user, company_id), data)
+
+
+@router.get("/alertas", response_model=MetaAdsAlertaListResponse)
+def listar_alertas(
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    company_id: CompanyIdDep,
+    status_alerta: Literal["aberto", "ciente", "resolvido"] | None = Query(default=None, alias="status"),
+) -> MetaAdsAlertaListResponse:
+    emp_id = empresa_obrigatoria(db, current_user, company_id)
+    return MetaAdsAlertaListResponse(items=alertas.listar(db, emp_id, status_alerta))
+
+
+@router.post("/alertas/{mal_id}/ciente", response_model=MetaAdsAlertaResponse)
+def marcar_alerta_ciente(
+    mal_id: int, db: DbSessionDep, current_user: CurrentUserDep, company_id: CompanyIdDep
+) -> MetaAdsAlertaResponse:
+    return alertas.marcar_ciente(db, empresa_obrigatoria(db, current_user, company_id), mal_id)

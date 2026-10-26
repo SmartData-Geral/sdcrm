@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -97,6 +99,38 @@ def reivindicar(db: Session, mac_id: int) -> bool:
     return resultado.rowcount == 1
 
 
+def _token_da_conta(conta: MetaAdsConta) -> str:
+    token = decifrar(conta.macToken)
+    if token is None:
+        raise TokenInvalidoErro(
+            "Token ilegível (a chave de criptografia mudou) — cadastre o token de novo."
+        )
+    return token
+
+
+@contextmanager
+def _cliente_somente_leitura(token: str, fabrica_cliente) -> Iterator[ClienteGraph]:
+    """Abre o cliente e recusa token com permissao de escrita antes de qualquer outra chamada."""
+    with fabrica_cliente(token) as cliente:
+        if permissoes_de_escrita(cliente.listar_permissoes()):
+            raise PermissaoExcessivaErro(MENSAGEM_PERMISSAO_EXCESSIVA)
+        yield cliente
+
+
+@contextmanager
+def cliente_da_conta(db: Session, mac_id: int, *, fabrica_cliente=ClienteGraph) -> Iterator[ClienteGraph]:
+    """Cliente pronto para chamadas leves de leitura (alertas), sem trava nem log de sync.
+
+    Levanta TokenInvalidoErro (token ilegivel ou recusado pela Meta), PermissaoExcessivaErro
+    ou outro MetaGraphErro; nao grava nada na conta e nao mexe na transacao de `db`.
+    """
+    conta = db.get(MetaAdsConta, mac_id)
+    if conta is None:
+        raise MetaGraphErro("Conta de anúncios não encontrada.")
+    with _cliente_somente_leitura(_token_da_conta(conta), fabrica_cliente) as cliente:
+        yield cliente
+
+
 def sincronizar_conta(
     db: Session,
     mac_id: int,
@@ -116,18 +150,12 @@ def sincronizar_conta(
         if not conta.macCargaInicialFeita:
             origem = "carga_inicial"
     try:
-        token = decifrar(conta.macToken)
-        if token is None:
-            raise TokenInvalidoErro(
-                "Token ilegível (a chave de criptografia mudou) — cadastre o token de novo."
-            )
+        token = _token_da_conta(conta)
         conta_externa = conta.macContaExterna
         # Encerra a transacao de leitura antes do HTTP demorado: evita snapshot velho
         # (REPEATABLE READ) ao vincular leads depois.
         db.rollback()
-        with fabrica_cliente(token) as cliente:
-            if permissoes_de_escrita(cliente.listar_permissoes()):
-                raise PermissaoExcessivaErro(MENSAGEM_PERMISSAO_EXCESSIVA)
+        with _cliente_somente_leitura(token, fabrica_cliente) as cliente:
             campanhas = cliente.listar_campanhas(conta_externa)
             insights = cliente.listar_insights(conta_externa, inicio, fim)
             conjuntos = cliente.listar_conjuntos(conta_externa)

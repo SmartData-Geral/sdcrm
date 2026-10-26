@@ -64,6 +64,10 @@ class CtrTests(unittest.TestCase):
         self.assertIsNone(a.regra_ctr(5, "A", 2.0, 5000, 0.5, 999, 20, 30))
         self.assertIsNotNone(a.regra_ctr(5, "A", 2.0, 1000, 0.5, 1000, 14, 30))
 
+    def test_ctr_inicial_zero_nao_dispara(self) -> None:
+        self.assertIsNone(a.regra_ctr(5, "A", 0.0, 5000, 0.0, 4000, 20, 30))
+        self.assertIsNone(a.regra_ctr(5, "A", -1.0, 5000, 0.0, 4000, 20, 30))
+
 
 class ParadoTests(unittest.TestCase):
     def test_anuncio_reprovado(self) -> None:

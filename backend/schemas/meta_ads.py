@@ -280,3 +280,24 @@ class MetaAdsMonitorConfigUpdate(BaseModel):
             if invalidas:
                 raise ValueError(f"Alerta desconhecido: {', '.join(sorted(invalidas))}")
         return valor
+
+
+STATUS_ALERTA = ("aberto", "ciente", "resolvido")
+
+
+class MetaAdsAlertaResponse(BaseModel):
+    malId: int
+    malTipo: str
+    malChave: str
+    malStatus: str
+    malMensagem: str
+    malDados: dict | None
+    malPrimeiroEm: datetime
+    malUltimoEm: datetime
+    malResolvidoEm: datetime | None
+    # Nome do anuncio/campanha/conta do alvo (None para lead: o nome ja esta na mensagem).
+    alvoNome: str | None = None
+
+
+class MetaAdsAlertaListResponse(BaseModel):
+    items: list[MetaAdsAlertaResponse]
