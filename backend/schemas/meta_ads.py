@@ -201,3 +201,43 @@ class OportunidadeCampanhaMetaResponse(BaseModel):
     opoId: int
     opoMcgId: int | None
     opoMcgManual: bool
+
+
+ALERTAS_MONITOR = ("cpl", "gasto", "frequencia", "ctr", "parado", "semContato")
+
+
+class MetaAdsMonitorConfigResponse(BaseModel):
+    etapaMqlId: int | None
+    etapaOportunidadeId: int | None
+    cplFator: float
+    gastoSemLead: float
+    frequenciaMax: float
+    quedaCtrPct: int
+    horasSemContato: int
+    gastoMinRanking: float
+    horaResumo: int
+    alertas: dict[str, bool]
+
+
+class MetaAdsMonitorConfigUpdate(BaseModel):
+    """Campos omitidos nao mudam; as etapas aceitam null explicito para limpar."""
+
+    etapaMqlId: int | None = None
+    etapaOportunidadeId: int | None = None
+    cplFator: float | None = Field(default=None, gt=0, le=999)
+    gastoSemLead: float | None = Field(default=None, gt=0)
+    frequenciaMax: float | None = Field(default=None, gt=0, le=999)
+    quedaCtrPct: int | None = Field(default=None, gt=0, le=100)
+    horasSemContato: int | None = Field(default=None, gt=0)
+    gastoMinRanking: float | None = Field(default=None, ge=0)
+    horaResumo: int | None = Field(default=None, ge=0, le=23)
+    alertas: dict[str, bool] | None = None
+
+    @field_validator("alertas")
+    @classmethod
+    def _chaves_validas(cls, valor):
+        if valor is not None:
+            invalidas = set(valor) - set(ALERTAS_MONITOR)
+            if invalidas:
+                raise ValueError(f"Alerta desconhecido: {', '.join(sorted(invalidas))}")
+        return valor

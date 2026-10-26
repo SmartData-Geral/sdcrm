@@ -22,6 +22,8 @@ from ..schemas.meta_ads import (
     MetaAdsCampanhaDetalheResponse,
     MetaAdsCampanhaOpcoesResponse,
     MetaAdsContaOpcoesResponse,
+    MetaAdsMonitorConfigResponse,
+    MetaAdsMonitorConfigUpdate,
     MetaAdsPainelResponse,
     MetaAdsResumoResponse,
     OportunidadeCampanhaMetaRequest,
@@ -35,7 +37,7 @@ from ..schemas.meta_ads import (
     MetaAdsSyncPeriodoRequest,
     MetaAdsTesteResponse,
 )
-from ..services.meta_ads import contas, indicadores, sincronizacao
+from ..services.meta_ads import config_monitor, contas, indicadores, sincronizacao
 
 router = APIRouter(prefix="/api/meta-ads", tags=["meta-ads"])
 
@@ -207,3 +209,20 @@ def definir_campanha(
 ) -> OportunidadeCampanhaMetaResponse:
     emp_id = empresa_obrigatoria(db, current_user, company_id)
     return indicadores.definir_campanha_oportunidade(db, emp_id, opo_id, data.opoMcgId)
+
+
+@router.get("/monitoramento/config", response_model=MetaAdsMonitorConfigResponse)
+def obter_config_monitoramento(
+    db: DbSessionDep, current_user: CurrentUserDep, company_id: CompanyIdDep
+) -> MetaAdsMonitorConfigResponse:
+    return config_monitor.config_resposta(db, empresa_obrigatoria(db, current_user, company_id))
+
+
+@router.put("/monitoramento/config", response_model=MetaAdsMonitorConfigResponse)
+def atualizar_config_monitoramento(
+    data: MetaAdsMonitorConfigUpdate,
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    company_id: CompanyIdDep,
+) -> MetaAdsMonitorConfigResponse:
+    return config_monitor.atualizar_config(db, _admin(db, current_user, company_id), data)
