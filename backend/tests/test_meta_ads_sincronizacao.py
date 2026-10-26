@@ -5,7 +5,10 @@ from decimal import Decimal
 from sqlalchemy import select
 
 from backend.core.tempo import utcnow
+from backend.models.meta_ads_anuncio import MetaAdsAnuncio
 from backend.models.meta_ads_campanha import MetaAdsCampanha
+from backend.models.meta_ads_conjunto import MetaAdsConjunto
+from backend.models.meta_ads_insight_anuncio_diario import MetaAdsInsightAnuncioDiario
 from backend.models.meta_ads_conta import (
     STATUS_AVISO,
     STATUS_ERRO,
@@ -28,7 +31,23 @@ def _insight(cid, nome, dia, inv, leads=0):
 class ClienteFalso:
     """Substitui ClienteGraph. Guarda o token e os periodos pedidos."""
 
-    def __init__(self, campanhas=(), insights=(), erro=None, permissoes=None):
+    def __init__(
+        self,
+        campanhas=(),
+        insights=(),
+        erro=None,
+        permissoes=None,
+        conjuntos=(),
+        anuncios=(),
+        insights_anuncio=(),
+        status_conta=None,
+        erro_anuncio=None,
+    ):
+        self.conjuntos = list(conjuntos)
+        self.anuncios = list(anuncios)
+        self.insights_anuncio = list(insights_anuncio)
+        self.status_conta = status_conta or g.StatusConta(1, 0)
+        self.erro_anuncio = erro_anuncio
         self.permissoes = permissoes if permissoes is not None else {"ads_read"}
         self.campanhas = list(campanhas)
         self.insights = list(insights)
@@ -57,6 +76,24 @@ class ClienteFalso:
         if self.erro:
             raise self.erro
         return self.insights
+
+    def listar_conjuntos(self, _act):
+        return self.conjuntos
+
+    def listar_anuncios(self, _act):
+        return self.anuncios
+
+    def listar_insights_anuncios(self, _act, _inicio, _fim):
+        if self.erro_anuncio:
+            raise self.erro_anuncio
+        return self.insights_anuncio
+
+    def obter_status_conta(self, _act):
+        return self.status_conta
+
+
+def _ins_anu(aid, nome, dia, inv, impressoes=1000, sid="s1", cid="1"):
+    return g.InsightAnuncioDia(aid, nome, sid, cid, dia, Decimal(str(inv)), impressoes, 800, 50, 30, 1)
 
 
 class SincronizacaoTests(unittest.TestCase):
@@ -181,6 +218,109 @@ class SincronizacaoTests(unittest.TestCase):
         b.criar_oportunidade(self.db, self.emp.empId, opoUtmSource="leads out")
         r = self._sync(ClienteFalso([g.CampanhaMeta("1", "Leads Out", None, "ACTIVE")]), inicio=date(2026, 10, 1), fim=date(2026, 10, 1))
         self.assertEqual(r.leads_vinculados, 1)
+
+    def _anuncios_db(self):
+        return self.db.execute(select(MetaAdsAnuncio).order_by(MetaAdsAnuncio.manAnuncioExterno)).scalars().all()
+
+    def _insights_anuncio(self):
+        return self.db.execute(
+            select(MetaAdsInsightAnuncioDiario).order_by(MetaAdsInsightAnuncioDiario.miaData)
+        ).scalars().all()
+
+    def test_grava_conjuntos_anuncios_e_insights_por_anuncio(self) -> None:
+        d = date(2026, 10, 1)
+        cliente = ClienteFalso(
+            campanhas=[g.CampanhaMeta("1", "Camp", None, "ACTIVE")],
+            insights=[_insight("1", "Camp", d, 10)],
+            conjuntos=[g.ConjuntoMeta("s1", "Conj", "1", "ACTIVE")],
+            anuncios=[
+                g.AnuncioMeta("a1", "Anu 1", "s1", "1", "ACTIVE", None, date(2026, 9, 1)),
+                g.AnuncioMeta("a2", "Anu 2", "s1", "1", "PAUSED", "motivo", None),
+            ],
+            insights_anuncio=[
+                _ins_anu("a1", "Anu 1", d, 4),
+                _ins_anu("a1", "Anu 1", date(2026, 10, 2), 3),
+                _ins_anu("a2", "Anu 2", d, 3),
+            ],
+        )
+        self._sync(cliente, inicio=d, fim=date(2026, 10, 2))
+        camp = self.db.execute(select(MetaAdsCampanha)).scalar_one()
+        conj = self.db.execute(select(MetaAdsConjunto)).scalar_one()
+        self.assertEqual((conj.mcjNome, conj.mcjMcgId), ("Conj", camp.mcgId))
+        anuncios = self._anuncios_db()
+        self.assertEqual([a.manAnuncioExterno for a in anuncios], ["a1", "a2"])
+        self.assertTrue(all(a.manMcjId == conj.mcjId and a.manMcgId == camp.mcgId for a in anuncios))
+        self.assertEqual((anuncios[0].manCriadoEmMeta, anuncios[1].manMotivo, anuncios[1].manStatus), (date(2026, 9, 1), "motivo", "PAUSED"))
+        self.assertEqual(len(self._insights_anuncio()), 3)
+
+    def test_anuncio_so_no_insight_e_criado(self) -> None:
+        d = date(2026, 10, 1)
+        self._sync(
+            ClienteFalso(insights_anuncio=[_ins_anu("a9", "Anu 9", d, 2, sid="s9", cid="77")]),
+            inicio=d,
+            fim=d,
+        )
+        camp = self.db.execute(select(MetaAdsCampanha)).scalar_one()
+        conj = self.db.execute(select(MetaAdsConjunto)).scalar_one()
+        anu = self._anuncios_db()[0]
+        self.assertEqual(camp.mcgCampanhaExterna, "77")
+        self.assertEqual(conj.mcjConjuntoExterno, "s9")
+        self.assertEqual((anu.manNome, anu.manMcjId, anu.manMcgId), ("Anu 9", conj.mcjId, camp.mcgId))
+        self.assertEqual(len(self._insights_anuncio()), 1)
+
+    def test_regrava_insights_anuncio_sem_sobras(self) -> None:
+        base = dict(
+            campanhas=[g.CampanhaMeta("1", "A", None, "ACTIVE")],
+            conjuntos=[g.ConjuntoMeta("s1", "Conj", "1", "ACTIVE")],
+            anuncios=[g.AnuncioMeta("a1", "Anu", "s1", "1", "ACTIVE", None, None)],
+        )
+        self._sync(
+            ClienteFalso(**base, insights_anuncio=[_ins_anu("a1", "Anu", date(2026, 9, 30), 5), _ins_anu("a1", "Anu", date(2026, 10, 1), 7)]),
+            inicio=date(2026, 9, 30),
+            fim=date(2026, 10, 1),
+        )
+        self._sync(ClienteFalso(**base), inicio=date(2026, 10, 1), fim=date(2026, 10, 1))
+        self.assertEqual([l.miaData for l in self._insights_anuncio()], [date(2026, 9, 30)])
+
+    def test_primeiro_dia_e_menor_dia_com_impressao(self) -> None:
+        base = dict(
+            campanhas=[g.CampanhaMeta("1", "A", None, "ACTIVE")],
+            conjuntos=[g.ConjuntoMeta("s1", "Conj", "1", "ACTIVE")],
+            anuncios=[g.AnuncioMeta("a1", "Anu", "s1", "1", "ACTIVE", None, None)],
+        )
+        self._sync(
+            ClienteFalso(**base, insights_anuncio=[_ins_anu("a1", "Anu", date(2026, 10, 5), 0, impressoes=0), _ins_anu("a1", "Anu", date(2026, 10, 6), 4, impressoes=100)]),
+            inicio=date(2026, 10, 5),
+            fim=date(2026, 10, 6),
+        )
+        self.assertEqual(self._anuncios_db()[0].manPrimeiroDia, date(2026, 10, 6))
+        self._sync(
+            ClienteFalso(**base, insights_anuncio=[_ins_anu("a1", "Anu", date(2026, 10, 3), 2, impressoes=50)]),
+            inicio=date(2026, 10, 3),
+            fim=date(2026, 10, 3),
+        )
+        self.db.expire_all()
+        self.assertEqual(self._anuncios_db()[0].manPrimeiroDia, date(2026, 10, 3))
+
+    def test_grava_status_da_conta(self) -> None:
+        self._sync(ClienteFalso(status_conta=g.StatusConta(3, 0)), inicio=date(2026, 10, 1), fim=date(2026, 10, 1))
+        self.db.refresh(self.conta)
+        self.assertEqual((self.conta.macAccountStatus, self.conta.macDisableReason), (3, 0))
+
+    def test_erro_no_nivel_anuncio_nao_grava_nada(self) -> None:
+        d = date(2026, 10, 1)
+        r = self._sync(
+            ClienteFalso(
+                campanhas=[g.CampanhaMeta("1", "A", None, "ACTIVE")],
+                insights=[_insight("1", "A", d, 5)],
+                erro_anuncio=g.MetaGraphErro("Erro do Meta: anuncio", 100),
+            ),
+            inicio=d,
+            fim=d,
+        )
+        self.assertEqual(r.status, STATUS_ERRO)
+        self.assertEqual(self._insights(), [])
+        self.assertEqual(self.db.execute(select(MetaAdsCampanha)).scalars().all(), [])
 
 
 class TravaTests(unittest.TestCase):

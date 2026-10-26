@@ -46,6 +46,9 @@ class MetaAdsConta(Base):
     # Quando a trava de sincronizacao foi pega; trava com mais de 30 min e considerada morta.
     macSyncIniciadaEm: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     macCargaInicialFeita: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Saude da conta no Meta (account_status / disable_reason), atualizada a cada sync.
+    macAccountStatus: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    macDisableReason: Mapped[int | None] = mapped_column(Integer, nullable=True)
     macAtivo: Mapped[bool] = AtivoColumnFactory.bool_ativo("macAtivo")
     macDataCriacao: Mapped[datetime] = AuditColumnFactory.datetime_criacao("macDataCriacao")
     macDataAtualizacao: Mapped[datetime | None] = AuditColumnFactory.datetime_atualizacao(

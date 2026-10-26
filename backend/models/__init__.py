@@ -34,4 +34,7 @@ from .meta_ads_conta import MetaAdsConta  # noqa: F401
 from .meta_ads_conta_origem import MetaAdsContaOrigem  # noqa: F401
 from .meta_ads_campanha import MetaAdsCampanha  # noqa: F401
 from .meta_ads_insight_diario import MetaAdsInsightDiario  # noqa: F401
+from .meta_ads_conjunto import MetaAdsConjunto  # noqa: F401
+from .meta_ads_anuncio import MetaAdsAnuncio  # noqa: F401
+from .meta_ads_insight_anuncio_diario import MetaAdsInsightAnuncioDiario  # noqa: F401
 from .meta_ads_sync_log import MetaAdsSyncLog  # noqa: F401

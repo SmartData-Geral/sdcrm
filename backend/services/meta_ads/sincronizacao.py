@@ -20,7 +20,9 @@ from sqlalchemy.orm import Session
 
 from ...core.cripto import decifrar
 from ...core.tempo import utcnow
+from ...models.meta_ads_anuncio import MetaAdsAnuncio
 from ...models.meta_ads_campanha import MetaAdsCampanha
+from ...models.meta_ads_conjunto import MetaAdsConjunto
 from ...models.meta_ads_conta import (
     STATUS_AVISO,
     STATUS_ERRO,
@@ -30,6 +32,7 @@ from ...models.meta_ads_conta import (
     STATUS_TOKEN_INVALIDO,
     MetaAdsConta,
 )
+from ...models.meta_ads_insight_anuncio_diario import MetaAdsInsightAnuncioDiario
 from ...models.meta_ads_insight_diario import MetaAdsInsightDiario
 from ...models.meta_ads_sync_log import MetaAdsSyncLog
 from . import vinculo
@@ -127,8 +130,16 @@ def sincronizar_conta(
                 raise PermissaoExcessivaErro(MENSAGEM_PERMISSAO_EXCESSIVA)
             campanhas = cliente.listar_campanhas(conta_externa)
             insights = cliente.listar_insights(conta_externa, inicio, fim)
+            conjuntos = cliente.listar_conjuntos(conta_externa)
+            anuncios = cliente.listar_anuncios(conta_externa)
+            insights_anuncio = cliente.listar_insights_anuncios(conta_externa, inicio, fim)
+            status_conta = cliente.obter_status_conta(conta_externa)
         conta = db.get(MetaAdsConta, mac_id, populate_existing=True)
-        linhas = _gravar(db, conta, campanhas, insights, inicio, fim)
+        linhas = _gravar(
+            db, conta, campanhas, insights, inicio, fim, conjuntos, anuncios, insights_anuncio
+        )
+        conta.macAccountStatus = status_conta.account_status
+        conta.macDisableReason = status_conta.disable_reason
         vinculados = vinculo.vincular_pendentes(db, conta.macEmpId)
         resultado = ResultadoSync(STATUS_OK, linhas, vinculados)
     except TokenInvalidoErro as exc:
@@ -154,7 +165,17 @@ def sincronizar_conta(
     return resultado
 
 
-def _gravar(db: Session, conta: MetaAdsConta, campanhas, insights, inicio: date, fim: date) -> int:
+def _gravar(
+    db: Session,
+    conta: MetaAdsConta,
+    campanhas,
+    insights,
+    inicio: date,
+    fim: date,
+    conjuntos=(),
+    anuncios=(),
+    insights_anuncio=(),
+) -> int:
     existentes = {
         c.mcgCampanhaExterna: c
         for c in db.execute(
@@ -182,6 +203,9 @@ def _gravar(db: Session, conta: MetaAdsConta, campanhas, insights, inicio: date,
         camp.mcgStatus = c.status
     for i in insights:
         _obter(i.campanha_id, i.campanha_nome)
+    # Campanha so citada no nivel de conjunto/anuncio (ex.: ja excluida): nasce com o id como nome.
+    for item in (*conjuntos, *anuncios, *insights_anuncio):
+        _obter(item.campanha_id, item.campanha_id)
     db.flush()
 
     db.execute(
@@ -216,7 +240,129 @@ def _gravar(db: Session, conta: MetaAdsConta, campanhas, insights, inicio: date,
         linha.midAlcance += i.alcance
         linha.midLeadsMeta += i.leads
     db.flush()
+    campanha_ids = {externa: camp.mcgId for externa, camp in existentes.items()}
+    anuncios_por_externo = _gravar_conjuntos_e_anuncios(
+        db, conta, campanha_ids, conjuntos, anuncios, insights_anuncio
+    )
+    _gravar_insights_anuncio(db, conta, anuncios_por_externo, insights_anuncio, inicio, fim)
     return len(por_chave)
+
+
+def _gravar_conjuntos_e_anuncios(
+    db: Session, conta: MetaAdsConta, campanha_ids: dict[str, int], conjuntos, anuncios, insights
+) -> dict[str, MetaAdsAnuncio]:
+    """Upsert de conjuntos e anuncios (os que so aparecem nos insights nascem com o nome dali)."""
+    conj_existentes = {
+        c.mcjConjuntoExterno: c
+        for c in db.execute(
+            select(MetaAdsConjunto).where(MetaAdsConjunto.mcjMacId == conta.macId)
+        ).scalars()
+    }
+    anu_existentes = {
+        a.manAnuncioExterno: a
+        for a in db.execute(
+            select(MetaAdsAnuncio).where(MetaAdsAnuncio.manMacId == conta.macId)
+        ).scalars()
+    }
+
+    def _conjunto(externo: str, campanha_externa: str, nome: str | None = None) -> MetaAdsConjunto:
+        conj = conj_existentes.get(externo)
+        if conj is None:
+            conj = MetaAdsConjunto(
+                mcjEmpId=conta.macEmpId,
+                mcjMacId=conta.macId,
+                mcjMcgId=campanha_ids[campanha_externa],
+                mcjConjuntoExterno=externo,
+                mcjNome=(nome or externo)[:400],
+            )
+            db.add(conj)
+            conj_existentes[externo] = conj
+        return conj
+
+    for c in conjuntos:
+        conj = _conjunto(c.id, c.campanha_id, c.nome)
+        conj.mcjNome = c.nome[:400]
+        conj.mcjMcgId = campanha_ids[c.campanha_id]
+        conj.mcjStatus = c.status
+    for a in (*anuncios, *insights):
+        _conjunto(a.conjunto_id, a.campanha_id)
+    db.flush()
+
+    def _anuncio(externo: str, conjunto_externo: str, campanha_externa: str, nome: str) -> MetaAdsAnuncio:
+        anu = anu_existentes.get(externo)
+        if anu is None:
+            anu = MetaAdsAnuncio(
+                manEmpId=conta.macEmpId,
+                manMacId=conta.macId,
+                manAnuncioExterno=externo,
+                manNome=nome[:400],
+            )
+            db.add(anu)
+            anu_existentes[externo] = anu
+        anu.manMcgId = campanha_ids[campanha_externa]
+        anu.manMcjId = conj_existentes[conjunto_externo].mcjId
+        return anu
+
+    for a in anuncios:
+        anu = _anuncio(a.id, a.conjunto_id, a.campanha_id, a.nome)
+        anu.manNome = a.nome[:400]
+        anu.manStatus = a.status
+        anu.manMotivo = a.motivo[:300] if a.motivo else None
+        anu.manCriadoEmMeta = a.criado_em
+    for i in insights:
+        _anuncio(i.anuncio_id, i.conjunto_id, i.campanha_id, i.anuncio_nome)
+    # manPrimeiroDia so recua: menor dia com impressao ja visto.
+    for i in insights:
+        if i.impressoes > 0:
+            anu = anu_existentes[i.anuncio_id]
+            if anu.manPrimeiroDia is None or i.dia < anu.manPrimeiroDia:
+                anu.manPrimeiroDia = i.dia
+    db.flush()
+    return anu_existentes
+
+
+def _gravar_insights_anuncio(
+    db: Session,
+    conta: MetaAdsConta,
+    anuncios: dict[str, MetaAdsAnuncio],
+    insights,
+    inicio: date,
+    fim: date,
+) -> None:
+    db.execute(
+        delete(MetaAdsInsightAnuncioDiario).where(
+            MetaAdsInsightAnuncioDiario.miaMacId == conta.macId,
+            MetaAdsInsightAnuncioDiario.miaData >= inicio,
+            MetaAdsInsightAnuncioDiario.miaData <= fim,
+        )
+    )
+    # Defensivo: se o Meta repetir anuncio x dia, soma em vez de violar a chave unica.
+    por_chave: dict[tuple[int, date], MetaAdsInsightAnuncioDiario] = {}
+    for i in insights:
+        man_id = anuncios[i.anuncio_id].manId
+        linha = por_chave.get((man_id, i.dia))
+        if linha is None:
+            linha = MetaAdsInsightAnuncioDiario(
+                miaEmpId=conta.macEmpId,
+                miaMacId=conta.macId,
+                miaManId=man_id,
+                miaData=i.dia,
+                miaInvestimento=0,
+                miaImpressoes=0,
+                miaAlcance=0,
+                miaCliques=0,
+                miaCliquesLink=0,
+                miaLeadsMeta=0,
+            )
+            por_chave[(man_id, i.dia)] = linha
+            db.add(linha)
+        linha.miaInvestimento = float(linha.miaInvestimento) + float(i.investimento)
+        linha.miaImpressoes += i.impressoes
+        linha.miaAlcance += i.alcance
+        linha.miaCliques += i.cliques
+        linha.miaCliquesLink += i.cliques_link
+        linha.miaLeadsMeta += i.leads
+    db.flush()
 
 
 def _finalizar(

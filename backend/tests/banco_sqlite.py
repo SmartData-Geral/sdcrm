@@ -18,9 +18,12 @@ from backend.core.cripto import cifrar  # noqa: E402
 from backend.database import Base  # noqa: E402
 from backend.models.como_conheceu import ComoConheceu  # noqa: E402
 from backend.models.empresa import Empresa  # noqa: E402
+from backend.models.meta_ads_anuncio import MetaAdsAnuncio  # noqa: E402
 from backend.models.meta_ads_campanha import MetaAdsCampanha  # noqa: E402
 from backend.models.meta_ads_conta import MetaAdsConta  # noqa: E402
 from backend.models.meta_ads_conta_origem import MetaAdsContaOrigem  # noqa: E402
+from backend.models.meta_ads_conjunto import MetaAdsConjunto  # noqa: E402
+from backend.models.meta_ads_insight_anuncio_diario import MetaAdsInsightAnuncioDiario  # noqa: E402
 from backend.models.meta_ads_insight_diario import MetaAdsInsightDiario  # noqa: E402
 from backend.models.oportunidade import Oportunidade  # noqa: E402
 
@@ -122,6 +125,74 @@ def criar_insight(
         midCliques=cliques,
         midAlcance=0,
         midLeadsMeta=leads,
+    )
+    db.add(linha)
+    db.commit()
+    return linha
+
+
+def criar_conjunto(
+    db: Session, campanha: MetaAdsCampanha, externa: str, nome: str, status: str = "ACTIVE"
+) -> MetaAdsConjunto:
+    conj = MetaAdsConjunto(
+        mcjEmpId=campanha.mcgEmpId,
+        mcjMacId=campanha.mcgMacId,
+        mcjMcgId=campanha.mcgId,
+        mcjConjuntoExterno=externa,
+        mcjNome=nome,
+        mcjStatus=status,
+    )
+    db.add(conj)
+    db.commit()
+    return conj
+
+
+def criar_anuncio(
+    db: Session,
+    conjunto: MetaAdsConjunto,
+    externa: str,
+    nome: str,
+    status: str = "ACTIVE",
+    criado_em: date | None = None,
+) -> MetaAdsAnuncio:
+    anu = MetaAdsAnuncio(
+        manEmpId=conjunto.mcjEmpId,
+        manMacId=conjunto.mcjMacId,
+        manMcgId=conjunto.mcjMcgId,
+        manMcjId=conjunto.mcjId,
+        manAnuncioExterno=externa,
+        manNome=nome,
+        manStatus=status,
+        manCriadoEmMeta=criado_em,
+    )
+    db.add(anu)
+    db.commit()
+    return anu
+
+
+def criar_insight_anuncio(
+    db: Session,
+    anuncio: MetaAdsAnuncio,
+    dia: date,
+    investimento: float,
+    *,
+    impressoes: int = 1000,
+    alcance: int = 800,
+    cliques: int = 50,
+    cliques_link: int = 30,
+    leads: int = 0,
+) -> MetaAdsInsightAnuncioDiario:
+    linha = MetaAdsInsightAnuncioDiario(
+        miaEmpId=anuncio.manEmpId,
+        miaMacId=anuncio.manMacId,
+        miaManId=anuncio.manId,
+        miaData=dia,
+        miaInvestimento=investimento,
+        miaImpressoes=impressoes,
+        miaAlcance=alcance,
+        miaCliques=cliques,
+        miaCliquesLink=cliques_link,
+        miaLeadsMeta=leads,
     )
     db.add(linha)
     db.commit()
