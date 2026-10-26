@@ -30,6 +30,8 @@ CODIGOS_LIMITE = frozenset({4, 17, 32, 613, 80004})
 # O Meta reporta o mesmo lead em mais de um tipo; conta-se so o primeiro presente.
 TIPOS_LEAD = ("lead", "onsite_conversion.lead_grouped", "offsite_conversion.fb_pixel_lead")
 ESPERAS_PADRAO = (30, 60, 120)
+PERMISSOES_ESCRITA = frozenset({"ads_management", "business_management", "catalog_management"})
+MENSAGEM_PERMISSAO_EXCESSIVA = "Token com permissão de escrita — gere um token só leitura (ads_read)."
 
 
 class MetaGraphErro(Exception):
@@ -45,6 +47,10 @@ class TokenInvalidoErro(MetaGraphErro):
 
 class ErroTemporario(MetaGraphErro):
     pass
+
+
+class PermissaoExcessivaErro(MetaGraphErro):
+    """Token com permissao de escrita: recusado, sem retentativa e distinto de token expirado."""
 
 
 @dataclass(frozen=True)
@@ -79,6 +85,14 @@ def normalizar_conta(valor: str | None) -> str:
     if not digitos:
         raise ValueError("Informe o id da conta de anúncios (ex.: act_1234567890)")
     return "act_" + digitos
+
+
+def permissoes_de_escrita(permissoes: set[str]) -> set[str]:
+    return {
+        p
+        for p in permissoes
+        if p in PERMISSOES_ESCRITA or "manage" in p or p.startswith("publish")
+    }
 
 
 def _inteiro(valor) -> int:
@@ -132,6 +146,14 @@ class ClienteGraph:
 
     def __exit__(self, *_exc) -> None:
         self._http.close()
+
+    def listar_permissoes(self) -> set[str]:
+        dados = self._get("/me/permissions", None)
+        return {
+            str(item["permission"])
+            for item in dados.get("data", [])
+            if item.get("status") == "granted" and item.get("permission")
+        }
 
     def obter_conta(self, act_id: str) -> ContaMeta:
         dados = self._get(f"/{act_id}", {"fields": "name,currency,timezone_name,account_status"})

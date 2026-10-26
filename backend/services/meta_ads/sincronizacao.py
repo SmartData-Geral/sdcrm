@@ -25,6 +25,7 @@ from ...models.meta_ads_conta import (
     STATUS_AVISO,
     STATUS_ERRO,
     STATUS_OK,
+    STATUS_PERMISSAO_EXCESSIVA,
     STATUS_SINCRONIZANDO,
     STATUS_TOKEN_INVALIDO,
     MetaAdsConta,
@@ -32,7 +33,15 @@ from ...models.meta_ads_conta import (
 from ...models.meta_ads_insight_diario import MetaAdsInsightDiario
 from ...models.meta_ads_sync_log import MetaAdsSyncLog
 from . import vinculo
-from .cliente_graph import ClienteGraph, ErroTemporario, MetaGraphErro, TokenInvalidoErro
+from .cliente_graph import (
+    MENSAGEM_PERMISSAO_EXCESSIVA,
+    ClienteGraph,
+    ErroTemporario,
+    MetaGraphErro,
+    PermissaoExcessivaErro,
+    TokenInvalidoErro,
+    permissoes_de_escrita,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +123,8 @@ def sincronizar_conta(
         # (REPEATABLE READ) ao vincular leads depois.
         db.rollback()
         with fabrica_cliente(token) as cliente:
+            if permissoes_de_escrita(cliente.listar_permissoes()):
+                raise PermissaoExcessivaErro(MENSAGEM_PERMISSAO_EXCESSIVA)
             campanhas = cliente.listar_campanhas(conta_externa)
             insights = cliente.listar_insights(conta_externa, inicio, fim)
         conta = db.get(MetaAdsConta, mac_id, populate_existing=True)
@@ -123,6 +134,9 @@ def sincronizar_conta(
     except TokenInvalidoErro as exc:
         db.rollback()
         resultado = ResultadoSync(STATUS_TOKEN_INVALIDO, erro=exc.mensagem)
+    except PermissaoExcessivaErro as exc:
+        db.rollback()
+        resultado = ResultadoSync(STATUS_PERMISSAO_EXCESSIVA, erro=exc.mensagem)
     except ErroTemporario as exc:
         db.rollback()
         resultado = ResultadoSync(STATUS_AVISO, erro=exc.mensagem)
@@ -229,7 +243,11 @@ def _finalizar(
             mslInicio=inicio,
             mslFim=fim,
             mslOrigem=origem,
-            mslStatus=STATUS_ERRO if resultado.status == STATUS_TOKEN_INVALIDO else resultado.status,
+            mslStatus=(
+                STATUS_ERRO
+                if resultado.status in (STATUS_TOKEN_INVALIDO, STATUS_PERMISSAO_EXCESSIVA)
+                else resultado.status
+            ),
             mslLinhas=resultado.linhas,
             mslLeadsVinculados=resultado.leads_vinculados,
             mslErro=resultado.erro[:500] if resultado.erro else None,
@@ -255,7 +273,7 @@ def contas_da_rodada_diaria(db: Session) -> list[int]:
             select(MetaAdsConta.macId)
             .where(
                 MetaAdsConta.macAtivo.is_(True),
-                MetaAdsConta.macStatus != STATUS_TOKEN_INVALIDO,
+                MetaAdsConta.macStatus.notin_([STATUS_TOKEN_INVALIDO, STATUS_PERMISSAO_EXCESSIVA]),
             )
             .order_by(MetaAdsConta.macId)
         ).scalars()

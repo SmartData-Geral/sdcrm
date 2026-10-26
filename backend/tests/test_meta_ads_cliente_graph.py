@@ -202,5 +202,23 @@ class ClienteTests(unittest.TestCase):
         self.assertNotIn(TOKEN, str(ctx.exception))
 
 
+class PermissoesTests(unittest.TestCase):
+    def test_so_leitura_passa(self):
+        self.assertEqual(g.permissoes_de_escrita({"ads_read", "read_insights"}), set())
+
+    def test_escrita_detectada(self):
+        self.assertEqual(
+            g.permissoes_de_escrita({"ads_read", "ads_management", "pages_manage_ads", "publish_video", "business_management"}),
+            {"ads_management", "pages_manage_ads", "publish_video", "business_management"},
+        )
+
+    def test_listar_permissoes_so_granted(self):
+        corpo = {"data": [{"permission": "ads_read", "status": "granted"}, {"permission": "ads_management", "status": "declined"}]}
+        cliente, feitas, _ = _cliente([(200, corpo)])
+        with cliente:
+            self.assertEqual(cliente.listar_permissoes(), {"ads_read"})
+        self.assertIn("/me/permissions", str(feitas[0].url))
+
+
 if __name__ == "__main__":
     unittest.main()

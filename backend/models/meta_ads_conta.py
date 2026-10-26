@@ -13,6 +13,8 @@ STATUS_AVISO = "aviso"
 STATUS_ERRO = "erro"
 # Separado de "erro" porque a rodada diaria pula estas contas ate alguem trocar o token.
 STATUS_TOKEN_INVALIDO = "token_invalido"
+# Token com permissao de escrita: tambem pulado na rodada diaria ate trocarem o token.
+STATUS_PERMISSAO_EXCESSIVA = "permissao_excessiva"
 
 
 class MetaAdsConta(Base):

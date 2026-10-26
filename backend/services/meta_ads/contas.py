@@ -10,6 +10,7 @@ from ...exceptions import BadRequestError, ConflictError, NotFoundError
 from ...models.como_conheceu import ComoConheceu
 from ...models.meta_ads_conta import (
     STATUS_PENDENTE,
+    STATUS_PERMISSAO_EXCESSIVA,
     STATUS_SINCRONIZANDO,
     STATUS_TOKEN_INVALIDO,
     MetaAdsConta,
@@ -25,7 +26,13 @@ from ...schemas.meta_ads import (
     MetaAdsSyncLogResponse,
     MetaAdsTesteResponse,
 )
-from .cliente_graph import ClienteGraph, MetaGraphErro, normalizar_conta
+from .cliente_graph import (
+    MENSAGEM_PERMISSAO_EXCESSIVA,
+    ClienteGraph,
+    MetaGraphErro,
+    normalizar_conta,
+    permissoes_de_escrita,
+)
 
 
 def _origens(db: Session, mac_id: int) -> list[int]:
@@ -147,12 +154,14 @@ def testar_conta(
         )
     try:
         with fabrica_cliente(token, esperas=()) as cliente:
+            if permissoes_de_escrita(cliente.listar_permissoes()):
+                return MetaAdsTesteResponse(ok=False, mensagem=MENSAGEM_PERMISSAO_EXCESSIVA)
             info = cliente.obter_conta(conta.macContaExterna)
     except MetaGraphErro as exc:
         return MetaAdsTesteResponse(ok=False, mensagem=exc.mensagem)
     conta.macMoeda = info.moeda
     conta.macFuso = info.fuso
-    if conta.macStatus == STATUS_TOKEN_INVALIDO:
+    if conta.macStatus in (STATUS_TOKEN_INVALIDO, STATUS_PERMISSAO_EXCESSIVA):
         conta.macStatus = STATUS_PENDENTE
         conta.macMensagem = None
     db.commit()

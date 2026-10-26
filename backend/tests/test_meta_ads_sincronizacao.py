@@ -10,6 +10,7 @@ from backend.models.meta_ads_conta import (
     STATUS_AVISO,
     STATUS_ERRO,
     STATUS_OK,
+    STATUS_PERMISSAO_EXCESSIVA,
     STATUS_SINCRONIZANDO,
     STATUS_TOKEN_INVALIDO,
 )
@@ -27,7 +28,8 @@ def _insight(cid, nome, dia, inv, leads=0):
 class ClienteFalso:
     """Substitui ClienteGraph. Guarda o token e os periodos pedidos."""
 
-    def __init__(self, campanhas=(), insights=(), erro=None):
+    def __init__(self, campanhas=(), insights=(), erro=None, permissoes=None):
+        self.permissoes = permissoes if permissoes is not None else {"ads_read"}
         self.campanhas = list(campanhas)
         self.insights = list(insights)
         self.erro = erro
@@ -43,6 +45,9 @@ class ClienteFalso:
 
     def __exit__(self, *_):
         return None
+
+    def listar_permissoes(self):
+        return self.permissoes
 
     def listar_campanhas(self, _act):
         return self.campanhas
@@ -70,6 +75,13 @@ class SincronizacaoTests(unittest.TestCase):
         return self.db.execute(
             select(MetaAdsInsightDiario).order_by(MetaAdsInsightDiario.midData)
         ).scalars().all()
+
+    def test_permissao_de_escrita_bloqueia_sync(self):
+        cliente = ClienteFalso([g.CampanhaMeta("1", "A", None, "ACTIVE")], permissoes={"ads_management"})
+        r = self._sync(cliente, inicio=date(2026, 10, 1), fim=date(2026, 10, 1))
+        self.assertEqual(r.status, STATUS_PERMISSAO_EXCESSIVA)
+        self.assertEqual(cliente.periodos, [])          # nada foi buscado
+        self.assertEqual(s.contas_da_rodada_diaria(self.db), [])
 
     def test_grava_campanhas_e_insights(self) -> None:
         cliente = ClienteFalso(

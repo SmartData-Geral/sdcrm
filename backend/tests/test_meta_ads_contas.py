@@ -20,8 +20,9 @@ TOKEN = "EAABsbCS1iHgBO-token-de-teste-9876"
 
 
 class FabricaFalsa:
-    def __init__(self, conta=None, erro=None):
+    def __init__(self, conta=None, erro=None, permissoes=None):
         self.conta, self.erro = conta, erro
+        self.permissoes = permissoes if permissoes is not None else {"ads_read"}
 
     def __call__(self, token, **kw):
         self.token = token
@@ -33,6 +34,9 @@ class FabricaFalsa:
 
     def __exit__(self, *_):
         return None
+
+    def listar_permissoes(self):
+        return self.permissoes
 
     def obter_conta(self, act):
         if self.erro:
@@ -133,6 +137,13 @@ class ContasTests(unittest.TestCase):
         self.assertEqual(fab.token, TOKEN)
         self.assertEqual(fab.kw, {"esperas": ()})
         self.assertEqual(self.db.get(MetaAdsConta, resp.macId).macFuso, "America/Sao_Paulo")
+
+    def test_testar_recusa_token_com_escrita(self):
+        resp = self._criar()
+        fab = FabricaFalsa(conta=g.ContaMeta("X", "BRL", "America/Sao_Paulo"), permissoes={"ads_read", "ads_management"})
+        r = contas.testar_conta(self.db, self.emp.empId, resp.macId, fabrica_cliente=fab)
+        self.assertFalse(r.ok)
+        self.assertEqual(r.mensagem, g.MENSAGEM_PERMISSAO_EXCESSIVA)
 
     def test_testar_conexao_com_erro_devolve_mensagem(self) -> None:
         resp = self._criar()
