@@ -21,6 +21,7 @@ import ChavesApiPage from "./pages/Integracoes/ChavesApiPage";
 import WebhooksPage from "./pages/Integracoes/WebhooksPage";
 import MetaAdsContasPage from "./pages/Integracoes/MetaAdsContasPage";
 import CampanhasPage from "./pages/Campanhas/CampanhasPage";
+import MonitoramentoPage from "./pages/Monitoramento/MonitoramentoPage";
 import IntegracaoLogsPage from "./pages/Integracoes/IntegracaoLogsPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
@@ -105,6 +106,14 @@ function App() {
         element={
           <ProtectedRoute>
             <CampanhasPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/monitoramento"
+        element={
+          <ProtectedRoute>
+            <MonitoramentoPage />
           </ProtectedRoute>
         }
       />

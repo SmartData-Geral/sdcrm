@@ -215,6 +215,13 @@ function getHeaderData(pathname: string): HeaderData {
       description: "Cadastre e visualize metas de recebimento, conversão e MRR por mês.",
     };
   }
+  if (pathname.startsWith("/monitoramento")) {
+    return {
+      breadcrumb: ["Dashboard", "CRM", "Monitoramento"],
+      title: "Monitoramento",
+      description: "Resumo diário e alertas das campanhas do Meta Ads.",
+    };
+  }
   if (pathname.startsWith("/campanhas")) {
     return {
       breadcrumb: ["Dashboard", "CRM", "Campanhas"],
@@ -289,7 +296,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         next = { ...next, upsell: true };
         setStoredOpen(next);
       }
-      if ((path.startsWith("/contratos") || path.startsWith("/campanhas")) && !prev.crm) {
+      if ((path.startsWith("/contratos") || path.startsWith("/campanhas") || path.startsWith("/monitoramento")) && !prev.crm) {
         next = { ...prev, crm: true };
         setStoredOpen(next);
       }
@@ -381,6 +388,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 </NavLink>
                 <NavLink to="/oportunidades-kanban" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
                   Kanban
+                </NavLink>
+                <NavLink to="/monitoramento" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
+                  Monitoramento
                 </NavLink>
                 <NavLink to="/campanhas" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
                   Campanhas

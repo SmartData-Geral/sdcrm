@@ -126,3 +126,110 @@ export function intervaloMesCorrente(): { inicio: string; fim: string } {
 
 export const horas = (v: number | null | undefined) =>
   v == null ? "—" : v.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+export interface MonitorConfig {
+  etapaMqlId: number | null;
+  etapaOportunidadeId: number | null;
+  cplFator: number;
+  gastoSemLead: number;
+  frequenciaMax: number;
+  quedaCtrPct: number;
+  horasSemContato: number;
+  gastoMinRanking: number;
+  horaResumo: number;
+  alertas: Record<string, boolean>;
+}
+
+export interface MetaAdsAlerta {
+  malId: number;
+  malTipo: string;
+  malChave: string;
+  malStatus: string;
+  malMensagem: string;
+  malDados: Record<string, unknown> | null;
+  malPrimeiroEm: string;
+  malUltimoEm: string;
+  malResolvidoEm: string | null;
+  alvoNome: string | null;
+}
+
+export const ROTULO_ALERTA: Record<string, string> = {
+  cpl: "CPL fora do padrão",
+  gasto: "Gasto sem retorno",
+  frequencia: "Criativo saturando",
+  ctr: "Queda de CTR",
+  parado: "Anúncio parado",
+  sem_contato: "Lead sem contato",
+};
+
+export interface ResumoTotais {
+  investimento: number;
+  impressoes: number;
+  cliques: number;
+  leadsMeta: number;
+  leadsCrm: number;
+  mqls: number;
+  oportunidades: number;
+  vendas: number;
+  cpl: number | null;
+  custoMql: number | null;
+  ctr: number | null;
+}
+
+export interface ResumoPeriodo extends ResumoTotais {
+  inicio: string;
+  fim: string;
+  dias: number;
+}
+
+export interface ResumoItem extends ResumoTotais {
+  id: number | null;
+  mcgId: number | null;
+  nome: string;
+  status: string | null;
+}
+
+export interface ResumoDados {
+  periodo: ResumoPeriodo;
+  ultimos7: ResumoPeriodo;
+  comparacao: {
+    mediaDiariaPeriodo: Record<string, number>;
+    mediaDiariaUltimos7: Record<string, number>;
+    variacaoPct: Record<string, number | null>;
+  };
+  campanhas: ResumoItem[];
+  anuncios: ResumoItem[];
+  melhores: ResumoItem[];
+  piores: ResumoItem[];
+  cobertura: number | null;
+  horasPrimeiroContato: number | null;
+  alertasAbertos: number;
+}
+
+export interface ResumoDiario {
+  mrsId: number;
+  mrsData: string;
+  mrsInicio: string;
+  mrsFim: string;
+  mrsDados: ResumoDados;
+  mrsLeitura: string | null;
+  mrsAviso: string | null;
+  mrsGeradoEm: string;
+}
+
+export interface ResumoDiarioItem {
+  mrsData: string;
+  mrsGeradoEm: string;
+}
+
+export const hojeISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+export const mensagemErroApi = (err: any, padrao: string) => {
+  const detail = err?.response?.data?.detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail) && detail[0]?.msg) return String(detail[0].msg).replace(/^Value error, /, "");
+  return padrao;
+};
