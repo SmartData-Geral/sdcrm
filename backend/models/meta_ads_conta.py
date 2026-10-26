@@ -49,6 +49,8 @@ class MetaAdsConta(Base):
     # Saude da conta no Meta (account_status / disable_reason), atualizada a cada sync.
     macAccountStatus: Mapped[int | None] = mapped_column(Integer, nullable=True)
     macDisableReason: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Quando True, so leads com sinal da Meta entram nos indicadores (uso: Task 9).
+    macExigirRastreio: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     macAtivo: Mapped[bool] = AtivoColumnFactory.bool_ativo("macAtivo")
     macDataCriacao: Mapped[datetime] = AuditColumnFactory.datetime_criacao("macDataCriacao")
     macDataAtualizacao: Mapped[datetime | None] = AuditColumnFactory.datetime_atualizacao(

@@ -107,6 +107,17 @@ class Oportunidade(Base):
     # True quando um usuario escolheu a campanha (ou "nenhuma") na tela; o vinculo
     # automatico nunca mexe nessas oportunidades.
     opoMcgManual: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Ids que a Meta manda junto do lead (primeiro anuncio vence). Ver meta_ads/rastreio.py.
+    opoMetaLeadId: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    opoMetaCampanhaId: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    opoMetaConjuntoId: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    opoMetaAnuncioId: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    opoManId: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("meta_ads_anuncio.manId", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     opoAtivo: Mapped[bool] = AtivoColumnFactory.bool_ativo("opoAtivo")
     opoDataCriacao: Mapped[datetime] = AuditColumnFactory.datetime_criacao("opoDataCriacao")

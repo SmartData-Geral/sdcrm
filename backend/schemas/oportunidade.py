@@ -94,6 +94,11 @@ class OportunidadeInDBBase(OportunidadeBase):
     opoDataAtualizacao: datetime | None
     opoMcgId: int | None = None
     opoMcgManual: bool = False
+    opoMetaLeadId: str | None = None
+    opoMetaCampanhaId: str | None = None
+    opoMetaConjuntoId: str | None = None
+    opoMetaAnuncioId: str | None = None
+    opoManId: int | None = None
 
     class Config:
         from_attributes = True

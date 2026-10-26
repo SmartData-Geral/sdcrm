@@ -31,6 +31,7 @@ from ..models.oportunidade import Oportunidade
 from ..models.oportunidade_historico import OportunidadeHistorico
 from ..models.usuario import Usuario
 from . import etapa_historico, webhook_emitter
+from .meta_ads import rastreio as rastreio_meta_ads
 from .meta_ads import vinculo as vinculo_meta_ads
 from .lead_normalizacao import (
     normalizar_email,
@@ -370,6 +371,18 @@ def _historico(db: Session, oportunidade: Oportunidade, conteudo: str) -> None:
     oportunidade.opoDataUltimoContato = registro.date()
 
 
+def _aplicar_ids_meta(db: Session, oportunidade: Oportunidade, payload: Any) -> None:
+    # Fora do aplicar_merge de proposito: aquele sobrescreve, e aqui vale o primeiro anuncio.
+    rastreio_meta_ads.aplicar_ids_meta(
+        db,
+        oportunidade,
+        meta_lead_id=getattr(payload, "meta_lead_id", None),
+        campaign_id=getattr(payload, "campaign_id", None),
+        adset_id=getattr(payload, "adset_id", None),
+        ad_id=getattr(payload, "ad_id", None),
+    )
+
+
 def _vincular_campanha_meta(db: Session, oportunidade: Oportunidade) -> None:
     # Best-effort: o lead nunca deixa de entrar por causa do vinculo com o Meta Ads.
     # O savepoint isola a falha: um erro SQL no vinculo nao aborta a transacao do lead.
@@ -553,6 +566,7 @@ def _criar(
             )
     _historico(db, oportunidade, conteudo)
 
+    _aplicar_ids_meta(db, oportunidade, payload)
     _vincular_campanha_meta(db, oportunidade)
 
     # Antes do commit, para o evento cair na MESMA transacao do lead.
@@ -613,6 +627,7 @@ def _atualizar(
         conteudo += " " + observacao
     _historico(db, oportunidade, conteudo)
 
+    _aplicar_ids_meta(db, oportunidade, payload)
     _vincular_campanha_meta(db, oportunidade)
     webhook_emitter.enfileirar(
         db, tipo="lead.updated", emp_id=emp_id, oportunidade=oportunidade, origem="api"

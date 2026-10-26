@@ -46,6 +46,11 @@ class LeadIntakeRequest(BaseModel):
         default=None, max_length=4000, validation_alias=AliasChoices("notes", "observacoes")
     )
     owner_email: Optional[str] = Field(default=None, max_length=255)
+    # Ids da Meta (Lead Ads). Chegam crus, com prefixos como "ag:"; limpos em meta_ads/rastreio.
+    meta_lead_id: Optional[str] = Field(default=None, max_length=60)
+    campaign_id: Optional[str] = Field(default=None, max_length=60)
+    adset_id: Optional[str] = Field(default=None, max_length=60)
+    ad_id: Optional[str] = Field(default=None, max_length=60)
     value: Optional[float] = Field(default=None, ge=0)
 
     @model_validator(mode="before")
