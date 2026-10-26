@@ -13,6 +13,7 @@ FERRAMENTAS = {
     "obter_metas", "criar_lead", "atualizar_oportunidade", "mover_etapa",
     "atualizar_qualificacao", "registrar_interacao", "marcar_ganho", "marcar_perdido",
     "colocar_stand_by", "reativar_oportunidade",
+    "resumo_campanhas", "funil_por_criativo", "alertas_campanhas", "resumo_diario",
 }
 ESCRITA = {
     "criar_lead", "atualizar_oportunidade", "mover_etapa", "atualizar_qualificacao",
@@ -32,7 +33,7 @@ class ProtocoloTests(unittest.IsolatedAsyncioTestCase):
             patch(f"{FER}.integracao_log_service.registrar"),
         ]
 
-    async def test_lista_as_18_ferramentas_com_esquemas(self) -> None:
+    async def test_lista_as_22_ferramentas_com_esquemas(self) -> None:
         async with Client(mcp) as client:
             resultado = await client.list_tools()
         por_nome = {t.name: t for t in resultado.tools}
