@@ -108,6 +108,9 @@ def aplicar_rastreio_retroativo(
     Liga leads ja existentes aos ids da Meta a partir da planilha de formularios.
     Nunca cria lead. Em ordem de created_time, entao o primeiro anuncio vence.
     Um unico commit no fim, depois de vincular as pendentes.
+
+    O chamador deve enviar as linhas da planilha inteira em ordem crescente de created_time
+    (lotes em sequência); a regra 'a mais antiga vence' vale entre lotes só nessa condição.
     """
     from . import vinculo
 

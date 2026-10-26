@@ -94,7 +94,7 @@ def receber_lead(
         _logar(status.HTTP_409_CONFLICT, "conflict")
         raise
     except Exception as exc:
-        _logar(status.HTTP_500_INTERNAL_SERVER_ERROR, "error", erro={"detalhe": str(exc)[:500]})
+        _logar(status.HTTP_500_INTERNAL_SERVER_ERROR, "error", erro={"tipo": type(exc).__name__, "detalhe": "Erro interno ao processar a requisição."})
         raise
 
     status_http = (
@@ -125,7 +125,12 @@ def rastrear_leads_meta(
     db: DbSessionDep,
     ctx: ApiKeyDep,
 ) -> RastreioMetaResponse:
-    """Carga retroativa: so atualiza leads existentes com os ids da Meta; nunca cria."""
+    """
+    Carga retroativa: so atualiza leads existentes com os ids da Meta; nunca cria.
+
+    O chamador deve enviar as linhas da planilha inteira em ordem crescente de created_time
+    (lotes em sequência); a regra 'a mais antiga vence' vale entre lotes só nessa condição.
+    """
     exigir_escopo(ctx, "leads:write")
     inicio = time.perf_counter()
 
@@ -151,7 +156,7 @@ def rastrear_leads_meta(
         resposta = rastreio_meta.aplicar_rastreio_retroativo(db, ctx.empId, payload.itens)
     except Exception as exc:
         db.rollback()
-        _logar(status.HTTP_500_INTERNAL_SERVER_ERROR, "error", erro={"detalhe": str(exc)[:500]})
+        _logar(status.HTTP_500_INTERNAL_SERVER_ERROR, "error", erro={"tipo": type(exc).__name__, "detalhe": "Erro interno ao processar a requisição."})
         raise
     _logar(status.HTTP_200_OK, "rastreio")
     return resposta

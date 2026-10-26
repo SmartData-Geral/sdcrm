@@ -117,8 +117,6 @@ class ApiDeLeadsTests(unittest.TestCase):
         self.assertTrue(any("888" in n and "primeiro anúncio" in n for n in notas))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class CargaRetroativaTests(unittest.TestCase):
@@ -252,3 +250,24 @@ class RotaRastreioTests(unittest.TestCase):
         self.escopos = frozenset()
         r = self.http.post("/api/v1/leads/rastreio-meta", json=self._corpo())
         self.assertEqual(r.status_code, 403)
+
+    def test_erro_500_nao_loga_dado_pessoal(self) -> None:
+        from unittest.mock import patch
+
+        from backend.models.integracao_requisicao_log import IntegracaoRequisicaoLog
+
+        http = self.http.__class__(self.http.app, raise_server_exceptions=False)
+        with patch.object(
+            rastreio, "aplicar_rastreio_retroativo", side_effect=RuntimeError("tel +5541999990000")
+        ):
+            r = http.post("/api/v1/leads/rastreio-meta", json=self._corpo())
+        self.assertEqual(r.status_code, 500)
+        linhas = list(self.db.scalars(select(IntegracaoRequisicaoLog)))
+        self.assertEqual(len(linhas), 1)
+        self.assertEqual(linhas[0].irlResultado, "error")
+        self.assertNotIn("5541999990000", str(linhas[0].irlErroJson))
+        self.assertIn("RuntimeError", str(linhas[0].irlErroJson))
+
+
+if __name__ == "__main__":
+    unittest.main()
