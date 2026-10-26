@@ -123,6 +123,30 @@ class CargaRetroativaTests(BaseTeste):
         etapa_historico.carga_retroativa(self.db, self.emp.empId, aplicar=True)
         self.assertEqual(len(linhas(self.db)), antes)
 
+    def test_nao_duplica_transicao_ao_vivo(self) -> None:
+        criada = oportunidade_service.create_oportunidade(
+            self.db, OportunidadeCreate(opoTitulo="X", opoEtkId=self.a.etkId), self.emp.empId
+        )
+        oportunidade_service.mover_etapa(
+            self.db, criada.opoId, OportunidadeMoverEtapaRequest(opoEtkId=self.b.etkId),
+            self.emp.empId,
+        )
+        antes = linhas(self.db)
+        r = etapa_historico.carga_retroativa(self.db, self.emp.empId, aplicar=True)
+        self.assertEqual(r, {"transicoes": 0, "criacoes": 0, "nao_casadas": 0})
+        self.assertEqual(linhas(self.db), antes)
+
+    def test_importa_texto_anterior_a_primeira_linha_ao_vivo(self) -> None:
+        opo = self._opo_com_texto('Etapa alterada de "Contatos" para "Reunião de Levantamento".')
+        etapa_historico.registrar_transicao(
+            self.db, opo, self.b.etkId, self.a.etkId, "ui",
+            datetime(2026, 10, 20, tzinfo=timezone.utc),
+        )
+        self.db.commit()
+        r = etapa_historico.carga_retroativa(self.db, self.emp.empId, aplicar=True)
+        self.assertEqual(r["transicoes"], 1)
+        self.assertEqual(r["criacoes"], 1)
+
     def test_simulacao_nao_grava(self) -> None:
         self._opo_com_texto('Etapa alterada de "Contatos" para "Reunião de Levantamento".')
         r = etapa_historico.carga_retroativa(self.db, self.emp.empId, aplicar=False)

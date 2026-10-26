@@ -69,6 +69,10 @@ def carga_retroativa(db: Session, emp_id: int, *, aplicar: bool) -> dict:
         if any(x.oehOrigem == "retroativo" for x in existentes):
             continue
         chaves = {(x.oehEtkIdPara, _chave_data(x.oehData)) for x in existentes}
+        # Linhas ao vivo ja cobrem tudo a partir da mais antiga: o texto correspondente
+        # tem timestamp ligeiramente diferente, entao o corte e por data, nao por igualdade.
+        mais_antiga = min(existentes, key=lambda x: _chave_data(x.oehData), default=None)
+        corte = _chave_data(mais_antiga.oehData) if mais_antiga else None
         tem_criacao = any(x.oehEtkIdDe is None for x in existentes)
         pipeline = pipeline_de.get(opo.opoEtkId)
 
@@ -80,7 +84,7 @@ def carga_retroativa(db: Session, emp_id: int, *, aplicar: bool) -> dict:
         encontradas = []
         for h in linhas:
             m = REGEX_TRANSICAO.search(h.ophConteudo or "")
-            if m:
+            if m and (corte is None or _chave_data(h.ophDataRegistro) < corte):
                 encontradas.append((h.ophDataRegistro, m.group(1), m.group(2)))
 
         novas = []
@@ -97,7 +101,7 @@ def carga_retroativa(db: Session, emp_id: int, *, aplicar: bool) -> dict:
                 continue
             novas.append((de, para, data))
         if not encontradas:
-            estagio_inicial = opo.opoEtkId
+            estagio_inicial = mais_antiga.oehEtkIdDe if mais_antiga else opo.opoEtkId
 
         for de, para, data in novas:
             contagem["transicoes"] += 1
