@@ -220,5 +220,64 @@ class PermissoesTests(unittest.TestCase):
         self.assertIn("/me/permissions", str(feitas[0].url))
 
 
+class AnuncioTests(unittest.TestCase):
+    def test_listar_anuncios_extrai_motivo(self):
+        corpo = {"data": [
+            {"id": "1", "name": "A", "adset_id": "s", "campaign_id": "c", "effective_status": "DISAPPROVED",
+             "created_time": "2026-09-10T12:00:00-0300", "issues_info": [{"error_summary": "Anúncio reprovado"}]},
+            {"id": "2", "name": "B", "adset_id": "s", "campaign_id": "c", "effective_status": "DISAPPROVED",
+             "ad_review_feedback": {"global": {"POLICY": "Texto"}}},
+        ]}
+        cliente, feitas, _ = _cliente([(200, corpo)])
+        with cliente:
+            anuncios = cliente.listar_anuncios("act_1")
+        self.assertEqual(anuncios[0].motivo, "Anúncio reprovado")
+        self.assertEqual(anuncios[0].criado_em, date(2026, 9, 10))
+        self.assertEqual(anuncios[1].motivo, "Texto")
+        self.assertIsNone(anuncios[1].criado_em)
+        self.assertEqual(anuncios[0].conjunto_id, "s")
+        self.assertIn("/act_1/ads", str(feitas[0].url))
+        self.assertEqual(feitas[0].url.params["limit"], "500")
+
+    def test_insights_anuncio_converte(self):
+        corpo = {"data": [{
+            "ad_id": "1", "ad_name": "A", "adset_id": "s", "campaign_id": "c", "date_start": "2026-10-01",
+            "spend": "12.30", "impressions": "1000", "reach": "800", "clicks": "40",
+            "inline_link_clicks": "25", "actions": [{"action_type": "lead", "value": "2"}],
+        }]}
+        cliente, feitas, _ = _cliente([(200, corpo)])
+        with cliente:
+            linhas = cliente.listar_insights_anuncios("act_1", date(2026, 10, 1), date(2026, 10, 2))
+        self.assertEqual(
+            linhas,
+            [g.InsightAnuncioDia("1", "A", "s", "c", date(2026, 10, 1), Decimal("12.30"), 1000, 800, 40, 25, 2)],
+        )
+        self.assertEqual(feitas[0].url.params["level"], "ad")
+        self.assertEqual(feitas[0].url.params["time_increment"], "1")
+
+    def test_frequencia_sem_time_increment(self):
+        corpo = {"data": [{"ad_id": "1", "impressions": "1000", "reach": "300", "frequency": "3.4"}]}
+        cliente, feitas, _ = _cliente([(200, corpo)])
+        with cliente:
+            r = cliente.frequencia_7_dias("act_1", date(2026, 10, 1), date(2026, 10, 7))
+        self.assertNotIn("time_increment", feitas[0].url.params)
+        self.assertEqual(r, [g.FrequenciaAnuncio("1", 1000, 300, 3.4)])
+
+    def test_status_conta(self):
+        cliente, _, _ = _cliente([(200, {"account_status": 3, "disable_reason": 0})])
+        with cliente:
+            self.assertEqual(cliente.obter_status_conta("act_1"), g.StatusConta(3, 0))
+
+    def test_conjuntos_paginam(self):
+        p1 = {"data": [{"id": "1", "name": "A", "campaign_id": "c", "effective_status": "ACTIVE"}],
+              "paging": {"next": "https://graph.facebook.com/v99.0/act_1/adsets?after=x"}}
+        p2 = {"data": [{"id": "2", "name": "B", "campaign_id": "c"}]}
+        cliente, _, _ = _cliente([(200, p1), (200, p2)])
+        with cliente:
+            conjuntos = cliente.listar_conjuntos("act_1")
+        self.assertEqual([c.id for c in conjuntos], ["1", "2"])
+        self.assertIsNone(conjuntos[1].status)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -80,6 +80,77 @@ class InsightDia:
     leads: int
 
 
+@dataclass(frozen=True)
+class ConjuntoMeta:
+    id: str
+    nome: str
+    campanha_id: str
+    status: str | None
+
+
+@dataclass(frozen=True)
+class AnuncioMeta:
+    id: str
+    nome: str
+    conjunto_id: str
+    campanha_id: str
+    status: str | None
+    motivo: str | None
+    criado_em: date | None
+
+
+@dataclass(frozen=True)
+class InsightAnuncioDia:
+    anuncio_id: str
+    anuncio_nome: str
+    conjunto_id: str
+    campanha_id: str
+    dia: date
+    investimento: Decimal
+    impressoes: int
+    alcance: int
+    cliques: int
+    cliques_link: int
+    leads: int
+
+
+@dataclass(frozen=True)
+class FrequenciaAnuncio:
+    anuncio_id: str
+    impressoes: int
+    alcance: int
+    frequencia: float
+
+
+@dataclass(frozen=True)
+class StatusConta:
+    account_status: int | None
+    disable_reason: int | None
+
+
+def _motivo_anuncio(linha: dict) -> str | None:
+    for problema in linha.get("issues_info") or []:
+        texto = problema.get("error_summary") or problema.get("error_message")
+        if texto:
+            return str(texto)[:300]
+    global_ = (linha.get("ad_review_feedback") or {}).get("global") or {}
+    for texto in global_.values():
+        if texto:
+            return str(texto)[:300]
+    return None
+
+
+def _data_criacao(valor) -> date | None:
+    try:
+        return date.fromisoformat(str(valor)[:10])
+    except ValueError:
+        return None
+
+
+def _inteiro_ou_none(valor) -> int | None:
+    return None if valor in (None, "") else int(valor)
+
+
 def normalizar_conta(valor: str | None) -> str:
     digitos = re.sub(r"\D", "", valor or "")
     if not digitos:
@@ -196,6 +267,89 @@ class ClienteGraph:
             )
             for linha in self._paginar(f"/{act_id}/insights", params)
         ]
+
+    def listar_conjuntos(self, act_id: str) -> list[ConjuntoMeta]:
+        params = {"fields": "id,name,campaign_id,effective_status", "limit": 500}
+        return [
+            ConjuntoMeta(
+                id=str(c["id"]),
+                nome=c.get("name") or str(c["id"]),
+                campanha_id=str(c.get("campaign_id") or ""),
+                status=c.get("effective_status"),
+            )
+            for c in self._paginar(f"/{act_id}/adsets", params)
+        ]
+
+    def listar_anuncios(self, act_id: str) -> list[AnuncioMeta]:
+        params = {
+            "fields": "id,name,adset_id,campaign_id,effective_status,created_time,"
+            "issues_info,ad_review_feedback",
+            "limit": 500,
+        }
+        return [
+            AnuncioMeta(
+                id=str(a["id"]),
+                nome=a.get("name") or str(a["id"]),
+                conjunto_id=str(a.get("adset_id") or ""),
+                campanha_id=str(a.get("campaign_id") or ""),
+                status=a.get("effective_status"),
+                motivo=_motivo_anuncio(a),
+                criado_em=_data_criacao(a.get("created_time")),
+            )
+            for a in self._paginar(f"/{act_id}/ads", params)
+        ]
+
+    def listar_insights_anuncios(
+        self, act_id: str, inicio: date, fim: date
+    ) -> list[InsightAnuncioDia]:
+        params = {
+            "level": "ad",
+            "time_increment": 1,
+            "time_range": json.dumps({"since": inicio.isoformat(), "until": fim.isoformat()}),
+            "fields": "ad_id,ad_name,adset_id,campaign_id,spend,impressions,reach,clicks,"
+            "inline_link_clicks,actions",
+            "limit": 500,
+        }
+        return [
+            InsightAnuncioDia(
+                anuncio_id=str(l["ad_id"]),
+                anuncio_nome=l.get("ad_name") or str(l["ad_id"]),
+                conjunto_id=str(l.get("adset_id") or ""),
+                campanha_id=str(l.get("campaign_id") or ""),
+                dia=date.fromisoformat(l["date_start"]),
+                investimento=Decimal(str(l.get("spend") or "0")),
+                impressoes=_inteiro(l.get("impressions")),
+                alcance=_inteiro(l.get("reach")),
+                cliques=_inteiro(l.get("clicks")),
+                cliques_link=_inteiro(l.get("inline_link_clicks")),
+                leads=extrair_leads(l.get("actions")),
+            )
+            for l in self._paginar(f"/{act_id}/insights", params)
+        ]
+
+    def frequencia_7_dias(self, act_id: str, inicio: date, fim: date) -> list[FrequenciaAnuncio]:
+        params = {
+            "level": "ad",
+            "time_range": json.dumps({"since": inicio.isoformat(), "until": fim.isoformat()}),
+            "fields": "ad_id,impressions,reach,frequency",
+            "limit": 500,
+        }
+        return [
+            FrequenciaAnuncio(
+                anuncio_id=str(l["ad_id"]),
+                impressoes=_inteiro(l.get("impressions")),
+                alcance=_inteiro(l.get("reach")),
+                frequencia=float(l.get("frequency") or 0),
+            )
+            for l in self._paginar(f"/{act_id}/insights", params)
+        ]
+
+    def obter_status_conta(self, act_id: str) -> StatusConta:
+        dados = self._get(f"/{act_id}", {"fields": "account_status,disable_reason"})
+        return StatusConta(
+            account_status=_inteiro_ou_none(dados.get("account_status")),
+            disable_reason=_inteiro_ou_none(dados.get("disable_reason")),
+        )
 
     def _paginar(self, caminho: str, params: dict) -> Iterator[dict]:
         dados = self._get(caminho, params)
