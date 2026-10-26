@@ -75,7 +75,7 @@ def mover_etapa(ctx: Context, oportunidade_id: int, etapa_id: int) -> dict:
     argumentos = dict(locals())
     with executar_ferramenta(ctx, "mover_etapa", escrita=True, argumentos=argumentos, opo_id=oportunidade_id) as s:
         opo = obter_oportunidade_ativa(s, oportunidade_id)
-        oportunidade_service.mover_etapa(s.db, oportunidade_id, OportunidadeMoverEtapaRequest(opoEtkId=etapa_id), s.empId)
+        oportunidade_service.mover_etapa(s.db, oportunidade_id, OportunidadeMoverEtapaRequest(opoEtkId=etapa_id), s.empId, origem="mcp")
         return responder_oportunidade(s, opo)
 
 

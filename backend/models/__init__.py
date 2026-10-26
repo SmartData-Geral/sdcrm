@@ -38,3 +38,4 @@ from .meta_ads_conjunto import MetaAdsConjunto  # noqa: F401
 from .meta_ads_anuncio import MetaAdsAnuncio  # noqa: F401
 from .meta_ads_insight_anuncio_diario import MetaAdsInsightAnuncioDiario  # noqa: F401
 from .meta_ads_sync_log import MetaAdsSyncLog  # noqa: F401
+from .oportunidade_etapa_historico import OportunidadeEtapaHistorico  # noqa: F401

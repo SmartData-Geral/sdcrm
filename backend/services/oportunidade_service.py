@@ -8,7 +8,7 @@ from ..exceptions import BadRequestError, NotFoundError
 from ..models.etapa_kanban import EtapaKanban
 from ..models.oportunidade import Oportunidade
 from ..models.oportunidade_historico import OportunidadeHistorico
-from . import webhook_emitter
+from . import etapa_historico, webhook_emitter
 from ..schemas.oportunidade import (
     OportunidadeCreate,
     OportunidadeGanharRequest,
@@ -194,11 +194,13 @@ def create_oportunidade(
     db: Session,
     data: OportunidadeCreate,
     company_id: Optional[int] = None,
+    origem: str = "ui",
 ) -> OportunidadeResponse:
     _validar_etapa_do_funil(db, data.opoEtkId, company_id)
     obj = Oportunidade(opoEmpId=company_id, **data.model_dump())
     db.add(obj)
     db.flush()
+    etapa_historico.registrar_transicao(db, obj, None, obj.opoEtkId, origem)
     _registrar_historico_automatico(db, obj, "Oportunidade criada.")
     # Enfileirado ANTES do commit: evento e mudanca na mesma transacao (outbox).
     # deal.created, e nao lead.created: esta funcao e o caminho da UI. Leads entrando
@@ -216,6 +218,7 @@ def update_oportunidade(
     opo_id: int,
     data: OportunidadeUpdate,
     company_id: Optional[int] = None,
+    origem: str = "ui",
 ) -> OportunidadeResponse:
     obj = get_oportunidade(db, opo_id, company_id)
     etapa_atual_pipeline = _get_pipeline_from_etapa_id(db, obj.opoEtkId, company_id)
@@ -231,6 +234,9 @@ def update_oportunidade(
         for campo in webhook_emitter.CAMPOS_DE_CONTATO
     )
     if etapa_mudou:
+        etapa_historico.registrar_transicao(
+            db, obj, pre_imagem.get("opoEtkId"), obj.opoEtkId, origem
+        )
         webhook_emitter.enfileirar(
             db,
             tipo="deal.stage_changed",
@@ -350,6 +356,7 @@ def mover_etapa(
     opo_id: int,
     data: OportunidadeMoverEtapaRequest,
     company_id: Optional[int] = None,
+    origem: str = "ui",
 ) -> OportunidadeResponse:
     obj = get_oportunidade(db, opo_id, company_id)
     etapa_anterior = obj.opoEtkId
@@ -357,6 +364,7 @@ def mover_etapa(
     _validar_etapa_do_funil(db, data.opoEtkId, company_id, pipeline_atual)
     obj.opoEtkId = data.opoEtkId
     if etapa_anterior != data.opoEtkId:
+        etapa_historico.registrar_transicao(db, obj, etapa_anterior, data.opoEtkId, origem)
         nome_etapa_anterior = _get_nome_etapa(db, etapa_anterior, company_id)
         nome_etapa_nova = _get_nome_etapa(db, data.opoEtkId, company_id)
         _registrar_historico_automatico(

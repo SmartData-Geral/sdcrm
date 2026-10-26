@@ -30,7 +30,7 @@ from ..models.etapa_kanban import EtapaKanban
 from ..models.oportunidade import Oportunidade
 from ..models.oportunidade_historico import OportunidadeHistorico
 from ..models.usuario import Usuario
-from . import webhook_emitter
+from . import etapa_historico, webhook_emitter
 from .meta_ads import vinculo as vinculo_meta_ads
 from .lead_normalizacao import (
     normalizar_email,
@@ -526,6 +526,7 @@ def _criar(
     )
     db.add(oportunidade)
     db.flush()
+    etapa_historico.registrar_transicao(db, oportunidade, None, oportunidade.opoEtkId, "api")
 
     conteudo = resumo_para_historico(payload)
     if decisao.ciclo_anterior_id:
