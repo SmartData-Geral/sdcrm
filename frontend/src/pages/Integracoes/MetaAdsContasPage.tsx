@@ -18,6 +18,7 @@ interface Conta {
   macUltimaSync: string | null;
   macCargaInicialFeita: boolean;
   macAtivo: boolean;
+  macExigirRastreio: boolean;
   origens: number[];
 }
 
@@ -55,7 +56,7 @@ const badge = (status: string) => {
   return <span className={`integracao-badge ${s.classe}`}>{s.rotulo}</span>;
 };
 
-const FORM_VAZIO = { nome: "", conta: "", token: "", origens: [] as number[] };
+const FORM_VAZIO = { nome: "", conta: "", token: "", origens: [] as number[], exigirRastreio: false };
 
 const MetaAdsContasPage: React.FC = () => {
   const { api } = useAuth();
@@ -124,7 +125,7 @@ const MetaAdsContasPage: React.FC = () => {
 
   const abrirEdicao = (row: Conta) => {
     setEditando(row);
-    setForm({ nome: row.macNome, conta: row.macContaExterna, token: "", origens: row.origens });
+    setForm({ nome: row.macNome, conta: row.macContaExterna, token: "", origens: row.origens, exigirRastreio: row.macExigirRastreio });
     setErro(null);
     setModalOpen(true);
   };
@@ -135,7 +136,7 @@ const MetaAdsContasPage: React.FC = () => {
     setErro(null);
     try {
       if (editando) {
-        const corpo: Record<string, unknown> = { macNome: form.nome, origens: form.origens };
+        const corpo: Record<string, unknown> = { macNome: form.nome, origens: form.origens, macExigirRastreio: form.exigirRastreio };
         if (form.token.trim()) corpo.token = form.token;
         await api.put(`/meta-ads/contas/${editando.macId}`, corpo);
       } else {
@@ -144,6 +145,7 @@ const MetaAdsContasPage: React.FC = () => {
           macContaExterna: form.conta,
           token: form.token,
           origens: form.origens,
+          macExigirRastreio: form.exigirRastreio,
         });
       }
       setModalOpen(false);
@@ -390,6 +392,18 @@ const MetaAdsContasPage: React.FC = () => {
               Leads dessas origens sem campanha identificada entram no total da conta, como "campanha não identificada".
             </span>
           </fieldset>
+          <label className="checkbox-inline">
+            <input
+              type="checkbox"
+              checked={form.exigirRastreio}
+              onChange={(e) => setForm((f) => ({ ...f, exigirRastreio: e.target.checked }))}
+              disabled={salvando}
+            />
+            Contar só leads com rastreio da Meta
+          </label>
+          <span className="field-hint">
+            Leads de origem mapeada sem ID da Meta deixam de contar e vão para revisão.
+          </span>
           <div className="modal-actions">
             <button type="button" onClick={() => setModalOpen(false)} disabled={salvando}>
               Cancelar

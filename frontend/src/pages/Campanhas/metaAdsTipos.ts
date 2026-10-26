@@ -1,4 +1,8 @@
+export type NivelLinha = "campanha" | "conjunto" | "anuncio" | "nao_identificada" | "total";
+
 export interface MetaAdsLinha {
+  nivel: NivelLinha;
+  id: number | null;
   mcgId: number | null;
   nome: string;
   status: string | null;
@@ -8,14 +12,28 @@ export interface MetaAdsLinha {
   cliques: number;
   leadsMeta: number;
   leadsCrm: number;
+  mqls: number;
+  oportunidades: number;
   vendas: number;
   mrr: number;
   projeto: number;
   ctr: number | null;
   cpc: number | null;
   cpl: number | null;
+  custoLeadCrm: number | null;
+  custoMql: number | null;
+  custoOportunidade: number | null;
   cac: number | null;
   retorno: number | null;
+  horasPrimeiroContato: number | null;
+  filhos: MetaAdsLinha[];
+}
+
+export interface MetaAdsRevisaoItem {
+  opoId: number;
+  opoTitulo: string;
+  opoNomeContato: string | null;
+  opoDataRecebimento: string | null;
 }
 
 export interface MetaAdsPainel {
@@ -23,6 +41,8 @@ export interface MetaAdsPainel {
   total: MetaAdsLinha;
   campanhas: MetaAdsLinha[];
   naoIdentificada: MetaAdsLinha | null;
+  cobertura: number | null;
+  revisaoOrigem: MetaAdsRevisaoItem[];
 }
 
 export interface MetaAdsSerieDia {
@@ -103,3 +123,6 @@ export function intervaloMesCorrente(): { inicio: string; fim: string } {
   const hoje = new Date();
   return { inicio: isoLocal(new Date(hoje.getFullYear(), hoje.getMonth(), 1)), fim: isoLocal(hoje) };
 }
+
+export const horas = (v: number | null | undefined) =>
+  v == null ? "—" : v.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });

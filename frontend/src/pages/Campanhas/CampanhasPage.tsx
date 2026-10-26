@@ -10,6 +10,8 @@ import {
   MetaAdsPainel,
   intervaloAnoCorrente,
   intervaloMesCorrente,
+  dataBR,
+  horas,
   inteiro,
   moeda,
   multiplicador,
@@ -31,6 +33,7 @@ const CampanhasPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [detalheId, setDetalheId] = useState<number | null>(null);
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     api
@@ -81,53 +84,80 @@ const CampanhasPage: React.FC = () => {
     setFim(r.fim);
   };
 
-  const linhaTabela = (l: MetaAdsLinha, opcoes: { clicavel: boolean; classe?: string }) => (
-    <tr
-      key={l.mcgId ?? l.nome}
-      className={`${opcoes.clicavel ? "dashboard-ranking-row--clickable" : ""} ${opcoes.classe ?? ""}`}
-      tabIndex={opcoes.clicavel ? 0 : undefined}
-      onClick={opcoes.clicavel ? () => setDetalheId(l.mcgId) : undefined}
-      onKeyDown={
-        opcoes.clicavel
-          ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setDetalheId(l.mcgId);
-              }
-            }
-          : undefined
+  const alternar = (chave: string) =>
+    setExpandidos((atual) => {
+      const novo = new Set(atual);
+      if (novo.has(chave)) novo.delete(chave);
+      else novo.add(chave);
+      return novo;
+    });
+
+  const linhaTabela = (l: MetaAdsLinha, opcoes: { classe?: string; nivel?: number }): React.ReactNode[] => {
+    const nivel = opcoes.nivel ?? 0;
+    const chave = `${l.nivel}:${l.id}`;
+    const temFilhos = l.filhos.length > 0;
+    const aberto = expandidos.has(chave);
+    const clicavel = l.nivel === "campanha" && l.mcgId != null;
+    const nomeTexto = l.nome;
+    const linhas: React.ReactNode[] = [
+      <tr key={`${l.nivel}:${l.id ?? l.nome}`} className={opcoes.classe ?? ""}>
+        <td className="campanhas-col-nome" style={{ paddingLeft: `${0.5 + nivel * 1.25}rem` }}>
+          {temFilhos ? (
+            <button
+              type="button"
+              className="campanhas-expansor"
+              aria-expanded={aberto}
+              aria-label={aberto ? "Recolher" : "Expandir"}
+              onClick={() => alternar(chave)}
+            >
+              {aberto ? "▾" : "▸"}
+            </button>
+          ) : (
+            <span className="campanhas-expansor" aria-hidden="true" style={{ display: "inline-block" }} />
+          )}
+          {clicavel ? (
+            <button type="button" className="link-button" onClick={() => setDetalheId(l.mcgId)}>
+              {nomeTexto}
+            </button>
+          ) : (
+            nomeTexto
+          )}
+        </td>
+        <td>{l.nivel === "total" || l.nivel === "nao_identificada" ? "" : rotuloStatusCampanha(l.status)}</td>
+        <td>{moeda(l.investimento)}</td>
+        <td>{inteiro(l.impressoes)}</td>
+        <td>{inteiro(l.cliques)}</td>
+        <td>{percentual(l.ctr)}</td>
+        <td>{moeda(l.cpc)}</td>
+        <td>{l.leadsMeta}</td>
+        <td>{moeda(l.cpl)}</td>
+        <td>{l.leadsCrm}</td>
+        <td>{moeda(l.custoLeadCrm)}</td>
+        <td>{l.mqls}</td>
+        <td>{moeda(l.custoMql)}</td>
+        <td>{l.oportunidades}</td>
+        <td>{moeda(l.custoOportunidade)}</td>
+        <td>{l.vendas}</td>
+        <td>{moeda(l.cac)}</td>
+        <td>{moeda(l.mrr)}</td>
+        <td>{moeda(l.projeto)}</td>
+        <td>{multiplicador(l.retorno)}</td>
+        <td>{horas(l.horasPrimeiroContato)}</td>
+      </tr>,
+    ];
+    if (temFilhos && aberto) {
+      for (const f of l.filhos) {
+        linhas.push(...linhaTabela(f, { nivel: nivel + 1, classe: `campanhas-nivel-${f.nivel}` }));
       }
-    >
-      <td className="campanhas-col-nome">{l.nome}</td>
-      <td>{l.mcgId != null ? rotuloStatusCampanha(l.status) : ""}</td>
-      <td>{moeda(l.investimento)}</td>
-      <td>{inteiro(l.impressoes)}</td>
-      <td>{inteiro(l.cliques)}</td>
-      <td>{percentual(l.ctr)}</td>
-      <td>{moeda(l.cpc)}</td>
-      <td>{l.leadsMeta}</td>
-      <td>{l.leadsCrm}</td>
-      <td>{moeda(l.cpl)}</td>
-      <td>{l.vendas}</td>
-      <td>{moeda(l.cac)}</td>
-      <td>{moeda(l.mrr)}</td>
-      <td>{moeda(l.projeto)}</td>
-      <td>{multiplicador(l.retorno)}</td>
-    </tr>
-  );
+    }
+    return linhas;
+  };
 
   const semConta = painel && !painel.temConta;
   const t = painel?.total;
 
   return (
     <Layout>
-      <section className="surface-card details-card integracao-header">
-        <div>
-          <h2 className="section-title">Campanhas</h2>
-          <p className="muted-text">Investimento do Meta Ads cruzado com os leads e as vendas do CRM.</p>
-        </div>
-      </section>
-
       <section className="dashboard-filters campanhas-filtros">
         <label>
           De
@@ -181,15 +211,18 @@ const CampanhasPage: React.FC = () => {
         <>
           <section className="dashboard-cards-row campanhas-cards">
             {[
-              ["Investimento", moeda(t.investimento)],
-              ["Leads CRM", String(t.leadsCrm)],
-              ["CPL", moeda(t.cpl)],
-              ["Vendas", String(t.vendas)],
-              ["CAC", moeda(t.cac)],
-              ["MRR", moeda(t.mrr)],
-              ["Retorno", multiplicador(t.retorno)],
-            ].map(([rotulo, valor]) => (
-              <div key={rotulo} className="dashboard-card">
+              ["Investimento", moeda(t.investimento), undefined],
+              ["Leads Meta", String(t.leadsMeta), undefined],
+              ["CPL", moeda(t.cpl), undefined],
+              ["MQLs", String(t.mqls), undefined],
+              ["Custo/MQL", moeda(t.custoMql), undefined],
+              ["Oportunidades", String(t.oportunidades), undefined],
+              ["Contratos", String(t.vendas), undefined],
+              ["CAC", moeda(t.cac), undefined],
+              ["Retorno", multiplicador(t.retorno), undefined],
+              ["Cobertura de rastreio", painel.cobertura == null ? "—" : percentual(painel.cobertura), "% dos leads da Meta com ID do anúncio; meta ≥ 90%"],
+            ].map(([rotulo, valor, dica]) => (
+              <div key={rotulo} className="dashboard-card" title={dica}>
                 <strong className="dashboard-card-value">{valor}</strong>
                 <span className="dashboard-card-label">{rotulo}</span>
               </div>
@@ -201,7 +234,7 @@ const CampanhasPage: React.FC = () => {
               <table className="dashboard-ranking-table campanhas-tabela">
                 <thead>
                   <tr>
-                    <th>Campanha</th>
+                    <th>Campanha / Anúncio</th>
                     <th>Status</th>
                     <th>Investimento</th>
                     <th>Impressões</th>
@@ -209,30 +242,68 @@ const CampanhasPage: React.FC = () => {
                     <th>CTR</th>
                     <th>CPC</th>
                     <th>Leads Meta</th>
-                    <th>Leads CRM</th>
                     <th>CPL</th>
-                    <th>Vendas</th>
+                    <th>Leads CRM</th>
+                    <th>Custo/lead CRM</th>
+                    <th>MQLs</th>
+                    <th>Custo/MQL</th>
+                    <th>Oportunidades</th>
+                    <th>Custo/oportunidade</th>
+                    <th>Contratos</th>
                     <th>CAC</th>
                     <th>MRR</th>
                     <th>Projeto</th>
                     <th title="(MRR × 12 + Projeto) ÷ Investimento">Retorno</th>
+                    <th>Tempo até 1º contato (h)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {painel.campanhas.length === 0 && !painel.naoIdentificada ? (
                     <tr>
-                      <td colSpan={15} className="muted-text">
+                      <td colSpan={21} className="muted-text">
                         Sem investimento nem leads no período.
                       </td>
                     </tr>
                   ) : null}
-                  {painel.campanhas.map((l) => linhaTabela(l, { clicavel: true }))}
-                  {painel.naoIdentificada ? linhaTabela(painel.naoIdentificada, { clicavel: false, classe: "campanhas-linha-nao-identificada" }) : null}
+                  {painel.campanhas.flatMap((l) => linhaTabela(l, {}))}
+                  {painel.naoIdentificada ? linhaTabela(painel.naoIdentificada, { classe: "campanhas-linha-nao-identificada" }) : null}
                 </tbody>
-                <tfoot>{linhaTabela(t, { clicavel: false, classe: "campanhas-linha-total" })}</tfoot>
+                <tfoot>{linhaTabela(t, { classe: "campanhas-linha-total" })}</tfoot>
               </table>
             </div>
           </section>
+
+          {painel.revisaoOrigem.length > 0 && (
+            <section className="surface-card details-card campanhas-revisao">
+              <h3 className="section-title">Origem Anúncios sem registro na Meta</h3>
+              <p className="muted-text">
+                Leads com origem mapeada como Meta Ads, mas sem nenhum sinal da Meta (campanha, conjunto ou anúncio). Revise a origem
+                de cada um.
+              </p>
+              <div className="campanhas-tabela-scroll">
+                <table className="dashboard-ranking-table">
+                  <thead>
+                    <tr>
+                      <th>Lead</th>
+                      <th>Contato</th>
+                      <th>Recebido</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {painel.revisaoOrigem.map((r) => (
+                      <tr key={r.opoId}>
+                        <td>
+                          <Link to={`/oportunidades/${r.opoId}`}>{r.opoTitulo}</Link>
+                        </td>
+                        <td>{r.opoNomeContato ?? "—"}</td>
+                        <td>{dataBR(r.opoDataRecebimento)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
         </>
       )}
 
