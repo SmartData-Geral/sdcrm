@@ -57,6 +57,28 @@ class AplicarIdsTests(unittest.TestCase):
         self.assertEqual(len(notas), 1)
         self.assertIn("B", notas[0].ophConteudo)
 
+    def test_nota_de_reenvio_usa_nome_do_anuncio_sincronizado(self) -> None:
+        conta = b.criar_conta(self.db, self.emp.empId)
+        conj = b.criar_conjunto(self.db, b.criar_campanha(self.db, conta, "c1", "Camp"), "s1", "Conj")
+        b.criar_anuncio(self.db, conj, "B", "Vídeo depoimento")
+        outra = b.criar_empresa(self.db, "Outra")
+        conj_outra = b.criar_conjunto(
+            self.db, b.criar_campanha(self.db, b.criar_conta(self.db, outra.empId, act="act_9"), "c9", "X"), "s9", "Y"
+        )
+        b.criar_anuncio(self.db, conj_outra, "C", "Anúncio de outra empresa")
+        opo = b.criar_oportunidade(self.db, self.emp.empId, opoMetaAnuncioId="A")
+        rastreio.aplicar_ids_meta(self.db, opo, meta_lead_id=None, campaign_id=None, adset_id=None, ad_id="B")
+        rastreio.aplicar_ids_meta(self.db, opo, meta_lead_id=None, campaign_id=None, adset_id=None, ad_id="C")
+        self.db.flush()
+        notas = sorted(h.ophConteudo for h in self._historico(opo))
+        self.assertEqual(
+            notas,
+            sorted([
+                "Novo envio pelo anúncio Vídeo depoimento (crédito mantido no primeiro anúncio).",
+                "Novo envio pelo anúncio C (crédito mantido no primeiro anúncio).",
+            ]),
+        )
+
     def test_mesmo_anuncio_nao_gera_nota(self) -> None:
         opo = b.criar_oportunidade(self.db, self.emp.empId, opoMetaAnuncioId="A")
         ok = rastreio.aplicar_ids_meta(

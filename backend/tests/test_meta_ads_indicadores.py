@@ -271,6 +271,33 @@ class PainelTests(unittest.TestCase):
         self.assertEqual([l.mcgId for l in p.campanhas], [c3.mcgId])
         self.assertIsNone(p.naoIdentificada)  # a conta nova nao tem origens mapeadas
 
+    def test_anuncios_de_outra_empresa_nao_entram(self) -> None:
+        antes = self._painel()
+        outra = b.criar_empresa(self.db, "Outra com anúncio")
+        conta_outra = b.criar_conta(self.db, outra.empId, act="act_999")
+        camp_outra = b.criar_campanha(self.db, conta_outra, "1", "Campanha 1")  # mesmo id externo
+        conj_outra = b.criar_conjunto(self.db, camp_outra, "11", "Conjunto 1")
+        anu_outra = b.criar_anuncio(self.db, conj_outra, "111", "Anúncio A")
+        b.criar_insight(self.db, camp_outra, date(2026, 10, 2), 5000, leads=50)
+        b.criar_insight_anuncio(self.db, anu_outra, date(2026, 10, 2), 5000, leads=50)
+        b.criar_oportunidade(
+            self.db, outra.empId, opoMcgId=camp_outra.mcgId, opoManId=anu_outra.manId,
+            opoMetaAnuncioId="111", opoDataRecebimento=date(2026, 10, 5),
+        )
+        depois = self._painel()
+        self.assertEqual(depois.model_dump(), antes.model_dump())
+        ids = []
+
+        def coletar(linhas):
+            for l in linhas:
+                ids.append((l.nivel, l.id))
+                coletar(l.filhos)
+
+        coletar(depois.campanhas)
+        self.assertNotIn(("anuncio", anu_outra.manId), ids)
+        self.assertNotIn(("conjunto", conj_outra.mcjId), ids)
+        self.assertEqual(depois.total.investimento, 400.0)
+
     def test_periodo_vazio(self) -> None:
         p = ind.painel(self.db, self.emp.empId, ind.FiltroPainel(date(2030, 1, 1), date(2030, 1, 31)))
         self.assertEqual(p.campanhas, [])

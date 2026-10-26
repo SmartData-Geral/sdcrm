@@ -2,7 +2,8 @@
 Liga oportunidades as campanhas do Meta pelo texto que chega nos campos UTM.
 
 Primeiro, o id do anuncio vindo da Meta (opoMetaAnuncioId) resolve o anuncio e a campanha.
-Depois, a regra por texto: normaliza (minusculas, espacos colapsados) cada campo candidato e procura, na
+Depois, o id da campanha vindo da Meta (opoMetaCampanhaId), casado exatamente com o id externo.
+Por fim, a regra por texto: normaliza (minusculas, espacos colapsados) cada campo candidato e procura, na
 empresa do lead, campanha com aquele id externo ou aquele nome normalizado. Liga so se
 exatamente UMA campanha casar. Nunca mexe em oportunidade ja ligada ou marcada como manual.
 Nenhuma funcao daqui faz commit: quem chama decide a transacao.
@@ -74,6 +75,17 @@ def _anuncio_da_empresa(db: Session, emp_id: int, anuncio_externo: str):
     return achados[0] if len(achados) == 1 else None
 
 
+def _campanha_da_empresa(db: Session, emp_id: int, campanha_externa: str) -> int | None:
+    """mcgId da campanha com esse id externo na empresa; None se nao existe ou se for ambiguo."""
+    achados = db.scalars(
+        select(MetaAdsCampanha.mcgId).where(
+            MetaAdsCampanha.mcgEmpId == emp_id,
+            MetaAdsCampanha.mcgCampanhaExterna == campanha_externa,
+        )
+    ).all()
+    return achados[0] if len(achados) == 1 else None
+
+
 def _vincular_por_anuncio(db: Session, opo: Oportunidade) -> bool:
     if not opo.opoMetaAnuncioId:
         return False
@@ -94,10 +106,15 @@ def _vincular_por_anuncio(db: Session, opo: Oportunidade) -> bool:
 def vincular_oportunidade(
     db: Session, opo: Oportunidade, indice: IndiceCampanhas | None = None
 ) -> bool:
-    # Primeiro pelo anuncio (id exato vindo da Meta); so depois a regra por nome/UTM.
+    # Primeiro pelo anuncio, depois pela campanha (ids exatos vindos da Meta); so entao nome/UTM.
     mudou = _vincular_por_anuncio(db, opo)
     if opo.opoMcgManual or opo.opoMcgId is not None:
         return mudou
+    if opo.opoMetaCampanhaId:
+        mcg_id = _campanha_da_empresa(db, opo.opoEmpId, opo.opoMetaCampanhaId)
+        if mcg_id is not None:
+            opo.opoMcgId = mcg_id
+            return True
     textos = candidatos(opo)
     if not textos:
         return mudou
@@ -153,8 +170,18 @@ def vincular_pendentes(db: Session, emp_id: int) -> int:
         ).where(MetaAdsAnuncio.manEmpId == emp_id)
     ).all():
         anuncios.setdefault(externo, set()).add((man_id, mcg_id))
+    campanhas: dict[str, set[int]] = {}
+    for mcg_id, externa in db.execute(
+        select(MetaAdsCampanha.mcgId, MetaAdsCampanha.mcgCampanhaExterna).where(
+            MetaAdsCampanha.mcgEmpId == emp_id
+        )
+    ).all():
+        campanhas.setdefault(externa, set()).add(mcg_id)
 
-    tem_candidato = or_(*[getattr(Oportunidade, c).isnot(None) for c in CAMPOS_CANDIDATOS])
+    tem_candidato = or_(
+        Oportunidade.opoMetaCampanhaId.isnot(None),
+        *[getattr(Oportunidade, c).isnot(None) for c in CAMPOS_CANDIDATOS],
+    )
     sem_campanha = (Oportunidade.opoMcgId.is_(None)) & (Oportunidade.opoMcgManual.is_(False))
     sem_anuncio = (Oportunidade.opoManId.is_(None)) & (Oportunidade.opoMetaAnuncioId.isnot(None))
     pendentes = db.execute(
@@ -173,7 +200,8 @@ def vincular_pendentes(db: Session, emp_id: int) -> int:
                 db, opo.opoId, man_id, mcg_id, ligar_campanha=not opo.opoMcgManual
             )
         if not ligou and opo.opoMcgId is None and not opo.opoMcgManual:
-            mcg_id = indice.resolver(candidatos(opo))
+            por_id = campanhas.get(opo.opoMetaCampanhaId or "", set())
+            mcg_id = next(iter(por_id)) if len(por_id) == 1 else indice.resolver(candidatos(opo))
             ligou = mcg_id is not None and _ligar_se_pendente(db, opo.opoId, mcg_id)
         if ligou:
             total += 1

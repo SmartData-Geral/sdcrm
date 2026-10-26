@@ -212,6 +212,15 @@ class PermissoesTests(unittest.TestCase):
             {"ads_management", "pages_manage_ads", "publish_video", "business_management"},
         )
 
+    def test_publish_e_pages_messaging_sao_escrita(self):
+        self.assertEqual(
+            g.permissoes_de_escrita(
+                {"ads_read", "read_insights", "instagram_content_publish", "pages_messaging",
+                 "publish_to_groups", "whatsapp_business_messaging"}
+            ),
+            {"instagram_content_publish", "pages_messaging", "publish_to_groups"},
+        )
+
     def test_listar_permissoes_so_granted(self):
         corpo = {"data": [{"permission": "ads_read", "status": "granted"}, {"permission": "ads_management", "status": "declined"}]}
         cliente, feitas, _ = _cliente([(200, corpo)])

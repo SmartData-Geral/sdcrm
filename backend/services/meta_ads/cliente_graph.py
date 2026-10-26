@@ -155,10 +155,11 @@ def normalizar_conta(valor: str | None) -> str:
 
 
 def permissoes_de_escrita(permissoes: set[str]) -> set[str]:
+    """Escrita: as de PERMISSOES_ESCRITA, qualquer `*manage*` ou `*publish*` e `pages_messaging`."""
     return {
         p
         for p in permissoes
-        if p in PERMISSOES_ESCRITA or "manage" in p or p.startswith("publish")
+        if p in PERMISSOES_ESCRITA or "manage" in p or "publish" in p or p == "pages_messaging"
     }
 
 

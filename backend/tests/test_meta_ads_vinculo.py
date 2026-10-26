@@ -65,6 +65,46 @@ class VinculoTests(unittest.TestCase):
         self.assertFalse(vinculo.vincular_oportunidade(self.db, opo))
         self.assertEqual(opo.opoMcgId, outra.mcgId)
 
+    def test_liga_pelo_id_da_campanha_da_meta(self) -> None:
+        opo = b.criar_oportunidade(self.db, self.emp.empId, opoMetaCampanhaId="120210000001")
+        self.assertTrue(vinculo.vincular_oportunidade(self.db, opo))
+        self.assertEqual(opo.opoMcgId, self.camp.mcgId)
+
+    def test_id_da_campanha_da_meta_vence_o_utm(self) -> None:
+        b.criar_campanha(self.db, self.conta, "555", "Outra campanha")
+        opo = b.criar_oportunidade(
+            self.db, self.emp.empId, opoMetaCampanhaId="120210000001", opoUtmSource="outra campanha"
+        )
+        self.assertTrue(vinculo.vincular_oportunidade(self.db, opo))
+        self.assertEqual(opo.opoMcgId, self.camp.mcgId)
+
+    def test_id_da_campanha_da_meta_respeita_manual(self) -> None:
+        opo = b.criar_oportunidade(
+            self.db, self.emp.empId, opoMetaCampanhaId="120210000001", opoMcgManual=True
+        )
+        self.assertFalse(vinculo.vincular_oportunidade(self.db, opo))
+        self.assertIsNone(opo.opoMcgId)
+
+    def test_id_da_campanha_de_outra_empresa_nao_liga(self) -> None:
+        outra_emp = b.criar_empresa(self.db, "Outra")
+        opo = b.criar_oportunidade(self.db, outra_emp.empId, opoMetaCampanhaId="120210000001")
+        self.assertFalse(vinculo.vincular_oportunidade(self.db, opo))
+        self.assertIsNone(opo.opoMcgId)
+
+    def test_vincular_pendentes_usa_id_da_campanha_da_meta(self) -> None:
+        b.criar_campanha(self.db, self.conta, "555", "Outra campanha")
+        ligada = b.criar_oportunidade(
+            self.db, self.emp.empId, opoMetaCampanhaId="120210000001", opoUtmSource="outra campanha"
+        )
+        manual = b.criar_oportunidade(
+            self.db, self.emp.empId, opoMetaCampanhaId="120210000001", opoMcgManual=True
+        )
+        ids = (ligada.opoId, manual.opoId)
+        self.assertEqual(vinculo.vincular_pendentes(self.db, self.emp.empId), 1)
+        self.db.expire_all()
+        self.assertEqual(self.db.get(b.Oportunidade, ids[0]).opoMcgId, self.camp.mcgId)
+        self.assertIsNone(self.db.get(b.Oportunidade, ids[1]).opoMcgId)
+
     def test_vincular_pendentes_conta_e_respeita_regras(self) -> None:
         b.criar_oportunidade(self.db, self.emp.empId, opoUtmSource=NOME)
         b.criar_oportunidade(self.db, self.emp.empId, opoUtmTerm="120210000001")
@@ -183,6 +223,14 @@ class VinculoPorAnuncioTests(unittest.TestCase):
         self.assertTrue(vinculo.vincular_oportunidade(self.db, opo))
         self.assertEqual(opo.opoMcgId, self.camp.mcgId)
         self.assertNotEqual(opo.opoMcgId, outra.mcgId)
+
+    def test_vincular_oportunidade_manual_sem_campanha_nao_ganha_campanha_do_anuncio(self) -> None:
+        opo = b.criar_oportunidade(
+            self.db, self.emp.empId, opoMetaAnuncioId="999", opoMcgManual=True, opoMcgId=None
+        )
+        vinculo.vincular_oportunidade(self.db, opo)
+        self.assertIsNone(opo.opoMcgId)
+        self.assertEqual(opo.opoManId, self.anuncio.manId)
 
     def test_anuncio_de_outra_empresa_nao_liga(self) -> None:
         outra_emp = b.criar_empresa(self.db, "Outra")

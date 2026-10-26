@@ -12,6 +12,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ...core.tempo import utcnow
+from ...models.meta_ads_anuncio import MetaAdsAnuncio
 from ...models.oportunidade import Oportunidade
 from ...models.oportunidade_historico import OportunidadeHistorico
 from ...schemas.lead_integracao import RastreioMetaItem, RastreioMetaResponse
@@ -35,6 +36,16 @@ def limpar_id_meta(valor: str | None) -> str | None:
             texto = texto[len(prefixo):].strip()
             break
     return texto[:40] or None
+
+
+def _nome_do_anuncio(db: Session, emp_id: int, anuncio_externo: str) -> str:
+    """Nome do anuncio sincronizado na empresa; o proprio id se nao achar (ou se for ambiguo)."""
+    nomes = db.scalars(
+        select(MetaAdsAnuncio.manNome).where(
+            MetaAdsAnuncio.manEmpId == emp_id, MetaAdsAnuncio.manAnuncioExterno == anuncio_externo
+        )
+    ).all()
+    return nomes[0] if len(nomes) == 1 and nomes[0] else anuncio_externo
 
 
 def aplicar_ids_meta(
@@ -63,7 +74,7 @@ def aplicar_ids_meta(
                 ophUsuId=None,
                 ophDataRegistro=utcnow(),
                 ophConteudo="Novo envio pelo anúncio "
-                + anuncio_novo
+                + _nome_do_anuncio(db, opo.opoEmpId, anuncio_novo)
                 + " (crédito mantido no primeiro anúncio).",
             )
         )
