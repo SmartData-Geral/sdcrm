@@ -749,4 +749,12 @@ def avaliar_diarios_todas(hoje: date, *, fabrica_sessao=None) -> int:
 
 
 def avaliar_horarios_todas(agora: datetime, *, fabrica_sessao=None) -> int:
-    return _para_cada_empresa(lambda db, e: avaliar_horarios(db, e, agora), fabrica_sessao, "horaria")
+    """Rodada horaria por empresa: alertas e, se for a hora, o resumo diario (mesmo try/except)."""
+
+    def avaliar(db: Session, emp_id: int) -> None:
+        from . import resumo
+
+        avaliar_horarios(db, emp_id, agora)
+        resumo.gerar_se_devido(db, emp_id, agora)
+
+    return _para_cada_empresa(avaliar, fabrica_sessao, "horaria")

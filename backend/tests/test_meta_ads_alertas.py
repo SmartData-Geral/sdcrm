@@ -526,11 +526,17 @@ class TodasEmpresasTests(BaseAlertas):
         engine = self.db.get_bind()
         a.avaliar_horarios = avaliar
         try:
-            ok = a.avaliar_horarios_todas(AGORA, fabrica_sessao=lambda: Session(bind=engine))
+            with patch(
+                "backend.services.meta_ads.resumo.gerar_se_devido", return_value=False
+            ) as devido:
+                ok = a.avaliar_horarios_todas(AGORA, fabrica_sessao=lambda: Session(bind=engine))
         finally:
             a.avaliar_horarios = original
         self.assertEqual(chamadas, sorted([self.e, outra.empId]))
         self.assertEqual(ok, 1)
+        # O resumo diario roda na mesma rodada, so para a empresa cuja avaliacao nao falhou.
+        self.assertEqual([c.args[1] for c in devido.call_args_list], [outra.empId])
+        self.assertEqual(devido.call_args_list[0].args[2], AGORA)
 
 
 if __name__ == "__main__":

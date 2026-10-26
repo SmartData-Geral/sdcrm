@@ -301,3 +301,24 @@ class MetaAdsAlertaResponse(BaseModel):
 
 class MetaAdsAlertaListResponse(BaseModel):
     items: list[MetaAdsAlertaResponse]
+
+
+class MetaAdsResumoDiarioResponse(BaseModel):
+    mrsId: int
+    mrsData: date
+    mrsInicio: date
+    mrsFim: date
+    # Só ids, nomes de campanha/anúncio e números agregados.
+    mrsDados: dict
+    mrsLeitura: str | None
+    mrsAviso: str | None
+    mrsGeradoEm: datetime
+
+
+class MetaAdsResumoDiarioItem(BaseModel):
+    mrsData: date
+    mrsGeradoEm: datetime
+
+
+class MetaAdsResumoDiarioListResponse(BaseModel):
+    items: list[MetaAdsResumoDiarioItem]

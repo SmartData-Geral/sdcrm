@@ -41,3 +41,4 @@ from .meta_ads_sync_log import MetaAdsSyncLog  # noqa: F401
 from .meta_ads_monitor_config import MetaAdsMonitorConfig  # noqa: F401
 from .meta_ads_alerta import MetaAdsAlerta  # noqa: F401
 from .oportunidade_etapa_historico import OportunidadeEtapaHistorico  # noqa: F401
+from .meta_ads_resumo import MetaAdsResumo  # noqa: F401

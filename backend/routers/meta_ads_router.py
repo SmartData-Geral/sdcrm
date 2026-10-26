@@ -28,6 +28,8 @@ from ..schemas.meta_ads import (
     MetaAdsMonitorConfigResponse,
     MetaAdsMonitorConfigUpdate,
     MetaAdsPainelResponse,
+    MetaAdsResumoDiarioListResponse,
+    MetaAdsResumoDiarioResponse,
     MetaAdsResumoResponse,
     OportunidadeCampanhaMetaRequest,
     OportunidadeCampanhaMetaResponse,
@@ -40,7 +42,7 @@ from ..schemas.meta_ads import (
     MetaAdsSyncPeriodoRequest,
     MetaAdsTesteResponse,
 )
-from ..services.meta_ads import alertas, config_monitor, contas, indicadores, sincronizacao
+from ..services.meta_ads import alertas, config_monitor, contas, indicadores, resumo as resumo_diario, sincronizacao
 
 router = APIRouter(prefix="/api/meta-ads", tags=["meta-ads"])
 
@@ -247,3 +249,38 @@ def marcar_alerta_ciente(
     mal_id: int, db: DbSessionDep, current_user: CurrentUserDep, company_id: CompanyIdDep
 ) -> MetaAdsAlertaResponse:
     return alertas.marcar_ciente(db, empresa_obrigatoria(db, current_user, company_id), mal_id)
+
+
+def _data_resumo(texto: str, permite_ultimo: bool) -> date | None:
+    if permite_ultimo and texto == "ultimo":
+        return None
+    try:
+        return date.fromisoformat(texto)
+    except ValueError as exc:
+        raise BadRequestError("Data inválida: use AAAA-MM-DD") from exc
+
+
+@router.get("/resumos", response_model=MetaAdsResumoDiarioListResponse)
+def listar_resumos(
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    company_id: CompanyIdDep,
+    limite: int = Query(default=30, ge=1, le=365),
+) -> MetaAdsResumoDiarioListResponse:
+    return resumo_diario.listar(db, empresa_obrigatoria(db, current_user, company_id), limite)
+
+
+@router.get("/resumos/{data}", response_model=MetaAdsResumoDiarioResponse)
+def obter_resumo(
+    data: str, db: DbSessionDep, current_user: CurrentUserDep, company_id: CompanyIdDep
+) -> MetaAdsResumoDiarioResponse:
+    emp_id = empresa_obrigatoria(db, current_user, company_id)
+    return resumo_diario.obter(db, emp_id, _data_resumo(data, True))
+
+
+@router.post("/resumos/{data}/gerar", response_model=MetaAdsResumoDiarioResponse)
+def gerar_resumo(
+    data: str, db: DbSessionDep, current_user: CurrentUserDep, company_id: CompanyIdDep
+) -> MetaAdsResumoDiarioResponse:
+    emp_id = empresa_obrigatoria(db, current_user, company_id)
+    return resumo_diario.gerar(db, emp_id, _data_resumo(data, False))
