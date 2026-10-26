@@ -5,6 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ...core.tempo import utcnow
@@ -58,11 +59,15 @@ def _etapa_por_nome(db: Session, emp_id: int, nome: str) -> int | None:
     return None
 
 
-def obter_config(db: Session, emp_id: int) -> MetaAdsMonitorConfig:
-    """Config da empresa; cria com os padroes (e as etapas achadas por nome) no primeiro acesso."""
-    cfg = db.execute(
+def _buscar(db: Session, emp_id: int) -> MetaAdsMonitorConfig | None:
+    return db.execute(
         select(MetaAdsMonitorConfig).where(MetaAdsMonitorConfig.mmcEmpId == emp_id)
     ).scalar_one_or_none()
+
+
+def obter_config(db: Session, emp_id: int) -> MetaAdsMonitorConfig:
+    """Config da empresa; cria com os padroes (e as etapas achadas por nome) no primeiro acesso."""
+    cfg = _buscar(db, emp_id)
     if cfg is not None:
         return cfg
     cfg = MetaAdsMonitorConfig(
@@ -79,7 +84,15 @@ def obter_config(db: Session, emp_id: int) -> MetaAdsMonitorConfig:
         mmcSemContatoDesde=utcnow(),
     )
     db.add(cfg)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Outra requisicao criou a config da empresa primeiro (mmcEmpId e unico).
+        db.rollback()
+        existente = _buscar(db, emp_id)
+        if existente is None:
+            raise
+        return existente
     return cfg
 
 
@@ -109,6 +122,7 @@ def _validar_etapa(db: Session, emp_id: int, etk_id: int | None) -> None:
         select(EtapaKanban.etkId).where(
             EtapaKanban.etkId == etk_id,
             EtapaKanban.etkEmpId == emp_id,
+            EtapaKanban.etkPipeline == PIPELINE_PADRAO,
             EtapaKanban.etkAtivo.is_(True),
         )
     ).first()

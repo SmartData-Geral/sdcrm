@@ -1,6 +1,7 @@
 import unittest
 from datetime import datetime
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -9,6 +10,7 @@ from backend.auth import get_current_user
 from backend.database import get_db
 from backend.exceptions import BadRequestError
 from backend.models.etapa_kanban import EtapaKanban
+from backend.models.meta_ads_monitor_config import MetaAdsMonitorConfig
 from backend.models.usuario import Usuario
 from backend.models.usuario_empresa import UsuarioEmpresa
 from backend.routers import meta_ads_router
@@ -64,6 +66,40 @@ class ConfigMonitorTests(unittest.TestCase):
                 self.db, self.emp.empId, MetaAdsMonitorConfigUpdate(etapaMqlId=alheia.etkId)
             )
         self.assertEqual(ctx.exception.detail, "Estágio inválido para esta empresa")
+
+    def test_estagio_de_outro_pipeline_recusado(self) -> None:
+        outro = _etapa(self.db, self.emp.empId, "Reunião de Vendas", pipeline="posvenda")
+        with self.assertRaises(BadRequestError):
+            config_monitor.atualizar_config(
+                self.db, self.emp.empId, MetaAdsMonitorConfigUpdate(etapaMqlId=outro.etkId)
+            )
+
+    def test_criacao_concorrente_devolve_a_existente(self) -> None:
+        emp_id = self.emp.empId
+        existente_id = config_monitor.obter_config(self.db, emp_id).mmcId
+        original = self.db.execute
+        chamadas = []
+
+        class Vazio:
+            def scalar_one_or_none(self):
+                return None
+
+        def execute_falso(*args, **kwargs):
+            chamadas.append(1)
+            if len(chamadas) == 1:  # a primeira busca "nao enxerga" a linha da outra requisicao
+                return Vazio()
+            return original(*args, **kwargs)
+
+        with patch.object(self.db, "execute", side_effect=execute_falso):
+            cfg = config_monitor.obter_config(self.db, emp_id)
+        self.assertEqual(cfg.mmcId, existente_id)
+        total = self.db.query(MetaAdsMonitorConfig).count()
+        self.assertEqual(total, 1)
+
+    def test_limites_superiores_recusados(self) -> None:
+        for campos in ({"gastoSemLead": 1_000_001}, {"gastoMinRanking": 1_000_001}, {"horasSemContato": 721}):
+            with self.assertRaises(ValueError):
+                MetaAdsMonitorConfigUpdate(**campos)
 
     def test_atualiza_e_limpa_etapa(self) -> None:
         propria = _etapa(self.db, self.emp.empId, "Qualquer")

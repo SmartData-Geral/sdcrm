@@ -225,11 +225,11 @@ class MetaAdsMonitorConfigUpdate(BaseModel):
     etapaMqlId: int | None = None
     etapaOportunidadeId: int | None = None
     cplFator: float | None = Field(default=None, gt=0, le=999)
-    gastoSemLead: float | None = Field(default=None, gt=0)
+    gastoSemLead: float | None = Field(default=None, gt=0, le=1_000_000)
     frequenciaMax: float | None = Field(default=None, gt=0, le=999)
     quedaCtrPct: int | None = Field(default=None, gt=0, le=100)
-    horasSemContato: int | None = Field(default=None, gt=0)
-    gastoMinRanking: float | None = Field(default=None, ge=0)
+    horasSemContato: int | None = Field(default=None, gt=0, le=720)
+    gastoMinRanking: float | None = Field(default=None, ge=0, le=1_000_000)
     horaResumo: int | None = Field(default=None, ge=0, le=23)
     alertas: dict[str, bool] | None = None
 
