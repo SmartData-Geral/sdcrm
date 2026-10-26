@@ -239,6 +239,14 @@ class AnuncioTests(unittest.TestCase):
         self.assertIn("/act_1/ads", str(feitas[0].url))
         self.assertEqual(feitas[0].url.params["limit"], "500")
 
+    def test_motivo_error_message_e_corte_300(self):
+        corpo = {"data": [{"id": "1", "name": "A", "adset_id": "s", "campaign_id": "c",
+                           "issues_info": [{"error_message": "x" * 400}]}]}
+        cliente, _, _ = _cliente([(200, corpo)])
+        with cliente:
+            anuncios = cliente.listar_anuncios("act_1")
+        self.assertEqual(anuncios[0].motivo, "x" * 300)
+
     def test_insights_anuncio_converte(self):
         corpo = {"data": [{
             "ad_id": "1", "ad_name": "A", "adset_id": "s", "campaign_id": "c", "date_start": "2026-10-01",

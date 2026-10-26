@@ -147,10 +147,6 @@ def _data_criacao(valor) -> date | None:
         return None
 
 
-def _inteiro_ou_none(valor) -> int | None:
-    return None if valor in (None, "") else int(valor)
-
-
 def normalizar_conta(valor: str | None) -> str:
     digitos = re.sub(r"\D", "", valor or "")
     if not digitos:
@@ -170,6 +166,10 @@ def _inteiro(valor) -> int:
     if valor in (None, ""):
         return 0
     return int(float(valor))
+
+
+def _inteiro_ou_none(valor) -> int | None:
+    return None if valor in (None, "") else int(float(valor))
 
 
 def _sanitizar_proxima(url: str) -> str:
@@ -274,7 +274,7 @@ class ClienteGraph:
             ConjuntoMeta(
                 id=str(c["id"]),
                 nome=c.get("name") or str(c["id"]),
-                campanha_id=str(c.get("campaign_id") or ""),
+                campanha_id=str(c["campaign_id"]),
                 status=c.get("effective_status"),
             )
             for c in self._paginar(f"/{act_id}/adsets", params)
@@ -290,8 +290,8 @@ class ClienteGraph:
             AnuncioMeta(
                 id=str(a["id"]),
                 nome=a.get("name") or str(a["id"]),
-                conjunto_id=str(a.get("adset_id") or ""),
-                campanha_id=str(a.get("campaign_id") or ""),
+                conjunto_id=str(a["adset_id"]),
+                campanha_id=str(a["campaign_id"]),
                 status=a.get("effective_status"),
                 motivo=_motivo_anuncio(a),
                 criado_em=_data_criacao(a.get("created_time")),
@@ -314,8 +314,8 @@ class ClienteGraph:
             InsightAnuncioDia(
                 anuncio_id=str(l["ad_id"]),
                 anuncio_nome=l.get("ad_name") or str(l["ad_id"]),
-                conjunto_id=str(l.get("adset_id") or ""),
-                campanha_id=str(l.get("campaign_id") or ""),
+                conjunto_id=str(l["adset_id"]),
+                campanha_id=str(l["campaign_id"]),
                 dia=date.fromisoformat(l["date_start"]),
                 investimento=Decimal(str(l.get("spend") or "0")),
                 impressoes=_inteiro(l.get("impressions")),
