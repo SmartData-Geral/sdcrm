@@ -119,3 +119,136 @@ class ApiDeLeadsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CargaRetroativaTests(unittest.TestCase):
+    def setUp(self) -> None:
+        from datetime import datetime
+
+        self.dt = datetime
+        self.db = b.nova_sessao()
+        self.emp = b.criar_empresa(self.db)
+
+    def _item(self, meta_lead_id="999", dia=1, **extra):
+        from backend.schemas.lead_integracao import RastreioMetaItem
+
+        return RastreioMetaItem(
+            meta_lead_id=meta_lead_id, created_time=self.dt(2026, 10, dia), **extra
+        )
+
+    def _rodar(self, itens, emp_id=None):
+        resp = rastreio.aplicar_rastreio_retroativo(self.db, emp_id or self.emp.empId, itens)
+        return resp
+
+    def test_casa_por_lead_id_depois_telefone_depois_email(self) -> None:
+        a = b.criar_oportunidade(self.db, self.emp.empId, opoMetaLeadId="111")
+        c = b.criar_oportunidade(self.db, self.emp.empId, opoTelefoneNormalizado="5541999990000")
+        d = b.criar_oportunidade(self.db, self.emp.empId, opoEmailNormalizado="x@y.com")
+        resp = self._rodar(
+            [
+                self._item("l:111", 1, ad_id="ag:A1", campaign_id="c:C1", adset_id="as:S1"),
+                self._item("222", 2, ad_id="ag:A2", phone="(41) 99999-0000"),
+                self._item("333", 3, ad_id="ag:A3", email="X@Y.com"),
+            ]
+        )
+        self.assertEqual((resp.casados, resp.nao_casados, resp.ambiguos, resp.ja_atribuidos), (3, 0, 0, 0))
+        self.db.refresh(a), self.db.refresh(c), self.db.refresh(d)
+        self.assertEqual((a.opoMetaAnuncioId, a.opoMetaCampanhaId, a.opoMetaConjuntoId), ("A1", "C1", "S1"))
+        self.assertEqual((c.opoMetaAnuncioId, c.opoMetaLeadId), ("A2", "222"))
+        self.assertEqual((d.opoMetaAnuncioId, d.opoMetaLeadId), ("A3", "333"))
+
+    def test_sem_casamento_conta_nao_casado_e_nao_cria(self) -> None:
+        from backend.models.oportunidade import Oportunidade
+
+        b.criar_oportunidade(self.db, self.emp.empId)
+        antes = len(list(self.db.scalars(select(Oportunidade))))
+        resp = self._rodar([self._item("555", 1, ad_id="9", phone="41 98888-7777", email="n@n.com")])
+        self.assertEqual((resp.casados, resp.nao_casados), (0, 1))
+        self.assertEqual(len(list(self.db.scalars(select(Oportunidade)))), antes)
+
+    def test_telefone_de_dois_leads_e_ambiguo(self) -> None:
+        x = b.criar_oportunidade(self.db, self.emp.empId, opoTelefoneNormalizado="5541999990000")
+        y = b.criar_oportunidade(self.db, self.emp.empId, opoTelefoneNormalizado="5541999990000")
+        resp = self._rodar([self._item("1", 1, ad_id="A", phone="41999990000")])
+        self.assertEqual((resp.ambiguos, resp.casados), (1, 0))
+        self.db.refresh(x), self.db.refresh(y)
+        self.assertIsNone(x.opoMetaAnuncioId)
+        self.assertIsNone(y.opoMetaAnuncioId)
+
+    def test_linhas_repetidas_primeira_vence_e_idempotente(self) -> None:
+        opo = b.criar_oportunidade(self.db, self.emp.empId, opoTelefoneNormalizado="5541999990000")
+        itens = [
+            self._item("20", 5, ad_id="B", phone="41999990000"),
+            self._item("10", 1, ad_id="A", phone="41999990000"),
+        ]
+        r1 = self._rodar(itens)
+        self.assertEqual((r1.casados, r1.ja_atribuidos), (1, 1))
+        self.db.refresh(opo)
+        self.assertEqual(opo.opoMetaAnuncioId, "A")
+        r2 = self._rodar(itens)
+        self.assertEqual((r2.casados, r2.ja_atribuidos), (0, 2))
+        self.db.refresh(opo)
+        self.assertEqual((opo.opoMetaAnuncioId, opo.opoMetaLeadId), ("A", "10"))
+
+    def test_outra_empresa_nao_e_tocada(self) -> None:
+        outra = b.criar_empresa(self.db, "Outra")
+        alheia = b.criar_oportunidade(self.db, outra.empId, opoMetaLeadId="111")
+        resp = self._rodar([self._item("111", 1, ad_id="A")])
+        self.assertEqual((resp.casados, resp.nao_casados), (0, 1))
+        self.db.refresh(alheia)
+        self.assertIsNone(alheia.opoMetaAnuncioId)
+
+    def test_inativa_nao_casa(self) -> None:
+        opo = b.criar_oportunidade(self.db, self.emp.empId, opoMetaLeadId="111", opoAtivo=False)
+        resp = self._rodar([self._item("111", 1, ad_id="A")])
+        self.assertEqual(resp.nao_casados, 1)
+        self.db.refresh(opo)
+        self.assertIsNone(opo.opoMetaAnuncioId)
+
+
+class RotaRastreioTests(unittest.TestCase):
+    def setUp(self) -> None:
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from backend.api_key import ApiKeyContext, get_api_key_context
+        from backend.database import get_db
+        from backend.routers import lead_intake_router
+
+        self.db = b.nova_sessao()
+        self.emp = b.criar_empresa(self.db)
+        self.escopos = frozenset({"leads:write"})
+        app = FastAPI()
+        app.include_router(lead_intake_router.router)
+        app.dependency_overrides[get_db] = lambda: self.db
+        app.dependency_overrides[get_api_key_context] = lambda: ApiKeyContext(
+            ichId=None, empId=self.emp.empId, nome="n8n", escopos=self.escopos,
+            usuResponsavelPadraoId=None,
+        )
+        self.http = TestClient(app)
+
+    def _corpo(self, n=1):
+        return {
+            "itens": [
+                {"meta_lead_id": str(i), "created_time": "2026-10-01T10:00:00", "ad_id": "ag:7",
+                 "phone": "41999990000"}
+                for i in range(n)
+            ]
+        }
+
+    def test_rota_casa_e_responde(self) -> None:
+        opo = b.criar_oportunidade(self.db, self.emp.empId, opoTelefoneNormalizado="5541999990000")
+        r = self.http.post("/api/v1/leads/rastreio-meta", json=self._corpo())
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json(), {"casados": 1, "nao_casados": 0, "ambiguos": 0, "ja_atribuidos": 0})
+        self.db.refresh(opo)
+        self.assertEqual(opo.opoMetaAnuncioId, "7")
+
+    def test_mais_de_500_da_422(self) -> None:
+        r = self.http.post("/api/v1/leads/rastreio-meta", json=self._corpo(501))
+        self.assertEqual(r.status_code, 422)
+
+    def test_sem_escopo_da_403(self) -> None:
+        self.escopos = frozenset()
+        r = self.http.post("/api/v1/leads/rastreio-meta", json=self._corpo())
+        self.assertEqual(r.status_code, 403)

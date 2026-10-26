@@ -8,12 +8,14 @@ Nenhuma funcao daqui faz commit: quem chama decide a transacao.
 
 from __future__ import annotations
 
-from sqlalchemy import or_
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ...core.tempo import utcnow
 from ...models.oportunidade import Oportunidade
 from ...models.oportunidade_historico import OportunidadeHistorico
+from ...schemas.lead_integracao import RastreioMetaItem, RastreioMetaResponse
+from ..lead_normalizacao import normalizar_email, normalizar_telefone, variantes_telefone
 
 PREFIXOS = ("as:", "ag:", "l:", "c:", "p:")
 
@@ -70,3 +72,65 @@ def aplicar_ids_meta(
         if valor is not None and not getattr(opo, campo):
             setattr(opo, campo, valor)
     return True
+
+
+def _ativas_da_empresa(emp_id: int):
+    return select(Oportunidade).where(
+        Oportunidade.opoEmpId == emp_id, Oportunidade.opoAtivo.is_(True)
+    )
+
+
+def _casar(db: Session, emp_id: int, item: RastreioMetaItem) -> list[Oportunidade]:
+    """Primeiro criterio que achar alguem vence: id do lead, telefone, e-mail."""
+    lead_id = limpar_id_meta(item.meta_lead_id)
+    criterios = []
+    if lead_id:
+        criterios.append(
+            or_(Oportunidade.opoMetaLeadId == lead_id, Oportunidade.opoOrigemExternalId == lead_id)
+        )
+    fones = variantes_telefone(normalizar_telefone(item.phone))
+    if fones:
+        criterios.append(Oportunidade.opoTelefoneNormalizado.in_(sorted(fones)))
+    email = normalizar_email(item.email)
+    if email:
+        criterios.append(Oportunidade.opoEmailNormalizado == email)
+    for criterio in criterios:
+        achadas = list(db.scalars(_ativas_da_empresa(emp_id).where(criterio)))
+        if achadas:
+            return achadas
+    return []
+
+
+def aplicar_rastreio_retroativo(
+    db: Session, emp_id: int, itens: list[RastreioMetaItem]
+) -> RastreioMetaResponse:
+    """
+    Liga leads ja existentes aos ids da Meta a partir da planilha de formularios.
+    Nunca cria lead. Em ordem de created_time, entao o primeiro anuncio vence.
+    Um unico commit no fim, depois de vincular as pendentes.
+    """
+    from . import vinculo
+
+    resp = RastreioMetaResponse()
+    for item in sorted(itens, key=lambda i: i.created_time):
+        achadas = _casar(db, emp_id, item)
+        if not achadas:
+            resp.nao_casados += 1
+        elif len(achadas) > 1:
+            resp.ambiguos += 1
+        elif achadas[0].opoMetaAnuncioId:
+            resp.ja_atribuidos += 1
+        else:
+            aplicar_ids_meta(
+                db,
+                achadas[0],
+                meta_lead_id=item.meta_lead_id,
+                campaign_id=item.campaign_id,
+                adset_id=item.adset_id,
+                ad_id=item.ad_id,
+            )
+            db.flush()
+            resp.casados += 1
+    vinculo.vincular_pendentes(db, emp_id)
+    db.commit()
+    return resp

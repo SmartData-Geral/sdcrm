@@ -8,6 +8,7 @@ em português, conforme docs/API_GUIDELINES.md.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal, Optional
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
@@ -92,3 +93,35 @@ class PingResponse(BaseModel):
     company_id: int
     integration: str
     scopes: list[str]
+
+
+class RastreioMetaItem(BaseModel):
+    """Uma linha da planilha de formularios da Meta, usada so para ligar lead ja existente ao anuncio."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    meta_lead_id: str = Field(..., min_length=1, max_length=60)
+    created_time: datetime
+    campaign_id: Optional[str] = Field(default=None, max_length=60)
+    adset_id: Optional[str] = Field(default=None, max_length=60)
+    ad_id: Optional[str] = Field(default=None, max_length=60)
+    phone: Optional[str] = Field(default=None, max_length=50)
+    email: Optional[str] = Field(default=None, max_length=255)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _vazio_vira_nulo(cls, data):
+        if isinstance(data, dict):
+            return {k: (None if isinstance(v, str) and not v.strip() else v) for k, v in data.items()}
+        return data
+
+
+class RastreioMetaRequest(BaseModel):
+    itens: list[RastreioMetaItem] = Field(..., max_length=500)
+
+
+class RastreioMetaResponse(BaseModel):
+    casados: int = 0
+    nao_casados: int = 0
+    ambiguos: int = 0
+    ja_atribuidos: int = 0

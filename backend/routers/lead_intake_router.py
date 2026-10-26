@@ -19,12 +19,20 @@ from ..api_key import ApiKeyDep, exigir_escopo
 from ..core.links import url_da_oportunidade as _url_da_oportunidade
 from ..dependencies import DbSessionDep
 from ..exceptions import ConflictError
-from ..schemas.lead_integracao import LeadIntakeRequest, LeadIntakeResponse, PingResponse
+from ..schemas.lead_integracao import (
+    LeadIntakeRequest,
+    LeadIntakeResponse,
+    PingResponse,
+    RastreioMetaRequest,
+    RastreioMetaResponse,
+)
 from ..services import integracao_log_service, lead_intake_service
+from ..services.meta_ads import rastreio as rastreio_meta
 
 router = APIRouter(prefix="/api/v1", tags=["integracao-externa"])
 
 ROTA_LEADS = "/api/v1/leads"
+ROTA_RASTREIO_META = "/api/v1/leads/rastreio-meta"
 
 
 def _ip(request: Request) -> str | None:
@@ -108,3 +116,42 @@ def receber_lead(
         previous_cycle_lead_id=("ld_" + str(anterior)) if anterior else None,
         url=_url_da_oportunidade(resultado.opo_id),
     )
+
+
+@router.post("/leads/rastreio-meta", response_model=RastreioMetaResponse)
+def rastrear_leads_meta(
+    payload: RastreioMetaRequest,
+    request: Request,
+    db: DbSessionDep,
+    ctx: ApiKeyDep,
+) -> RastreioMetaResponse:
+    """Carga retroativa: so atualiza leads existentes com os ids da Meta; nunca cria."""
+    exigir_escopo(ctx, "leads:write")
+    inicio = time.perf_counter()
+
+    def _logar(status_http: int, resultado: str, erro=None) -> None:
+        # Sem payload: as linhas trazem telefone e e-mail, e o total basta para depurar.
+        integracao_log_service.registrar(
+            db,
+            rota=ROTA_RASTREIO_META,
+            metodo="POST",
+            status_http=status_http,
+            resultado=resultado,
+            emp_id=ctx.empId,
+            ich_id=ctx.ichId,
+            origem_sistema="meta_ads",
+            payload={"itens": len(payload.itens)},
+            erro=erro,
+            ip=_ip(request),
+            user_agent=request.headers.get("user-agent"),
+            duracao_ms=int((time.perf_counter() - inicio) * 1000),
+        )
+
+    try:
+        resposta = rastreio_meta.aplicar_rastreio_retroativo(db, ctx.empId, payload.itens)
+    except Exception as exc:
+        db.rollback()
+        _logar(status.HTTP_500_INTERNAL_SERVER_ERROR, "error", erro={"detalhe": str(exc)[:500]})
+        raise
+    _logar(status.HTTP_200_OK, "rastreio")
+    return resposta
