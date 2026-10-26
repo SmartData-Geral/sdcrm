@@ -129,6 +129,19 @@ class ContasTests(unittest.TestCase):
         )
         self.assertEqual((resp.origens, resp.macAtivo), ([], False))
 
+    def test_exigir_rastreio_desligado_por_padrao_e_editavel(self) -> None:
+        resp = self._criar()
+        self.assertFalse(resp.macExigirRastreio)
+        resp = contas.atualizar_conta(
+            self.db, self.emp.empId, resp.macId, MetaAdsContaUpdate(macExigirRastreio=True)
+        )
+        self.assertTrue(resp.macExigirRastreio)
+        self.assertTrue(self.db.get(MetaAdsConta, resp.macId).macExigirRastreio)
+        resp = contas.atualizar_conta(self.db, self.emp.empId, resp.macId, MetaAdsContaUpdate(macNome="Outro"))
+        self.assertTrue(resp.macExigirRastreio)  # omitido nao muda
+        ligada = self._criar(macContaExterna="act_456", macExigirRastreio=True)
+        self.assertTrue(ligada.macExigirRastreio)
+
     def test_testar_conexao_ok_grava_moeda_e_fuso(self) -> None:
         resp = self._criar()
         fab = FabricaFalsa(conta=g.ContaMeta("Conta no Meta", "BRL", "America/Sao_Paulo"))

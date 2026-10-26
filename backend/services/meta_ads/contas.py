@@ -56,6 +56,7 @@ def _resposta(db: Session, conta: MetaAdsConta) -> MetaAdsContaResponse:
         macUltimaSync=conta.macUltimaSync,
         macCargaInicialFeita=conta.macCargaInicialFeita,
         macAtivo=conta.macAtivo,
+        macExigirRastreio=conta.macExigirRastreio,
         origens=_origens(db, conta.macId),
     )
 
@@ -114,6 +115,7 @@ def criar_conta(db: Session, emp_id: int, data: MetaAdsContaCreate) -> MetaAdsCo
         macToken=cifrar(data.token),
         macTokenFinal=data.token[-4:],
         macStatus=STATUS_PENDENTE,
+        macExigirRastreio=data.macExigirRastreio,
     )
     db.add(conta)
     db.flush()
@@ -139,6 +141,8 @@ def atualizar_conta(
         _definir_origens(db, conta, _validar_origens(db, emp_id, data.origens))
     if data.macAtivo is not None:
         conta.macAtivo = data.macAtivo
+    if data.macExigirRastreio is not None:
+        conta.macExigirRastreio = data.macExigirRastreio
     db.commit()
     return _resposta(db, conta)
 

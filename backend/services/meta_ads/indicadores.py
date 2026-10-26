@@ -1,9 +1,21 @@
 """
-Indicadores das campanhas: investimento do Meta cruzado com os leads do CRM.
+Indicadores das campanhas: investimento do Meta cruzado com o funil dos leads do CRM.
 
-Um lead "e do Meta" quando esta ligado a uma campanha (opoMcgId) ou, sem campanha, quando
-sua origem esta mapeada numa conta ativa. Leads, vendas, MRR e Projeto usam as MESMAS
-condicoes de periodo da aba Fontes do Dashboard (condicoes_periodo), para os numeros baterem.
+Lead "da Meta":
+- regra da fase 1 (padrao): ligado a uma campanha (opoMcgId) ou, sem campanha, com a origem
+  mapeada numa conta ativa;
+- com "Contar so leads com rastreio da Meta" (macExigirRastreio): sem campanha, so conta quem tem
+  sinal da Meta (opoMetaLeadId/opoMetaAnuncioId). Os de origem mapeada sem sinal vao para
+  `revisaoOrigem` e nao entram em nenhum numero. Com filtro de conta vale a flag daquela conta;
+  sem filtro, a regra liga se qualquer conta ativa da empresa tiver a flag.
+
+As contagens (leads CRM, MQL, oportunidade, contrato, MRR/projeto) vem de `funil.contar`: cada
+etapa pela propria data no periodo. Leads e vendas usam os mesmos criterios da aba Fontes.
+
+Arvore: campanha (gasto do insight de campanha, funil por opoMcgId) -> conjunto (soma dos
+anuncios) -> anuncio (gasto do insight por anuncio, funil por opoManId). Um lead so conta no
+anuncio quando o anuncio e da mesma campanha do lead; senao (anuncio nao resolvido ou campanha
+manual diferente) conta so na campanha, ou em "campanha nao identificada" sem campanha.
 """
 
 from __future__ import annotations
@@ -11,13 +23,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from sqlalchemy import and_, case, false, func, or_, select
+from sqlalchemy import and_, case, false, func, not_, or_, select, true
 from sqlalchemy.orm import Session
 
 from ...exceptions import BadRequestError, NotFoundError
+from ...models.meta_ads_anuncio import MetaAdsAnuncio
 from ...models.meta_ads_campanha import MetaAdsCampanha
+from ...models.meta_ads_conjunto import MetaAdsConjunto
 from ...models.meta_ads_conta import MetaAdsConta
 from ...models.meta_ads_conta_origem import MetaAdsContaOrigem
+from ...models.meta_ads_insight_anuncio_diario import MetaAdsInsightAnuncioDiario
 from ...models.meta_ads_insight_diario import MetaAdsInsightDiario
 from ...models.oportunidade import Oportunidade
 from ...schemas.meta_ads import (
@@ -30,21 +45,24 @@ from ...schemas.meta_ads import (
     MetaAdsLinha,
     MetaAdsPainelResponse,
     MetaAdsResumoResponse,
+    MetaAdsRevisaoItem,
     MetaAdsSerieDia,
     OportunidadeCampanhaMetaResponse,
 )
-# Helpers "privados" do dashboard reusados de proposito: e a garantia de que as regras
-# de MRR/Projeto e de periodo sao exatamente as mesmas da aba Fontes.
-from ..crm_dashboard_service import (
-    _between_dates,
-    _mrr_incremental_expr,
-    _valor_projeto_expr,
-    condicoes_periodo,
-)
+# Helper "privado" do dashboard reusado de proposito: e a garantia de que as regras
+# de periodo sao exatamente as mesmas da aba Fontes.
+from ..crm_dashboard_service import _between_dates, condicoes_periodo
+from .funil import FunilLead, carregar_funil, contar
+from .rastreio import tem_sinal_meta
 
 NOME_NAO_IDENTIFICADA = "Meta — campanha não identificada"
 GASTO_ZERO = {"investimento": 0.0, "impressoes": 0, "cliques": 0, "leadsMeta": 0}
-LEADS_ZERO = {"leadsCrm": 0, "vendas": 0, "mrr": 0.0, "projeto": 0.0}
+FUNIL_ZERO = {
+    "leadsCrm": 0, "mqls": 0, "oportunidades": 0, "contratos": 0,
+    "mrr": 0.0, "projeto": 0.0, "horasPrimeiroContatoMedia": None,
+}
+_CHAVES_FUNIL = ("leadsCrm", "mqls", "oportunidades", "contratos", "mrr", "projeto")
+LIMITE_REVISAO = 500
 
 
 @dataclass(frozen=True)
@@ -62,6 +80,7 @@ def _dividir(a: float, b: float) -> float | None:
 def calcular_derivados(
     *, investimento: float, leads: int, vendas: int, mrr: float, projeto: float, impressoes: int, cliques: int
 ) -> dict:
+    """`leads` = leads reportados pela Meta (CPL do Gerenciador); `vendas` = contratos."""
     return {
         "ctr": round(cliques / impressoes * 100, 2) if impressoes else None,
         "cpc": _dividir(investimento, cliques),
@@ -71,9 +90,22 @@ def calcular_derivados(
     }
 
 
-def _linha(mcg_id, nome, status, mac_id, gasto: dict, leads: dict) -> MetaAdsLinha:
+def _linha(
+    nivel: str,
+    id_: int | None,
+    mcg_id: int | None,
+    nome: str,
+    status: str | None,
+    mac_id: int | None,
+    gasto: dict,
+    funil: dict,
+    filhos: list[MetaAdsLinha] | None = None,
+) -> MetaAdsLinha:
     investimento = round(gasto["investimento"], 2)
+    horas = funil["horasPrimeiroContatoMedia"]
     return MetaAdsLinha(
+        nivel=nivel,
+        id=id_,
         mcgId=mcg_id,
         nome=nome,
         status=status,
@@ -82,26 +114,40 @@ def _linha(mcg_id, nome, status, mac_id, gasto: dict, leads: dict) -> MetaAdsLin
         impressoes=gasto["impressoes"],
         cliques=gasto["cliques"],
         leadsMeta=gasto["leadsMeta"],
-        leadsCrm=leads["leadsCrm"],
-        vendas=leads["vendas"],
-        mrr=round(leads["mrr"], 2),
-        projeto=round(leads["projeto"], 2),
+        leadsCrm=funil["leadsCrm"],
+        mqls=funil["mqls"],
+        oportunidades=funil["oportunidades"],
+        vendas=funil["contratos"],
+        mrr=round(funil["mrr"], 2),
+        projeto=round(funil["projeto"], 2),
+        custoLeadCrm=_dividir(investimento, funil["leadsCrm"]),
+        custoMql=_dividir(investimento, funil["mqls"]),
+        custoOportunidade=_dividir(investimento, funil["oportunidades"]),
+        horasPrimeiroContato=round(horas, 2) if horas is not None else None,
+        filhos=filhos or [],
         **calcular_derivados(
             investimento=investimento,
-            leads=leads["leadsCrm"],
-            vendas=leads["vendas"],
-            mrr=leads["mrr"],
-            projeto=leads["projeto"],
+            leads=gasto["leadsMeta"],
+            vendas=funil["contratos"],
+            mrr=funil["mrr"],
+            projeto=funil["projeto"],
             impressoes=gasto["impressoes"],
             cliques=gasto["cliques"],
         ),
     )
 
 
-def _tem_movimento(gasto: dict, leads: dict) -> bool:
-    return bool(
-        gasto["investimento"] or gasto["leadsMeta"] or leads["leadsCrm"] or leads["vendas"] or leads["mrr"] or leads["projeto"]
-    )
+def _tem_movimento(gasto: dict, funil: dict) -> bool:
+    return bool(gasto["investimento"] or gasto["leadsMeta"] or any(funil[k] for k in _CHAVES_FUNIL))
+
+
+def _somar_gasto(linhas: list[MetaAdsLinha]) -> dict:
+    return {k: sum(getattr(l, k) for l in linhas) for k in GASTO_ZERO}
+
+
+def _ordenar(linhas: list[MetaAdsLinha]) -> list[MetaAdsLinha]:
+    linhas.sort(key=lambda l: (l.investimento, l.leadsCrm), reverse=True)
+    return linhas
 
 
 def tem_conta(db: Session, emp_id: int) -> bool:
@@ -115,6 +161,18 @@ def tem_conta(db: Session, emp_id: int) -> bool:
     )
 
 
+def exige_rastreio(db: Session, emp_id: int, mac_id: int | None) -> bool:
+    """Flag da conta filtrada; sem filtro, True se alguma conta ativa da empresa a tiver."""
+    stmt = select(MetaAdsConta.macId).where(
+        MetaAdsConta.macEmpId == emp_id,
+        MetaAdsConta.macAtivo.is_(True),
+        MetaAdsConta.macExigirRastreio.is_(True),
+    )
+    if mac_id is not None:
+        stmt = stmt.where(MetaAdsConta.macId == mac_id)
+    return db.execute(stmt.limit(1)).first() is not None
+
+
 def _origens_meta(db: Session, emp_id: int, mac_id: int | None) -> list[int]:
     stmt = (
         select(MetaAdsContaOrigem.mcoCcoId)
@@ -126,7 +184,7 @@ def _origens_meta(db: Session, emp_id: int, mac_id: int | None) -> list[int]:
     return sorted(set(db.execute(stmt).scalars()))
 
 
-def _condicao_lead_meta(db: Session, emp_id: int, mac_id: int | None):
+def _condicao_lead_meta(db: Session, emp_id: int, mac_id: int | None, exigir: bool = False):
     if mac_id is None:
         ligada = Oportunidade.opoMcgId.isnot(None)
     else:
@@ -134,35 +192,77 @@ def _condicao_lead_meta(db: Session, emp_id: int, mac_id: int | None):
             select(MetaAdsCampanha.mcgId).where(MetaAdsCampanha.mcgMacId == mac_id)
         )
     origens = _origens_meta(db, emp_id, mac_id)
-    sem_campanha = (
-        and_(Oportunidade.opoMcgId.is_(None), Oportunidade.opoCcoId.in_(origens))
-        if origens
-        else false()
-    )
-    return or_(ligada, sem_campanha)
+    da_origem = Oportunidade.opoCcoId.in_(origens) if origens else false()
+    if not exigir:
+        return or_(ligada, and_(Oportunidade.opoMcgId.is_(None), da_origem))
+    if mac_id is None:
+        da_conta = true()
+    else:
+        # Sem campanha nao ha conta certa: vale o anuncio resolvido da conta ou a origem dela.
+        da_conta = or_(
+            da_origem,
+            Oportunidade.opoManId.in_(
+                select(MetaAdsAnuncio.manId).where(MetaAdsAnuncio.manMacId == mac_id)
+            ),
+        )
+    return or_(ligada, and_(Oportunidade.opoMcgId.is_(None), tem_sinal_meta, da_conta))
 
 
-def _gastos(db: Session, emp_id: int, filtro: FiltroPainel) -> dict[int, dict]:
-    m = MetaAdsInsightDiario
-    conds = [m.midEmpId == emp_id]
-    periodo = _between_dates(m.midData, filtro.data_inicial, filtro.data_final)
+def _revisao_origem(db: Session, emp_id: int, filtro: FiltroPainel) -> list[MetaAdsRevisaoItem]:
+    """Leads recebidos no periodo com origem mapeada como Meta e sem nenhum sinal da Meta."""
+    origens = _origens_meta(db, emp_id, filtro.mac_id)
+    if not origens:
+        return []
+    cond = condicoes_periodo(filtro.data_inicial, filtro.data_final)
+    linhas = db.execute(
+        select(
+            Oportunidade.opoId,
+            Oportunidade.opoTitulo,
+            Oportunidade.opoNomeContato,
+            Oportunidade.opoDataRecebimento,
+        )
+        .where(
+            Oportunidade.opoEmpId == emp_id,
+            cond.recebidas,
+            Oportunidade.opoCcoId.in_(origens),
+            not_(tem_sinal_meta),
+        )
+        .order_by(Oportunidade.opoDataRecebimento.desc(), Oportunidade.opoId.desc())
+        .limit(LIMITE_REVISAO)
+    ).all()
+    return [
+        MetaAdsRevisaoItem(
+            opoId=r.opoId,
+            opoTitulo=r.opoTitulo,
+            opoNomeContato=r.opoNomeContato,
+            opoDataRecebimento=r.opoDataRecebimento,
+        )
+        for r in linhas
+    ]
+
+
+def _somar_insights(db: Session, emp_id: int, filtro: FiltroPainel, chave, data, emp, mac, metricas) -> dict:
+    """Soma (investimento, impressoes, cliques, leads Meta) por `chave` no periodo/conta do filtro."""
+    inv, imp, cli, lm = metricas
+    conds = [emp == emp_id]
+    periodo = _between_dates(data, filtro.data_inicial, filtro.data_final)
     if periodo is not None:
         conds.append(periodo)
     if filtro.mac_id is not None:
-        conds.append(m.midMacId == filtro.mac_id)
+        conds.append(mac == filtro.mac_id)
     stmt = (
         select(
-            m.midMcgId,
-            func.coalesce(func.sum(m.midInvestimento), 0).label("inv"),
-            func.coalesce(func.sum(m.midImpressoes), 0).label("imp"),
-            func.coalesce(func.sum(m.midCliques), 0).label("cli"),
-            func.coalesce(func.sum(m.midLeadsMeta), 0).label("lm"),
+            chave.label("chave"),
+            func.coalesce(func.sum(inv), 0).label("inv"),
+            func.coalesce(func.sum(imp), 0).label("imp"),
+            func.coalesce(func.sum(cli), 0).label("cli"),
+            func.coalesce(func.sum(lm), 0).label("lm"),
         )
         .where(*conds)
-        .group_by(m.midMcgId)
+        .group_by(chave)
     )
     return {
-        r.midMcgId: {
+        r.chave: {
             "investimento": float(r.inv),
             "impressoes": int(r.imp),
             "cliques": int(r.cli),
@@ -172,68 +272,159 @@ def _gastos(db: Session, emp_id: int, filtro: FiltroPainel) -> dict[int, dict]:
     }
 
 
-def _leads(db: Session, emp_id: int, filtro: FiltroPainel) -> dict[int | None, dict]:
-    cond = condicoes_periodo(filtro.data_inicial, filtro.data_final)
-    stmt = (
-        select(
-            Oportunidade.opoMcgId,
-            func.coalesce(func.sum(case((cond.recebidas, 1), else_=0)), 0).label("rec"),
-            func.coalesce(func.sum(case((cond.ganhas, 1), else_=0)), 0).label("gan"),
-            func.coalesce(func.sum(_mrr_incremental_expr()), 0).label("mrr"),
-            func.coalesce(func.sum(_valor_projeto_expr()), 0).label("proj"),
-        )
-        .where(
-            Oportunidade.opoEmpId == emp_id,
-            _condicao_lead_meta(db, emp_id, filtro.mac_id),
-            cond.escopo,
-        )
-        .group_by(Oportunidade.opoMcgId)
+def _gastos(db: Session, emp_id: int, filtro: FiltroPainel) -> dict[int, dict]:
+    """Por campanha, do insight de campanha (conferido com o Gerenciador na fase 1)."""
+    m = MetaAdsInsightDiario
+    return _somar_insights(
+        db, emp_id, filtro, m.midMcgId, m.midData, m.midEmpId, m.midMacId,
+        (m.midInvestimento, m.midImpressoes, m.midCliques, m.midLeadsMeta),
     )
-    return {
-        r.opoMcgId: {
-            "leadsCrm": int(r.rec),
-            "vendas": int(r.gan),
-            "mrr": float(r.mrr),
-            "projeto": float(r.proj),
-        }
-        for r in db.execute(stmt)
-    }
 
 
-def _somar(linhas: list[MetaAdsLinha]) -> MetaAdsLinha:
-    gasto = {k: sum(getattr(l, k) for l in linhas) for k in GASTO_ZERO}
-    leads = {k: sum(getattr(l, k) for l in linhas) for k in LEADS_ZERO}
-    return _linha(None, "Total", None, None, gasto, leads)
+def _gastos_anuncios(db: Session, emp_id: int, filtro: FiltroPainel) -> dict[int, dict]:
+    m = MetaAdsInsightAnuncioDiario
+    return _somar_insights(
+        db, emp_id, filtro, m.miaManId, m.miaData, m.miaEmpId, m.miaMacId,
+        (m.miaInvestimento, m.miaImpressoes, m.miaCliques, m.miaLeadsMeta),
+    )
+
+
+def _ids_com_anuncio(db: Session, emp_id: int, condicao, filtro: FiltroPainel) -> set[int]:
+    """Leads Meta recebidos no periodo com o id do anuncio (base da cobertura de rastreio)."""
+    cond = condicoes_periodo(filtro.data_inicial, filtro.data_final)
+    return set(
+        db.execute(
+            select(Oportunidade.opoId).where(
+                Oportunidade.opoEmpId == emp_id,
+                condicao,
+                cond.recebidas,
+                Oportunidade.opoMetaAnuncioId.isnot(None),
+            )
+        ).scalars()
+    )
+
+
+def _recebido_no_periodo(lead: FunilLead, filtro: FiltroPainel) -> bool:
+    dia = lead.recebido
+    if dia is None:
+        return False
+    return (filtro.data_inicial is None or dia >= filtro.data_inicial) and (
+        filtro.data_final is None or dia <= filtro.data_final
+    )
+
+
+def _por_id(db: Session, modelo, coluna_id, ids: set[int], *conds) -> dict:
+    if not ids:
+        return {}
+    stmt = select(modelo).where(coluna_id.in_(ids), *conds)
+    return {getattr(o, coluna_id.key): o for o in db.execute(stmt).scalars()}
 
 
 def painel(db: Session, emp_id: int, filtro: FiltroPainel) -> MetaAdsPainelResponse:
+    ini, fim = filtro.data_inicial, filtro.data_final
+    exigir = exige_rastreio(db, emp_id, filtro.mac_id)
+    condicao = _condicao_lead_meta(db, emp_id, filtro.mac_id, exigir)
+    leads = carregar_funil(db, emp_id, condicao)
     gastos = _gastos(db, emp_id, filtro)
-    leads = _leads(db, emp_id, filtro)
-    ids = {i for i in set(gastos) | set(leads) if i is not None}
-    campanhas = {
-        c.mcgId: c
-        for c in db.execute(select(MetaAdsCampanha).where(MetaAdsCampanha.mcgId.in_(ids))).scalars()
-    } if ids else {}
+    gastos_anuncio = _gastos_anuncios(db, emp_id, filtro)
 
+    conds_anuncio = [MetaAdsAnuncio.manEmpId == emp_id]
+    if filtro.mac_id is not None:
+        conds_anuncio.append(MetaAdsAnuncio.manMacId == filtro.mac_id)
+    anuncios: dict[int, MetaAdsAnuncio] = _por_id(
+        db,
+        MetaAdsAnuncio,
+        MetaAdsAnuncio.manId,
+        set(gastos_anuncio) | {l.man_id for l in leads if l.man_id is not None},
+        *conds_anuncio,
+    )
+
+    def anuncio_do_lead(lead: FunilLead) -> MetaAdsAnuncio | None:
+        anuncio = anuncios.get(lead.man_id) if lead.man_id is not None else None
+        if anuncio is None or lead.mcg_id is None or anuncio.manMcgId != lead.mcg_id:
+            return None
+        return anuncio
+
+    por_campanha = contar(leads, ini, fim, lambda l: l.mcg_id)
+    por_anuncio = contar(leads, ini, fim, lambda l: getattr(anuncio_do_lead(l), "manId", None))
+    por_conjunto = contar(leads, ini, fim, lambda l: getattr(anuncio_do_lead(l), "manMcjId", None))
+
+    # Anuncios agrupados por conjunto; o conjunto soma o gasto dos seus anuncios.
+    anuncios_por_conjunto: dict[int, list[MetaAdsLinha]] = {}
+    for a in anuncios.values():
+        gasto = gastos_anuncio.get(a.manId, GASTO_ZERO)
+        fun = por_anuncio.get(a.manId, FUNIL_ZERO)
+        if _tem_movimento(gasto, fun):
+            anuncios_por_conjunto.setdefault(a.manMcjId, []).append(
+                _linha("anuncio", a.manId, a.manMcgId, a.manNome, a.manStatus, a.manMacId, gasto, fun)
+            )
+    conjuntos: dict[int, MetaAdsConjunto] = _por_id(
+        db, MetaAdsConjunto, MetaAdsConjunto.mcjId, set(anuncios_por_conjunto),
+        MetaAdsConjunto.mcjEmpId == emp_id,
+    )
+    conjuntos_por_campanha: dict[int, list[MetaAdsLinha]] = {}
+    for mcj_id, filhos in anuncios_por_conjunto.items():
+        conj = conjuntos.get(mcj_id)
+        if conj is None:
+            continue
+        conjuntos_por_campanha.setdefault(conj.mcjMcgId, []).append(
+            _linha(
+                "conjunto", mcj_id, conj.mcjMcgId, conj.mcjNome, conj.mcjStatus, conj.mcjMacId,
+                _somar_gasto(filhos), por_conjunto.get(mcj_id, FUNIL_ZERO), _ordenar(filhos),
+            )
+        )
+
+    mcg_ids = {i for i in set(gastos) | set(por_campanha) if i is not None}
+    mcg_ids |= {a.manMcgId for a in anuncios.values()}
+    conds_campanha = [MetaAdsCampanha.mcgEmpId == emp_id]
+    if filtro.mac_id is not None:
+        conds_campanha.append(MetaAdsCampanha.mcgMacId == filtro.mac_id)
+    campanhas: dict[int, MetaAdsCampanha] = _por_id(
+        db, MetaAdsCampanha, MetaAdsCampanha.mcgId, mcg_ids, *conds_campanha
+    )
+    incluidas: set[int] = set()
     linhas: list[MetaAdsLinha] = []
     for mcg_id, camp in campanhas.items():
-        if camp.mcgEmpId != emp_id:
-            continue
         if filtro.somente_ativas and camp.mcgStatus != "ACTIVE":
             continue
+        incluidas.add(mcg_id)
         gasto = gastos.get(mcg_id, GASTO_ZERO)
-        lead = leads.get(mcg_id, LEADS_ZERO)
-        if _tem_movimento(gasto, lead):
-            linhas.append(_linha(mcg_id, camp.mcgNome, camp.mcgStatus, camp.mcgMacId, gasto, lead))
-    linhas.sort(key=lambda l: (l.investimento, l.leadsCrm), reverse=True)
+        fun = por_campanha.get(mcg_id, FUNIL_ZERO)
+        filhos = _ordenar(conjuntos_por_campanha.get(mcg_id, []))
+        if _tem_movimento(gasto, fun) or filhos:
+            linhas.append(
+                _linha("campanha", mcg_id, mcg_id, camp.mcgNome, camp.mcgStatus, camp.mcgMacId, gasto, fun, filhos)
+            )
+    _ordenar(linhas)
 
     nao_identificada = None
-    if None in leads and _tem_movimento(GASTO_ZERO, leads[None]):
-        nao_identificada = _linha(None, NOME_NAO_IDENTIFICADA, None, None, GASTO_ZERO, leads[None])
+    fun_sem_campanha = por_campanha.get(None, FUNIL_ZERO)
+    if _tem_movimento(GASTO_ZERO, fun_sem_campanha):
+        nao_identificada = _linha(
+            "nao_identificada", None, None, NOME_NAO_IDENTIFICADA, None, None, GASTO_ZERO, fun_sem_campanha
+        )
 
-    total = _somar(linhas + ([nao_identificada] if nao_identificada else []))
+    # Total: gasto das campanhas mostradas + funil dos seus leads (e dos sem campanha),
+    # recontado para a media de horas ate o primeiro contato sair certa.
+    no_total = [l for l in leads if l.mcg_id is None or l.mcg_id in incluidas]
+    fun_total = contar(no_total, ini, fim, lambda _l: 0).get(0, FUNIL_ZERO)
+    total = _linha("total", None, None, "Total", None, None, _somar_gasto(linhas), fun_total)
+
+    cobertura = None
+    if fun_total["leadsCrm"]:
+        com_anuncio = _ids_com_anuncio(db, emp_id, condicao, filtro)
+        rastreados = sum(
+            1 for l in no_total if l.opo_id in com_anuncio and _recebido_no_periodo(l, filtro)
+        )
+        cobertura = round(rastreados / fun_total["leadsCrm"] * 100, 2)
+
     return MetaAdsPainelResponse(
-        temConta=tem_conta(db, emp_id), total=total, campanhas=linhas, naoIdentificada=nao_identificada
+        temConta=tem_conta(db, emp_id),
+        total=total,
+        campanhas=linhas,
+        naoIdentificada=nao_identificada,
+        cobertura=cobertura,
+        revisaoOrigem=_revisao_origem(db, emp_id, filtro) if exigir else [],
     )
 
 
@@ -251,7 +442,7 @@ def detalhe_campanha(
     filtro = FiltroPainel(data_inicial, data_final, mac_id=camp.mcgMacId)
     linha = next(
         (l for l in painel(db, emp_id, filtro).campanhas if l.mcgId == mcg_id),
-        _linha(mcg_id, camp.mcgNome, camp.mcgStatus, camp.mcgMacId, GASTO_ZERO, LEADS_ZERO),
+        _linha("campanha", mcg_id, mcg_id, camp.mcgNome, camp.mcgStatus, camp.mcgMacId, GASTO_ZERO, FUNIL_ZERO),
     )
 
     m = MetaAdsInsightDiario

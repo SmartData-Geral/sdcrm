@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -8,6 +9,8 @@ class MetaAdsContaCreate(BaseModel):
     macContaExterna: str = Field(min_length=1, max_length=40)
     token: str = Field(min_length=20, max_length=2000)
     origens: list[int] = Field(default_factory=list)
+    # "Contar so leads com rastreio da Meta" (desligado por padrao).
+    macExigirRastreio: bool = False
 
     @field_validator("macNome")
     @classmethod
@@ -29,6 +32,7 @@ class MetaAdsContaUpdate(BaseModel):
     token: str | None = Field(default=None, min_length=20, max_length=2000)
     origens: list[int] | None = None
     macAtivo: bool | None = None
+    macExigirRastreio: bool | None = None
 
     @field_validator("macNome")
     @classmethod
@@ -58,6 +62,7 @@ class MetaAdsContaResponse(BaseModel):
     macUltimaSync: datetime | None
     macCargaInicialFeita: bool
     macAtivo: bool
+    macExigirRastreio: bool
     origens: list[int]
 
 
@@ -114,7 +119,19 @@ class MetaAdsSyncIniciadaResponse(BaseModel):
     mensagem: str
 
 
+NivelLinha = Literal["campanha", "conjunto", "anuncio", "nao_identificada", "total"]
+
+
 class MetaAdsLinha(BaseModel):
+    """
+    Linha do painel. `id` e o mcgId/mcjId/manId conforme o `nivel`; `mcgId` e sempre a campanha
+    (tambem nas linhas de conjunto e anuncio). `cpl` = investimento / leads Meta; os custos do
+    funil (lead CRM, MQL, oportunidade, `cac` por contrato) usam as contagens do CRM.
+    `vendas` = contratos no periodo.
+    """
+
+    nivel: NivelLinha
+    id: int | None
     mcgId: int | None
     nome: str
     status: str | None
@@ -124,14 +141,33 @@ class MetaAdsLinha(BaseModel):
     cliques: int
     leadsMeta: int
     leadsCrm: int
+    mqls: int
+    oportunidades: int
     vendas: int
     mrr: float
     projeto: float
     ctr: float | None
     cpc: float | None
     cpl: float | None
+    custoLeadCrm: float | None
+    custoMql: float | None
+    custoOportunidade: float | None
     cac: float | None
     retorno: float | None
+    horasPrimeiroContato: float | None
+    filhos: list["MetaAdsLinha"] = Field(default_factory=list)
+
+
+MetaAdsLinha.model_rebuild()
+
+
+class MetaAdsRevisaoItem(BaseModel):
+    """Lead com origem mapeada como Meta e sem nenhum sinal da Meta (para corrigir a origem)."""
+
+    opoId: int
+    opoTitulo: str
+    opoNomeContato: str | None
+    opoDataRecebimento: date | None
 
 
 class MetaAdsPainelResponse(BaseModel):
@@ -139,6 +175,9 @@ class MetaAdsPainelResponse(BaseModel):
     total: MetaAdsLinha
     campanhas: list[MetaAdsLinha]
     naoIdentificada: MetaAdsLinha | None
+    # % dos leads Meta recebidos no periodo com opoMetaAnuncioId; None sem leads.
+    cobertura: float | None = None
+    revisaoOrigem: list[MetaAdsRevisaoItem] = Field(default_factory=list)
 
 
 class MetaAdsSerieDia(BaseModel):

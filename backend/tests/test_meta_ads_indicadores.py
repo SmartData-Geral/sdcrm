@@ -1,7 +1,9 @@
 import unittest
-from datetime import date
+from datetime import date, datetime
 
 from backend.exceptions import BadRequestError, NotFoundError
+from backend.models.etapa_kanban import EtapaKanban
+from backend.models.oportunidade_etapa_historico import OportunidadeEtapaHistorico
 from backend.schemas.crm_dashboard import CrmDashboardFiltroParams
 from backend.services.crm_dashboard_service import _query_rankings_analiticos
 from backend.services.meta_ads import indicadores as ind
@@ -33,17 +35,29 @@ class PainelTests(unittest.TestCase):
         b.criar_insight(self.db, self.c1, date(2026, 10, 3), 200, impressoes=1000, cliques=30, leads=1)
         b.criar_insight(self.db, self.c2, date(2026, 10, 3), 100)
         b.criar_insight(self.db, self.c1, date(2026, 9, 30), 999)  # fora do periodo
+        # Arvore de c1: conjunto s1 com os anuncios a1 e a2 (gasto por anuncio soma o da campanha)
+        self.s1 = b.criar_conjunto(self.db, self.c1, "11", "Conjunto 1")
+        self.a1 = b.criar_anuncio(self.db, self.s1, "111", "Anúncio A")
+        self.a2 = b.criar_anuncio(self.db, self.s1, "112", "Anúncio B", status="PAUSED")
+        b.criar_insight_anuncio(self.db, self.a1, date(2026, 10, 2), 100, impressoes=1000, cliques=20, leads=3)
+        b.criar_insight_anuncio(self.db, self.a1, date(2026, 10, 3), 50, impressoes=400, cliques=10, leads=1)
+        b.criar_insight_anuncio(self.db, self.a2, date(2026, 10, 3), 150, impressoes=600, cliques=20)
+        b.criar_insight_anuncio(self.db, self.a1, date(2026, 9, 30), 999)  # fora do periodo
         cco = self.anuncios.ccoId
-        # A: ligada a c1, recebida e ganha no periodo (MRR 1000)
-        b.criar_oportunidade(
+        # A: ligada a c1 (anuncio a1), recebida e ganha no periodo (MRR 1000)
+        self.opo_a = b.criar_oportunidade(
             self.db, self.emp.empId, opoCcoId=cco, opoMcgId=self.c1.mcgId,
+            opoManId=self.a1.manId, opoMetaAnuncioId="111",
             opoDataRecebimento=date(2026, 10, 5), opoStatusFechamento="ganho",
             opoDataFechamento=date(2026, 10, 20), opoValorFechado=1000, opoFechadoRecorrencia=0,
         )
-        # B: ligada a c1, recebida, aberta
-        b.criar_oportunidade(self.db, self.emp.empId, opoCcoId=cco, opoMcgId=self.c1.mcgId, opoDataRecebimento=date(2026, 10, 6))
-        # C: origem Anuncios sem campanha, recebida e perdida
-        b.criar_oportunidade(
+        # B: ligada a c1 (anuncio a2), recebida, aberta
+        self.opo_b = b.criar_oportunidade(
+            self.db, self.emp.empId, opoCcoId=cco, opoMcgId=self.c1.mcgId,
+            opoManId=self.a2.manId, opoMetaAnuncioId="112", opoDataRecebimento=date(2026, 10, 6),
+        )
+        # C: origem Anuncios sem campanha e sem sinal da Meta, recebida e perdida
+        self.opo_c = b.criar_oportunidade(
             self.db, self.emp.empId, opoCcoId=cco, opoDataRecebimento=date(2026, 10, 7),
             opoStatusFechamento="perdido", opoDataFechamento=date(2026, 10, 8),
         )
@@ -63,7 +77,7 @@ class PainelTests(unittest.TestCase):
         c1 = por_id[self.c1.mcgId]
         self.assertEqual(
             (c1.investimento, c1.leadsMeta, c1.leadsCrm, c1.vendas, c1.mrr, c1.cpl, c1.cac, c1.retorno),
-            (300.0, 4, 2, 1, 1000.0, 150.0, 300.0, 40.0),
+            (300.0, 4, 2, 1, 1000.0, 75.0, 300.0, 40.0),
         )
         c2 = por_id[self.c2.mcgId]
         self.assertEqual((c2.investimento, c2.leadsCrm, c2.cpl), (100.0, 0, None))
@@ -74,8 +88,167 @@ class PainelTests(unittest.TestCase):
         self.assertEqual((p.naoIdentificada.leadsCrm, p.naoIdentificada.investimento), (1, 0.0))
         self.assertEqual(
             (p.total.investimento, p.total.leadsCrm, p.total.vendas, p.total.mrr, p.total.cpl),
-            (400.0, 3, 1, 1000.0, 133.33),
+            (400.0, 3, 1, 1000.0, 100.0),
         )
+
+    def _exigir(self, conta=None, valor=True) -> None:
+        conta = conta or self.conta
+        conta.macExigirRastreio = valor
+        self.db.commit()
+
+    def test_cpl_principal_usa_leads_meta(self) -> None:
+        c1 = next(l for l in self._painel().campanhas if l.mcgId == self.c1.mcgId)
+        self.assertEqual((c1.cpl, c1.custoLeadCrm), (75.0, 150.0))
+
+    def test_arvore_campanha_conjunto_anuncio(self) -> None:
+        p = self._painel()
+        c1 = next(l for l in p.campanhas if l.mcgId == self.c1.mcgId)
+        self.assertEqual((c1.nivel, c1.id), ("campanha", self.c1.mcgId))
+        self.assertEqual([s.id for s in c1.filhos], [self.s1.mcjId])
+        s1 = c1.filhos[0]
+        self.assertEqual((s1.nivel, s1.mcgId, s1.nome), ("conjunto", self.c1.mcgId, "Conjunto 1"))
+        self.assertEqual(sum(f.investimento for f in c1.filhos), c1.investimento)
+        self.assertEqual(sum(a.investimento for a in s1.filhos), s1.investimento)
+        por_id = {a.id: a for a in s1.filhos}
+        a1, a2 = por_id[self.a1.manId], por_id[self.a2.manId]
+        self.assertEqual(
+            (a1.nivel, a1.mcgId, a1.investimento, a1.leadsMeta, a1.cpl, a1.leadsCrm, a1.vendas, a1.mrr),
+            ("anuncio", self.c1.mcgId, 150.0, 4, 37.5, 1, 1, 1000.0),
+        )
+        self.assertEqual(
+            (a2.status, a2.investimento, a2.leadsMeta, a2.cpl, a2.leadsCrm), ("PAUSED", 150.0, 0, None, 1)
+        )
+        self.assertEqual((s1.leadsCrm, s1.vendas, s1.leadsMeta), (2, 1, 4))
+        self.assertEqual(a1.filhos, [])
+        c2 = next(l for l in p.campanhas if l.mcgId == self.c2.mcgId)
+        self.assertEqual(c2.filhos, [])
+        self.assertEqual((p.total.nivel, p.naoIdentificada.nivel), ("total", "nao_identificada"))
+
+    def _etapas(self) -> dict:
+        etapas = {}
+        for nome, ordem in [("Contatos", 1), ("Reunião de Levantamento", 3), ("Reunião de Vendas", 4)]:
+            etk = EtapaKanban(etkEmpId=self.emp.empId, etkNome=nome, etkOrdem=ordem)
+            self.db.add(etk)
+            self.db.commit()
+            etapas[nome] = etk.etkId
+        return etapas
+
+    def _trans(self, opo, de, para, quando) -> None:
+        self.db.add(OportunidadeEtapaHistorico(
+            oehEmpId=self.emp.empId, oehOpoId=opo.opoId, oehEtkIdDe=de, oehEtkIdPara=para,
+            oehData=quando, oehOrigem="ui"))
+        self.db.commit()
+
+    def test_funil_por_anuncio(self) -> None:
+        etapas = self._etapas()
+        lead = b.criar_oportunidade(
+            self.db, self.emp.empId, opoCcoId=self.anuncios.ccoId, opoMcgId=self.c1.mcgId,
+            opoManId=self.a2.manId, opoMetaAnuncioId="112", opoDataRecebimento=date(2026, 10, 9),
+            opoDataCriacao=datetime(2026, 10, 9, 12),
+        )
+        lev, vendas = etapas["Reunião de Levantamento"], etapas["Reunião de Vendas"]
+        self._trans(lead, None, etapas["Contatos"], datetime(2026, 10, 9, 12))
+        self._trans(lead, etapas["Contatos"], lev, datetime(2026, 10, 10, 12))
+        self._trans(lead, lev, vendas, datetime(2026, 10, 12, 12))
+        p = self._painel()
+        c1 = next(l for l in p.campanhas if l.mcgId == self.c1.mcgId)
+        s1 = c1.filhos[0]
+        a2 = next(a for a in s1.filhos if a.id == self.a2.manId)
+        self.assertEqual((a2.leadsCrm, a2.mqls, a2.oportunidades), (2, 1, 1))
+        self.assertEqual((a2.custoMql, a2.custoOportunidade), (a2.investimento, a2.investimento))
+        self.assertEqual(a2.horasPrimeiroContato, 24.0)
+        # A (ganho sem passagem pelos estagios) e MQL e oportunidade pela data de fechamento
+        a1 = next(a for a in s1.filhos if a.id == self.a1.manId)
+        self.assertEqual((a1.mqls, a1.oportunidades), (1, 1))
+        self.assertEqual((s1.mqls, s1.oportunidades, c1.mqls, c1.custoMql), (2, 2, 2, 150.0))
+        self.assertEqual((p.total.mqls, p.total.oportunidades, p.total.custoMql), (2, 2, 200.0))
+
+    def test_lead_com_campanha_manual_diferente_do_anuncio(self) -> None:
+        # O anuncio a1 e da campanha c1, mas o vinculo manual diz c2: o lead conta so em c2.
+        b.criar_oportunidade(
+            self.db, self.emp.empId, opoCcoId=self.anuncios.ccoId, opoMcgId=self.c2.mcgId,
+            opoMcgManual=True, opoManId=self.a1.manId, opoMetaAnuncioId="111",
+            opoDataRecebimento=date(2026, 10, 9),
+        )
+        p = self._painel()
+        por_id = {l.mcgId: l for l in p.campanhas}
+        c1, c2 = por_id[self.c1.mcgId], por_id[self.c2.mcgId]
+        self.assertEqual((c1.leadsCrm, c2.leadsCrm), (2, 1))
+        a1 = next(a for a in c1.filhos[0].filhos if a.id == self.a1.manId)
+        self.assertEqual(a1.leadsCrm, 1)
+        self.assertEqual(c2.filhos, [])
+        self.assertEqual(p.total.leadsCrm, 4)
+
+    def test_exigir_rastreio_tira_origem_sem_sinal(self) -> None:
+        self._exigir()
+        p = self._painel()
+        self.assertIsNone(p.naoIdentificada)
+        revisao = p.revisaoOrigem
+        self.assertEqual([r.opoId for r in revisao], [self.opo_c.opoId])
+        self.assertEqual(revisao[0].opoDataRecebimento, date(2026, 10, 7))
+        self.assertEqual(
+            (p.total.investimento, p.total.leadsCrm, p.total.vendas, p.total.mrr), (400.0, 2, 1, 1000.0)
+        )
+        self.assertEqual(p.cobertura, 100.0)
+
+    def test_exigir_rastreio_nenhuma_manual_com_sinal_conta_como_meta(self) -> None:
+        self._exigir()
+        lead = b.criar_oportunidade(
+            self.db, self.emp.empId, opoCcoId=self.indicacao.ccoId, opoMcgManual=True,
+            opoManId=self.a1.manId, opoMetaLeadId="L1", opoDataRecebimento=date(2026, 10, 9),
+        )
+        p = self._painel()
+        self.assertEqual(p.naoIdentificada.leadsCrm, 1)
+        c1 = next(l for l in p.campanhas if l.mcgId == self.c1.mcgId)
+        a1 = next(a for a in c1.filhos[0].filhos if a.id == self.a1.manId)
+        self.assertEqual((c1.leadsCrm, a1.leadsCrm), (2, 1))
+        self.assertNotIn(lead.opoId, [r.opoId for r in p.revisaoOrigem])
+        self.assertEqual(p.total.leadsCrm, 3)
+
+    def test_exigir_rastreio_vale_por_conta(self) -> None:
+        outra = b.criar_conta(self.db, self.emp.empId, act="act_222")
+        self._exigir(outra)
+        # Filtro na conta sem a flag: regra da fase 1
+        p = self._painel(mac_id=self.conta.macId)
+        self.assertEqual((p.naoIdentificada.leadsCrm, p.revisaoOrigem), (1, []))
+        # Sem filtro: basta uma conta ativa da empresa com a flag
+        p = self._painel()
+        self.assertIsNone(p.naoIdentificada)
+        self.assertEqual([r.opoId for r in p.revisaoOrigem], [self.opo_c.opoId])
+        # Conta com a flag desativada nao liga a regra
+        outra.macAtivo = False
+        self.db.commit()
+        self.assertEqual(self._painel().revisaoOrigem, [])
+
+    def test_exigir_rastreio_com_filtro_de_conta(self) -> None:
+        self._exigir()
+        com_sinal = b.criar_oportunidade(
+            self.db, self.emp.empId, opoCcoId=self.anuncios.ccoId, opoMetaLeadId="L2",
+            opoDataRecebimento=date(2026, 10, 9),
+        )
+        outra = b.criar_conta(self.db, self.emp.empId, act="act_222")
+        self._exigir(outra)
+        p = self._painel(mac_id=self.conta.macId)
+        self.assertEqual(p.naoIdentificada.leadsCrm, 1)  # com_sinal, pela origem mapeada na conta
+        self.assertEqual([r.opoId for r in p.revisaoOrigem], [self.opo_c.opoId])
+        p_outra = self._painel(mac_id=outra.macId)
+        self.assertIsNone(p_outra.naoIdentificada)
+        self.assertEqual(p_outra.revisaoOrigem, [])
+        self.assertNotIn(com_sinal.opoId, [r.opoId for r in p.revisaoOrigem])
+
+    def test_sem_flag_mantem_regra_da_fase_1(self) -> None:
+        p = self._painel()
+        self.assertEqual(p.revisaoOrigem, [])
+        self.assertEqual((p.naoIdentificada.leadsCrm, p.naoIdentificada.vendas), (1, 0))
+        self.assertEqual(
+            (p.total.leadsCrm, p.total.vendas, p.total.cac, p.total.retorno, p.total.custoLeadCrm),
+            (3, 1, 400.0, 30.0, 133.33),
+        )
+
+    def test_cobertura(self) -> None:
+        self.assertEqual(self._painel().cobertura, 66.67)
+        vazio = ind.painel(self.db, self.emp.empId, ind.FiltroPainel(date(2030, 1, 1), date(2030, 1, 31)))
+        self.assertIsNone(vazio.cobertura)
 
     def test_bate_com_a_aba_fontes(self) -> None:
         rankings = _query_rankings_analiticos(

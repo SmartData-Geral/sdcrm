@@ -116,7 +116,10 @@ class RotasTests(unittest.TestCase):
         with patch.object(meta_ads_router, "require_user_in_company"):
             r = self.http.get("/api/meta-ads/painel", headers=self.h, params={"data_inicial": "2026-10-01"})
         self.assertEqual(r.status_code, 200, r.text)
-        self.assertFalse(r.json()["temConta"])
+        corpo = r.json()
+        self.assertFalse(corpo["temConta"])
+        self.assertEqual((corpo["cobertura"], corpo["revisaoOrigem"]), (None, []))
+        self.assertEqual((corpo["total"]["nivel"], corpo["total"]["filhos"]), ("total", []))
 
 
 if __name__ == "__main__":
