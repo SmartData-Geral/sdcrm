@@ -21,7 +21,9 @@ import {
 const dataHora = (valor: string) => new Date(valor).toLocaleString("pt-BR");
 
 const variacao = (v: number | null | undefined) =>
-  v == null ? "sem base" : `${v > 0 ? "+" : ""}${v.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% vs. média do período`;
+  v == null
+    ? "sem base de comparação"
+    : `${v > 0 ? "+" : ""}${v.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% vs. média diária dos 7 dias anteriores`;
 
 const leadDoAlerta = (a: MetaAdsAlerta): string | null => {
   if (a.malTipo !== "sem_contato") return null;
@@ -70,6 +72,7 @@ const MonitoramentoPage: React.FC = () => {
   const admin = Boolean(user?.usuAdmin);
 
   const [datas, setDatas] = useState<ResumoDiarioItem[]>([]);
+  const [datasErro, setDatasErro] = useState<string | null>(null);
   const [dataSel, setDataSel] = useState("");
   const [resumo, setResumo] = useState<ResumoDiario | null>(null);
   const [resumoCarregando, setResumoCarregando] = useState(false);
@@ -88,13 +91,16 @@ const MonitoramentoPage: React.FC = () => {
 
   useEffect(() => {
     let ativo = true;
+    setDatasErro(null);
     api
       .get<{ items: ResumoDiarioItem[] }>("/meta-ads/resumos", { params: { limite: 60 } })
       .then((r) => {
         if (ativo) setDatas(r.data.items ?? []);
       })
-      .catch(() => {
-        if (ativo) setDatas([]);
+      .catch((err) => {
+        if (!ativo) return;
+        setDatas([]);
+        setDatasErro(mensagemErroApi(err, "Não foi possível carregar a lista de datas."));
       });
     return () => {
       ativo = false;
@@ -187,7 +193,7 @@ const MonitoramentoPage: React.FC = () => {
       ["MQLs", String(p.mqls), comVariacao ? variacao(v.mqls) : undefined],
       ["Custo/MQL", moeda(p.custoMql), undefined],
     ];
-    if (comVariacao) itens.push(["Cobertura de rastreio", cobertura == null ? "—" : percentual(cobertura), undefined]);
+    if (!comVariacao) itens.push(["Cobertura de rastreio", cobertura == null ? "—" : percentual(cobertura), undefined]);
     return (
       <section className="dashboard-cards-row campanhas-cards">
         {itens.map(([rotulo, valor, dica]) => (
@@ -234,13 +240,14 @@ const MonitoramentoPage: React.FC = () => {
         </div>
 
         {(resumoCarregando || gerando) && <Loader />}
+        {datasErro && <div className="integracao-erro">{datasErro}</div>}
         {resumoErro && <div className="integracao-erro">{resumoErro}</div>}
 
-        {!resumoCarregando && !resumo && !resumoErro && (
+        {!resumoCarregando && !resumo && (
           <div>
-            <p>Nenhum resumo gerado ainda.</p>
+            {!resumoErro && <p>Nenhum resumo gerado ainda.</p>}
             <button type="button" className="primary" onClick={() => void gerar(hojeISO())} disabled={gerando}>
-              {gerando ? "Gerando…" : "Gerar agora"}
+              {gerando ? "Gerando…" : resumoErro ? "Tentar de novo" : "Gerar agora"}
             </button>
           </div>
         )}
@@ -253,15 +260,15 @@ const MonitoramentoPage: React.FC = () => {
             </p>
 
             <h3>
-              Período anterior ({dataBR(d.periodo.inicio)}
+              {d.periodo.dias > 1 ? "Sexta a domingo" : "Dia anterior"} ({dataBR(d.periodo.inicio)}
               {d.periodo.fim !== d.periodo.inicio ? ` a ${dataBR(d.periodo.fim)}` : ""})
             </h3>
-            {cartoes(d.periodo, false, null)}
+            {cartoes(d.periodo, true, null)}
 
             <h3>
               Últimos 7 dias ({dataBR(d.ultimos7.inicio)} a {dataBR(d.ultimos7.fim)})
             </h3>
-            {cartoes(d.ultimos7, true, d.cobertura)}
+            {cartoes(d.ultimos7, false, d.cobertura)}
 
             <h3>Leitura</h3>
             {resumo.mrsLeitura ? (
