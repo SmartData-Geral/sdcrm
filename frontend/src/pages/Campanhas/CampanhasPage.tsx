@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Layout from "../../components/Layout";
 import Loader from "../../components/Loader";
@@ -6,6 +6,8 @@ import { useAuth } from "../../contexts/AuthContext";
 import CampanhaDetalheModal from "./CampanhaDetalheModal";
 import { CartoesIndicadores } from "./cockpit/CartoesIndicadores";
 import { FunilCockpit } from "./cockpit/FunilCockpit";
+import { LeituraAnalista } from "./cockpit/LeituraAnalista";
+import { PergunteAnalista } from "./cockpit/PergunteAnalista";
 import { GraficosTendencia } from "./cockpit/GraficosTendencia";
 import { MatrizCriativos } from "./cockpit/MatrizCriativos";
 import { SaudeOperacao } from "./cockpit/SaudeOperacao";
@@ -53,6 +55,7 @@ const CampanhasPage: React.FC = () => {
   const [erro, setErro] = useState<string | null>(null);
   const [loadingCockpit, setLoadingCockpit] = useState(false);
   const [erroCockpit, setErroCockpit] = useState<string | null>(null);
+  const [ia, setIa] = useState<{ disponivel: boolean; aviso: string | null }>({ disponivel: true, aviso: null });
   const [detalheId, setDetalheId] = useState<number | null>(null);
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
 
@@ -208,6 +211,7 @@ const CampanhasPage: React.FC = () => {
   const semConta = (painel && !painel.temConta) || (cockpit && !cockpit.temConta);
   const t = painel?.total;
   const carregando = loading || loadingCockpit;
+  const recorte = useMemo(() => ({ inicio, fim, macId, somenteAtivas }), [inicio, fim, macId, somenteAtivas]);
 
   return (
     <Layout>
@@ -253,7 +257,17 @@ const CampanhasPage: React.FC = () => {
         </label>
       </section>
 
-      {/* Task 9: LeituraAnalista + PergunteAnalista entram aqui, acima dos indicadores. */}
+      {cockpit && cockpit.temConta && (
+        <section className="cockpit-analista" aria-label="Analista de campanhas">
+          <LeituraAnalista
+            recorte={recorte}
+            selo={cockpit.selos.saude}
+            fraseGargalo={cockpit.fraseGargalo}
+            onDisponibilidade={(disponivel, aviso) => setIa({ disponivel, aviso })}
+          />
+          <PergunteAnalista recorte={recorte} iaDisponivel={ia.disponivel} aviso={ia.aviso} />
+        </section>
+      )}
 
       {carregando && <Loader />}
       {erro && <div className="integracao-erro">{erro}</div>}

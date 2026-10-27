@@ -353,3 +353,38 @@ export function intervaloUltimosDias(n: number): { inicio: string; fim: string }
   const ini = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - (n - 1));
   return { inicio: isoLocal(ini), fim: isoLocal(hoje) };
 }
+
+// ---- Leitura do analista e chat (espelha backend/schemas/meta_ads.py) ----
+
+export interface CockpitLeituraEstruturada {
+  manchete: string;
+  funciona: string;
+  problema: string;
+  olharAgora: string;
+}
+
+export interface MetaAdsCockpitLeitura {
+  leitura: CockpitLeituraEstruturada | null;
+  texto: string | null;
+  geradoEm: string | null;
+  desatualizada: boolean;
+  aviso: string | null;
+  iaDisponivel: boolean;
+}
+
+export interface CockpitRecorte {
+  inicio: string;
+  fim: string;
+  macId: string;
+  somenteAtivas: boolean;
+}
+
+export interface CockpitTroca {
+  pergunta: string;
+  resposta: string;
+}
+
+export interface MetaAdsCockpitResposta {
+  resposta: string;
+  restantesHoje: number;
+}

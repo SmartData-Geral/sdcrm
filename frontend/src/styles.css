@@ -6800,3 +6800,54 @@ select.detail-inline-input {
 .cockpit-tabela-nome { font-weight: 600; }
 .cockpit-tabela-porque { white-space: normal; min-width: 260px; color: #334155; }
 .cockpit-etiqueta { display: inline-block; font-size: 0.75rem; font-weight: 700; color: #ffffff; padding: 0.15rem 0.65rem; border-radius: 999px; white-space: nowrap; }
+
+/* ---- Cockpit: leitura do analista e chat ---- */
+.cockpit-analista {
+  background: #0f172a;
+  color: #f8fafc;
+  border-radius: 16px;
+  padding: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+.cockpit-analista-leitura { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+.cockpit-analista-chat { flex: 1 1 280px; min-width: 0; background: #1e293b; border-radius: 12px; padding: 1rem; display: flex; flex-direction: column; gap: 0.65rem; }
+@media (max-width: 900px) {
+  .cockpit-analista { flex-direction: column; flex-wrap: nowrap; }
+  .cockpit-analista-leitura, .cockpit-analista-chat { flex: 0 0 auto; }
+}
+.cockpit-analista-cabeca { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+.cockpit-analista-titulo { margin: 0; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #93c5fd; }
+.cockpit-analista-chat-titulo { margin: 0; font-size: 0.95rem; font-weight: 700; color: #f8fafc; }
+.cockpit-analista-gargalo { margin: 0; font-size: 0.9rem; color: #e2e8f0; }
+.cockpit-analista-manchete { margin: 0; font-size: 1.35rem; line-height: 1.35; font-weight: 600; color: #f8fafc; }
+.cockpit-analista-texto { margin: 0; font-size: 0.95rem; line-height: 1.5; color: #e2e8f0; white-space: pre-wrap; }
+.cockpit-analista-blocos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+@media (max-width: 900px) { .cockpit-analista-blocos { grid-template-columns: minmax(0, 1fr); } }
+.cockpit-analista-bloco { background: #1e293b; border-radius: 12px; padding: 0.9rem; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.9rem; line-height: 1.45; color: #e2e8f0; }
+.cockpit-analista-bloco strong { font-size: 0.82rem; }
+.cockpit-analista-bloco--bom { color: #86efac; }
+.cockpit-analista-bloco--atencao { color: #fcd34d; }
+.cockpit-analista-bloco--olhar { color: #93c5fd; }
+.cockpit-analista-nota { margin: 0; font-size: 0.8rem; color: #cbd5e1; line-height: 1.4; }
+.cockpit-analista-erro { margin: 0; font-size: 0.85rem; color: #fecaca; line-height: 1.4; }
+.cockpit-analista-botao {
+  border: 1px solid #93c5fd; background: #93c5fd; color: #0f172a; font-weight: 700; font-size: 0.85rem;
+  padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer;
+}
+.cockpit-analista-botao:disabled { background: #334155; border-color: #475569; color: #cbd5e1; cursor: not-allowed; }
+.cockpit-analista-botao:focus-visible, .cockpit-analista-sugestao:focus-visible, .cockpit-analista-form textarea:focus-visible { outline: 2px solid #fcd34d; outline-offset: 2px; }
+.cockpit-analista-sugestoes { display: flex; flex-direction: column; gap: 0.5rem; }
+.cockpit-analista-sugestao { text-align: left; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #e2e8f0; font: inherit; font-size: 0.85rem; cursor: pointer; }
+.cockpit-analista-sugestao:hover:not(:disabled) { border-color: #93c5fd; }
+.cockpit-analista-sugestao:disabled { opacity: 0.6; cursor: not-allowed; }
+.cockpit-analista-conversa { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; max-height: 22rem; overflow-y: auto; }
+.cockpit-analista-conversa p { margin: 0; font-size: 0.85rem; line-height: 1.45; color: #e2e8f0; white-space: pre-wrap; }
+.cockpit-analista-pergunta { color: #f8fafc; font-weight: 600; }
+.cockpit-analista-quem { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #93c5fd; }
+.cockpit-analista-form { display: flex; flex-direction: column; gap: 0.4rem; }
+.cockpit-analista-form label { font-size: 0.8rem; color: #cbd5e1; }
+.cockpit-analista-form textarea { border-radius: 8px; border: 1px solid #64748b; background: #0f172a; color: #f8fafc; padding: 0.5rem 0.6rem; font: inherit; font-size: 0.9rem; resize: vertical; }
+.cockpit-analista-form textarea::placeholder { color: #94a3b8; }
+.cockpit-analista-form-rodape { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem; }
