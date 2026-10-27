@@ -13,7 +13,7 @@ FERRAMENTAS = {
     "obter_metas", "criar_lead", "atualizar_oportunidade", "mover_etapa",
     "atualizar_qualificacao", "registrar_interacao", "marcar_ganho", "marcar_perdido",
     "colocar_stand_by", "reativar_oportunidade",
-    "resumo_campanhas", "funil_por_criativo", "alertas_campanhas", "resumo_diario",
+    "resumo_campanhas", "funil_por_criativo", "alertas_campanhas", "resumo_diario", "cockpit_campanhas",
 }
 ESCRITA = {
     "criar_lead", "atualizar_oportunidade", "mover_etapa", "atualizar_qualificacao",

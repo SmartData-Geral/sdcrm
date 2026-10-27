@@ -6,6 +6,13 @@ from unittest.mock import patch
 from backend.mcp_crm.ferramentas import campanhas
 from backend.schemas.meta_ads import (
     MetaAdsAlertaResponse,
+    MetaAdsCockpitCriativo,
+    MetaAdsCockpitEtapa,
+    MetaAdsCockpitMetas,
+    MetaAdsCockpitOperacao,
+    MetaAdsCockpitPonto,
+    MetaAdsCockpitResponse,
+    MetaAdsCockpitSelos,
     MetaAdsLinha,
     MetaAdsPainelResponse,
     MetaAdsResumoDiarioResponse,
@@ -115,6 +122,47 @@ class ResumoDiarioTests(unittest.TestCase):
         self.assertEqual(r["leitura"], "Texto")
         self.assertEqual(r["dados"], {"total": {}})
         self.assertEqual({"data", "inicio", "fim", "dados", "leitura", "aviso", "geradoEm"}, set(r))
+
+
+def _cockpit():
+    criativo = MetaAdsCockpitCriativo(
+        id=11, mcgId=1, nome="Criativo A", campanha="Camp 1", status="ACTIVE", ativo=True,
+        investimento=100.0, leadsMeta=10, leadsCrm=8, mqls=4, cpl=10.0, taxaMql=50.0,
+        quadrante="escalar", motivo=None, amostraPequena=False, recomendacao="Escalar", porque="Bom",
+    )
+    return MetaAdsCockpitResponse(
+        temConta=True, inicio=date(2026, 10, 1), fim=date(2026, 10, 31),
+        metas=MetaAdsCockpitMetas(cpl=150, taxaMql=10, custoMqlImplicito=1500, cplFator=1.5),
+        total=_linha("total", None, "Total", mcg=None), taxaMql=50.0,
+        anterior=_linha("total", None, "Total", mcg=None), anteriorInicio=date(2026, 8, 31),
+        anteriorFim=date(2026, 9, 30), anteriorTemDados=True,
+        selos=MetaAdsCockpitSelos(cpl="bom", taxaMql="bom", custoMql="bom", saude="bom"),
+        funil=[MetaAdsCockpitEtapa(chave="leads", quantidade=10, taxa=None, custo=10.0, gargalo=False)],
+        gargalo=None, fraseGargalo=None, intervalo="semana",
+        serie=[MetaAdsCockpitPonto(
+            inicio=date(2026, 10, 1), fim=date(2026, 10, 4), rotulo="1 a 4 out", investimento=100.0,
+            impressoes=1000, cliques=50, leadsMeta=10, leadsCrm=8, mqls=4, cpl=10.0)],
+        criativos=[criativo],
+        operacao=MetaAdsCockpitOperacao(
+            cobertura=80.0, horasPrimeiroContato=1.5, alertasAbertos=0, origemRevisar=1),
+    )
+
+
+class CockpitCampanhasTests(unittest.TestCase):
+    def test_cockpit_campanhas_sem_dados_pessoais(self) -> None:
+        s = contexto_falso(emp_id=7)
+        with usar_sessao(CAM, s), patch(f"{CAM}.cockpit.montar", return_value=_cockpit()) as montar:
+            r = campanhas.cockpit_campanhas(ctx=None, data_inicial=date(2026, 10, 1), data_final=date(2026, 10, 31))
+        filtro = montar.call_args.args[2]
+        self.assertEqual((montar.call_args.args[1], filtro.data_inicial, filtro.data_final), (7, date(2026, 10, 1), date(2026, 10, 31)))
+        self.assertEqual(set(r), {
+            "periodo", "metas", "total", "anterior", "anteriorTemDados", "taxaMql", "selos", "funil",
+            "gargalo", "fraseGargalo", "intervalo", "serie", "criativos", "operacao",
+        })
+        self.assertNotIn("filhos", r["total"])
+        texto = json.dumps(r, default=str, ensure_ascii=False)
+        for proibido in ("revisaoOrigem", "Joao", "opoNomeContato", "opoTelefone", "opoEmail"):
+            self.assertNotIn(proibido, texto)
 
 
 if __name__ == "__main__":

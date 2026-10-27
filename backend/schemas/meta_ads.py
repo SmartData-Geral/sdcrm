@@ -417,3 +417,21 @@ class MetaAdsCockpitResponse(BaseModel):
     serie: list[MetaAdsCockpitPonto]
     criativos: list[MetaAdsCockpitCriativo]
     operacao: MetaAdsCockpitOperacao
+
+
+class MetaAdsCockpitLeituraTexto(BaseModel):
+    manchete: str
+    funciona: str
+    problema: str
+    olharAgora: str
+
+
+class MetaAdsCockpitLeituraResponse(BaseModel):
+    """Leitura guardada do recorte. `texto` leva a resposta crua quando a IA nao devolveu o JSON esperado."""
+
+    leitura: MetaAdsCockpitLeituraTexto | None
+    texto: str | None
+    geradoEm: datetime | None
+    desatualizada: bool
+    aviso: str | None
+    iaDisponivel: bool

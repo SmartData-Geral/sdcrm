@@ -3,7 +3,7 @@ from typing import Literal
 
 from mcp.server.mcpserver import Context
 
-from ...services.meta_ads import alertas, indicadores, resumo
+from ...services.meta_ads import alertas, cockpit, cockpit_ia, indicadores, resumo
 from ..ferramenta import executar_ferramenta
 from ..servidor import mcp
 
@@ -111,3 +111,15 @@ def resumo_diario(ctx: Context, data: date | None = None) -> dict:
             "aviso": r.mrsAviso,
             "geradoEm": r.mrsGeradoEm.isoformat(),
         }
+
+
+@mcp.tool()
+def cockpit_campanhas(ctx: Context, data_inicial: date, data_final: date) -> dict:
+    """Cockpit de campanhas Meta Ads no período: totais e período anterior, metas e selos de
+    saúde (CPL, taxa de MQL, custo por MQL), funil com gargalo, série por semana ou mês e
+    criativos (até 30, de maior investimento) com quadrante, recomendação e marca de amostra
+    pequena. São os mesmos dados que a IA recebe; sem dados de pessoas."""
+    argumentos = dict(locals())
+    with executar_ferramenta(ctx, "cockpit_campanhas", escrita=False, argumentos=argumentos) as s:
+        filtro = indicadores.FiltroPainel(data_inicial, data_final)
+        return cockpit_ia.contexto_ia(cockpit.montar(s.db, s.empId, filtro))
