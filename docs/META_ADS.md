@@ -48,6 +48,29 @@ Na página **Campanhas**, cada campanha abre em conjuntos e anúncios, com leads
 oportunidades, contratos e o custo de cada etapa. O CPL principal é investimento ÷ leads da Meta
 (igual ao Gerenciador de Anúncios); o custo por lead do CRM fica em coluna separada.
 
+## Cockpit (página Campanhas)
+
+A página **Campanhas** abre como cockpit; a tabela em árvore fica embaixo, em "Detalhe por
+campanha".
+
+- **Metas** (CRM → Monitoramento → Configurar, seção "Metas do cockpit"): CPL (padrão R$ 150) e
+  taxa de MQL (padrão 10%). Custo por MQL implícito = CPL ÷ taxa (R$ 1.500 com os padrões).
+- **Selos**: Bom, Atenção (até 1,5× a meta, o mesmo fator do alerta de CPL; na taxa, a partir de
+  60% da meta), Ruim e Sem dados. A saúde do período é o pior entre CPL e taxa de MQL.
+- **Gargalo**: a passagem de menor taxa a partir de "chegaram ao CRM", só com 3 ou mais entradas na
+  etapa de origem e só quando há perda.
+- **Matriz dos criativos** (anúncios com gasto no período): Escalar, Otimizar custo, Rever público ou
+  Pausar, contra as metas. Menos de 5 leads no CRM = "amostra pequena". Sem lead e gasto ≥ R$ 150
+  = Pausar (faixa "sem lead"); abaixo disso, ou com lead na Meta e nenhum no CRM = Aguardar dados.
+  Anúncio pausado leva "(já pausado)", e Pausar vira "Manter pausado".
+- **Leitura do analista (IA)**: só quando alguém clica em "Gerar leitura"; fica guardada por
+  recorte (período, conta, só ativas) e aparece como "gerada com números anteriores" quando os
+  números ou as metas mudam.
+- **Pergunte ao analista**: respostas só com os números do período, sem guardar a conversa, até 30
+  perguntas por usuário por dia.
+- Nada de nome, telefone ou e-mail de lead vai para a IA. A ferramenta MCP `cockpit_campanhas`
+  devolve o mesmo contexto que a IA recebe.
+
 ## Fluxo n8n dos leads do formulário
 
 O fluxo **"lead Recebido -> CRM -> Whats Pedro"** lê a planilha "Codeseller leads face" (exportação

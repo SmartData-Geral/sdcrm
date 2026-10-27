@@ -2,7 +2,7 @@
 
 - **Data:** 27/10/2026
 - **Autor:** Carlos Souza (com Claude)
-- **Status:** em revisão pelo Carlos
+- **Status:** implementada (migrations 0037–0039 pendentes de aplicação)
 - **Base:** monitoramento de campanhas Meta já entregue (`2026-10-26-monitoramento-campanhas-meta-design.md`):
   dados por anúncio, funil lead → MQL → oportunidade → contrato, resumo diário com IA, alertas e
   ferramentas MCP. Protótipo validado pelo Carlos em 27/10/2026:
@@ -340,3 +340,16 @@ Mesmos dados que vão para a IA; sem dados pessoais. As ferramentas atuais não 
 13. A matriz inclui anúncios já pausados, com "(já pausado)" e "Manter pausado".
 14. Metas valem para a empresa toda (não por conta) e entram na impressão digital da leitura.
 15. Sem período anterior com dados, o cartão mostra a tendência e avisa.
+
+## 9. Ajustes na implementação
+
+1. Anúncio sem lead da Meta mas com lead no CRM usa os leads do CRM no CPL (a tabela mostra
+   "N (CRM)"), para um criativo com MQL não sair como "Pausar".
+2. A matriz e a tabela listam só anúncios com investimento no período.
+3. "(já pausado)" vale para todos os quadrantes de anúncio inativo, menos "Aguardar dados".
+4. O gargalo só aparece quando há perda (taxa abaixo de 100%).
+5. Selos e quadrantes comparam a taxa de MQL arredondada em 2 casas, a mesma mostrada na tela.
+6. A rota do cockpit exige as duas datas; "todas as contas" é guardado como conta 0 no recorte da
+   leitura.
+7. Pendente para depois: requisições simultâneas de leitura ou de pergunta podem dar erro 500 em
+   vez de esperar; datas invertidas no período personalizado não são recusadas.
