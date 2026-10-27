@@ -240,3 +240,116 @@ export const mensagemErroApi = (err: any, padrao: string) => {
   if (Array.isArray(detail) && detail[0]?.msg) return String(detail[0].msg).replace(/^Value error, /, "");
   return padrao;
 };
+
+// ---- Cockpit de campanhas (espelha backend/schemas/meta_ads.py) ----
+
+export type CockpitSelo = "bom" | "atencao" | "ruim" | "sem_dados";
+export type CockpitQuadrante = "escalar" | "otimizar_custo" | "rever_publico" | "pausar" | "aguardar_dados";
+export type CockpitEtapaChave = "impressoes" | "cliques" | "leads" | "crm" | "mql" | "oportunidade" | "contrato";
+
+export interface CockpitMetas {
+  cpl: number;
+  taxaMql: number;
+  custoMqlImplicito: number;
+  cplFator: number;
+}
+
+export interface CockpitSelos {
+  cpl: CockpitSelo;
+  taxaMql: CockpitSelo;
+  custoMql: CockpitSelo;
+  saude: CockpitSelo;
+}
+
+export interface CockpitEtapa {
+  chave: CockpitEtapaChave;
+  quantidade: number;
+  taxa: number | null;
+  custo: number | null;
+  gargalo: boolean;
+}
+
+export interface CockpitPonto {
+  inicio: string;
+  fim: string;
+  rotulo: string;
+  investimento: number;
+  impressoes: number;
+  cliques: number;
+  leadsMeta: number;
+  leadsCrm: number;
+  mqls: number;
+  cpl: number | null;
+}
+
+export interface CockpitCriativo {
+  id: number | null;
+  mcgId: number | null;
+  nome: string;
+  campanha: string;
+  status: string | null;
+  ativo: boolean;
+  investimento: number;
+  leadsMeta: number;
+  leadsCrm: number;
+  mqls: number;
+  cpl: number | null;
+  taxaMql: number | null;
+  quadrante: CockpitQuadrante;
+  motivo: "sem_lead" | "sem_crm" | null;
+  amostraPequena: boolean;
+  recomendacao: string;
+  porque: string;
+}
+
+export interface CockpitOperacao {
+  cobertura: number | null;
+  horasPrimeiroContato: number | null;
+  alertasAbertos: number;
+  origemRevisar: number;
+}
+
+export interface MetaAdsCockpit {
+  temConta: boolean;
+  inicio: string;
+  fim: string;
+  metas: CockpitMetas;
+  total: MetaAdsLinha;
+  taxaMql: number | null;
+  anterior: MetaAdsLinha;
+  anteriorInicio: string;
+  anteriorFim: string;
+  anteriorTemDados: boolean;
+  selos: CockpitSelos;
+  funil: CockpitEtapa[];
+  gargalo: "mql" | "oportunidade" | "contrato" | null;
+  fraseGargalo: string | null;
+  intervalo: "mes" | "semana";
+  serie: CockpitPonto[];
+  criativos: CockpitCriativo[];
+  operacao: CockpitOperacao;
+}
+
+export const ROTULO_SELO: Record<CockpitSelo, string> = {
+  bom: "Bom",
+  atencao: "Atenção",
+  ruim: "Ruim",
+  sem_dados: "Sem dados",
+};
+
+export const ROTULO_ETAPA: Record<CockpitEtapaChave, string> = {
+  impressoes: "Viram o anúncio",
+  cliques: "Clicaram",
+  leads: "Viraram lead",
+  crm: "Chegaram ao CRM",
+  mql: "Viraram MQL",
+  oportunidade: "Oportunidade",
+  contrato: "Contrato",
+};
+
+/** Hoje e os n-1 dias anteriores. */
+export function intervaloUltimosDias(n: number): { inicio: string; fim: string } {
+  const hoje = new Date();
+  const ini = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - (n - 1));
+  return { inicio: isoLocal(ini), fim: isoLocal(hoje) };
+}

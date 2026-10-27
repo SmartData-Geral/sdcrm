@@ -6701,3 +6701,102 @@ select.detail-inline-input {
 .monitoramento-alerta p {
   margin: 0.2rem 0;
 }
+
+/* ---- Cockpit de campanhas ---- */
+.cockpit-selo {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.cockpit-selo--bom { background: #ccfbf1; color: #134e4a; }
+.cockpit-selo--atencao { background: #fef3c7; color: #78350f; }
+.cockpit-selo--ruim { background: #fee2e2; color: #7f1d1d; }
+.cockpit-selo--sem_dados { background: #e2e8f0; color: #334155; }
+
+.cockpit-cartoes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+@media (max-width: 1100px) { .cockpit-cartoes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .cockpit-cartoes { grid-template-columns: minmax(0, 1fr); } }
+
+.cockpit-cartao {
+  background: var(--surface);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.cockpit-cartao-topo { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.cockpit-cartao-rotulo { font-size: 0.82rem; font-weight: 600; color: #334155; }
+.cockpit-cartao-valor { font-size: 1.6rem; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.cockpit-cartao-linha { font-size: 0.82rem; color: #475569; }
+.cockpit-cartao-explica { font-size: 0.78rem; color: #475569; line-height: 1.4; }
+.cockpit-cartao-link { font-size: 0.82rem; font-weight: 600; color: #1d4ed8; }
+
+.cockpit-bloco {
+  background: var(--surface);
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1.25rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.cockpit-bloco h2 { margin: 0; font-size: 1.1rem; }
+.cockpit-bloco-cabeca { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+.cockpit-bloco-cabeca > span, .cockpit-bloco-sub { font-size: 0.82rem; color: #475569; }
+.cockpit-vazio { margin: 0; color: #475569; font-size: 0.9rem; }
+
+.cockpit-funil { display: flex; flex-direction: column; gap: 0.5rem; }
+.cockpit-funil-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; padding: 0.15rem 0.35rem; border-radius: 10px; }
+.cockpit-funil-linha--gargalo { background: #fef2f2; outline: 2px solid #b91c1c; }
+.cockpit-funil-etapa { flex: 0 0 170px; font-size: 0.88rem; font-weight: 600; }
+.cockpit-funil-trilho { flex: 1 1 300px; min-width: 0; }
+.cockpit-funil-barra {
+  height: 36px; border-radius: 8px; display: flex; align-items: center; padding: 0 0.75rem;
+  box-sizing: border-box; color: #ffffff; font-weight: 700; font-size: 0.95rem; min-width: 3rem;
+}
+.cockpit-funil-taxa { flex: 0 0 190px; font-size: 0.82rem; color: #334155; display: flex; flex-direction: column; gap: 0.15rem; align-items: flex-start; }
+.cockpit-funil-custo { flex: 0 0 180px; font-size: 0.82rem; color: #334155; }
+.cockpit-funil-selo { font-size: 0.72rem; font-weight: 700; background: #b91c1c; color: #ffffff; border-radius: 999px; padding: 0.05rem 0.5rem; }
+.cockpit-funil-dica { color: #475569; font-size: 0.72rem; line-height: 1.3; }
+.cockpit-gargalo { background: #fef2f2; color: #7f1d1d; border-radius: 10px; padding: 0.75rem 0.9rem; font-size: 0.9rem; }
+
+.cockpit-graficos { display: flex; flex-wrap: wrap; gap: 1rem; }
+.cockpit-graficos > .cockpit-bloco { flex: 1 1 420px; }
+@media (max-width: 900px) { .cockpit-graficos { flex-direction: column; } .cockpit-graficos > .cockpit-bloco { flex-basis: auto; } }
+.cockpit-grafico { width: 100%; height: auto; }
+.cockpit-grafico-foco:focus-visible { outline: 2px solid #0f172a; outline-offset: 2px; }
+.cockpit-legenda { display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.8rem; color: #334155; }
+.cockpit-legenda-cor { display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 3px; margin-right: 0.3rem; vertical-align: -1px; }
+
+.cockpit-matriz-layout { display: flex; flex-wrap: wrap; gap: 1.25rem; }
+.cockpit-matriz-scroll { flex: 2 1 560px; min-width: 0; overflow-x: auto; }
+.cockpit-matriz { position: relative; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; box-sizing: border-box; }
+.cockpit-matriz-meta { position: absolute; border: 0 dashed #64748b; }
+.cockpit-matriz-meta--v { top: 0; bottom: 0; width: 0; border-left-width: 2px; }
+.cockpit-matriz-meta--h { left: 0; height: 0; border-top-width: 2px; }
+.cockpit-matriz-faixa { position: absolute; top: 0; right: 0; bottom: 0; border-left: 1px solid #cbd5e1; background: #f1f5f9; border-radius: 0 12px 12px 0; }
+.cockpit-matriz-faixa > span { position: absolute; left: 0; right: 0; top: 34px; text-align: center; font-size: 0.72rem; font-weight: 700; color: #475569; text-transform: uppercase; }
+.cockpit-matriz-q { position: absolute; font-size: 0.7rem; font-weight: 700; }
+.cockpit-bolha { position: absolute; border-radius: 50%; border: 2px solid transparent; opacity: 0.85; box-sizing: border-box; }
+.cockpit-bolha--amostra { border-style: dashed; border-color: #0f172a !important; background-clip: padding-box; }
+.cockpit-bolha:focus-visible { outline: 2px solid #0f172a; outline-offset: 2px; opacity: 1; }
+.cockpit-bolha-rotulo { position: absolute; font-size: 0.68rem; font-weight: 600; color: #0f172a; white-space: nowrap; pointer-events: none; }
+.cockpit-bolha-rotulo--faixa { max-width: 62px; overflow: hidden; text-overflow: ellipsis; }
+.cockpit-como-ler { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.88rem; line-height: 1.45; }
+.cockpit-como-ler-nota { color: #475569; }
+
+.cockpit-tabela td, .cockpit-tabela th { text-align: left; vertical-align: top; }
+.cockpit-tabela-nome { font-weight: 600; }
+.cockpit-tabela-porque { white-space: normal; min-width: 260px; color: #334155; }
+.cockpit-etiqueta { display: inline-block; font-size: 0.75rem; font-weight: 700; color: #ffffff; padding: 0.15rem 0.65rem; border-radius: 999px; white-space: nowrap; }
