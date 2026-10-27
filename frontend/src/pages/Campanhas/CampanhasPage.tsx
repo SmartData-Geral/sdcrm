@@ -4,12 +4,20 @@ import Layout from "../../components/Layout";
 import Loader from "../../components/Loader";
 import { useAuth } from "../../contexts/AuthContext";
 import CampanhaDetalheModal from "./CampanhaDetalheModal";
+import { CartoesIndicadores } from "./cockpit/CartoesIndicadores";
+import { FunilCockpit } from "./cockpit/FunilCockpit";
+import { GraficosTendencia } from "./cockpit/GraficosTendencia";
+import { MatrizCriativos } from "./cockpit/MatrizCriativos";
+import { SaudeOperacao } from "./cockpit/SaudeOperacao";
+import { TabelaCriativos } from "./cockpit/TabelaCriativos";
 import {
+  MetaAdsCockpit,
   MetaAdsContaOpcao,
   MetaAdsLinha,
   MetaAdsPainel,
   intervaloAnoCorrente,
   intervaloMesCorrente,
+  intervaloUltimosDias,
   dataBR,
   horas,
   inteiro,
@@ -19,6 +27,14 @@ import {
   rotuloStatusCampanha,
 } from "./metaAdsTipos";
 
+type Atalho = "30d" | "mes" | "ano" | "custom";
+const ATALHOS: [Atalho, string][] = [
+  ["30d", "Últimos 30 dias"],
+  ["mes", "Mês atual"],
+  ["ano", "Ano atual"],
+  ["custom", "Personalizado"],
+];
+
 const CampanhasPage: React.FC = () => {
   const { api, user } = useAuth();
   const padrao = intervaloAnoCorrente();
@@ -26,12 +42,17 @@ const CampanhasPage: React.FC = () => {
   const [fimDraft, setFimDraft] = useState(padrao.fim);
   const [inicio, setInicio] = useState(padrao.inicio);
   const [fim, setFim] = useState(padrao.fim);
+  const [atalho, setAtalho] = useState<Atalho>("ano");
+  const [comparar, setComparar] = useState(true);
   const [macId, setMacId] = useState<string>("");
   const [somenteAtivas, setSomenteAtivas] = useState(false);
   const [contas, setContas] = useState<MetaAdsContaOpcao[]>([]);
   const [painel, setPainel] = useState<MetaAdsPainel | null>(null);
+  const [cockpit, setCockpit] = useState<MetaAdsCockpit | null>(null);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [loadingCockpit, setLoadingCockpit] = useState(false);
+  const [erroCockpit, setErroCockpit] = useState<string | null>(null);
   const [detalheId, setDetalheId] = useState<number | null>(null);
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
 
@@ -71,13 +92,44 @@ const CampanhasPage: React.FC = () => {
     };
   }, [api, inicio, fim, macId, somenteAtivas]);
 
+  useEffect(() => {
+    let ativo = true;
+    setLoadingCockpit(true);
+    setErroCockpit(null);
+    api
+      .get<MetaAdsCockpit>("/meta-ads/cockpit", {
+        params: {
+          data_inicial: inicio || undefined,
+          data_final: fim || undefined,
+          macId: macId || undefined,
+          somente_ativas: somenteAtivas,
+        },
+      })
+      .then((r) => {
+        if (ativo) setCockpit(r.data);
+      })
+      .catch(() => {
+        if (!ativo) return;
+        setCockpit(null);
+        setErroCockpit("Não foi possível carregar o cockpit.");
+      })
+      .finally(() => {
+        if (ativo) setLoadingCockpit(false);
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [api, inicio, fim, macId, somenteAtivas]);
+
   const aplicar = () => {
     setInicio(inicioDraft);
     setFim(fimDraft);
   };
 
-  const rapido = (tipo: "mes" | "ano") => {
-    const r = tipo === "mes" ? intervaloMesCorrente() : intervaloAnoCorrente();
+  const escolherAtalho = (tipo: Atalho) => {
+    setAtalho(tipo);
+    if (tipo === "custom") return;
+    const r = tipo === "30d" ? intervaloUltimosDias(30) : tipo === "mes" ? intervaloMesCorrente() : intervaloAnoCorrente();
     setInicioDraft(r.inicio);
     setFimDraft(r.fim);
     setInicio(r.inicio);
@@ -153,29 +205,33 @@ const CampanhasPage: React.FC = () => {
     return linhas;
   };
 
-  const semConta = painel && !painel.temConta;
+  const semConta = (painel && !painel.temConta) || (cockpit && !cockpit.temConta);
   const t = painel?.total;
+  const carregando = loading || loadingCockpit;
 
   return (
     <Layout>
       <section className="dashboard-filters campanhas-filtros">
-        <label>
-          De
-          <input type="date" value={inicioDraft} onChange={(e) => setInicioDraft(e.target.value)} />
-        </label>
-        <label>
-          Até
-          <input type="date" value={fimDraft} onChange={(e) => setFimDraft(e.target.value)} />
-        </label>
-        <button type="button" className="primary" onClick={aplicar}>
-          Aplicar
-        </button>
-        <button type="button" onClick={() => rapido("mes")}>
-          Mês atual
-        </button>
-        <button type="button" onClick={() => rapido("ano")}>
-          Ano atual
-        </button>
+        {ATALHOS.map(([chave, rotulo]) => (
+          <button key={chave} type="button" aria-pressed={atalho === chave} onClick={() => escolherAtalho(chave)}>
+            {rotulo}
+          </button>
+        ))}
+        {atalho === "custom" && (
+          <>
+            <label>
+              De
+              <input type="date" value={inicioDraft} onChange={(e) => setInicioDraft(e.target.value)} />
+            </label>
+            <label>
+              Até
+              <input type="date" value={fimDraft} onChange={(e) => setFimDraft(e.target.value)} />
+            </label>
+            <button type="button" className="primary" onClick={aplicar}>
+              Aplicar
+            </button>
+          </>
+        )}
         <label>
           Conta
           <select value={macId} onChange={(e) => setMacId(e.target.value)}>
@@ -191,12 +247,19 @@ const CampanhasPage: React.FC = () => {
           <input type="checkbox" checked={somenteAtivas} onChange={(e) => setSomenteAtivas(e.target.checked)} />
           Só campanhas ativas
         </label>
+        <label className="checkbox-inline">
+          <input type="checkbox" checked={comparar} onChange={(e) => setComparar(e.target.checked)} />
+          Comparar com período anterior
+        </label>
       </section>
 
-      {loading && <Loader />}
-      {erro && <div className="integracao-erro">{erro}</div>}
+      {/* Task 9: LeituraAnalista + PergunteAnalista entram aqui, acima dos indicadores. */}
 
-      {!loading && semConta && (
+      {carregando && <Loader />}
+      {erro && <div className="integracao-erro">{erro}</div>}
+      {erroCockpit && <div className="integracao-erro">{erroCockpit}</div>}
+
+      {!carregando && semConta && (
         <section className="surface-card details-card">
           <p>Nenhuma conta do Meta Ads conectada nesta empresa.</p>
           {user?.usuAdmin ? (
@@ -207,28 +270,20 @@ const CampanhasPage: React.FC = () => {
         </section>
       )}
 
+      {!loadingCockpit && cockpit && cockpit.temConta && (
+        <>
+          <CartoesIndicadores cockpit={cockpit} comparar={comparar} />
+          <FunilCockpit cockpit={cockpit} />
+          <GraficosTendencia cockpit={cockpit} />
+          <MatrizCriativos cockpit={cockpit} metas={cockpit.metas} />
+          <TabelaCriativos cockpit={cockpit} />
+          <SaudeOperacao cockpit={cockpit} />
+        </>
+      )}
+
       {!loading && painel && !semConta && t && (
         <>
-          <section className="dashboard-cards-row campanhas-cards">
-            {[
-              ["Investimento", moeda(t.investimento), undefined],
-              ["Leads Meta", String(t.leadsMeta), undefined],
-              ["CPL", moeda(t.cpl), undefined],
-              ["MQLs", String(t.mqls), undefined],
-              ["Custo/MQL", moeda(t.custoMql), undefined],
-              ["Oportunidades", String(t.oportunidades), undefined],
-              ["Contratos", String(t.vendas), undefined],
-              ["CAC", moeda(t.cac), undefined],
-              ["Retorno", multiplicador(t.retorno), undefined],
-              ["Cobertura de rastreio", painel.cobertura == null ? "—" : percentual(painel.cobertura), "% dos leads da Meta com ID do anúncio; meta ≥ 90%"],
-            ].map(([rotulo, valor, dica]) => (
-              <div key={rotulo} className="dashboard-card" title={dica}>
-                <strong className="dashboard-card-value">{valor}</strong>
-                <span className="dashboard-card-label">{rotulo}</span>
-              </div>
-            ))}
-          </section>
-
+          <h2 className="section-title">Detalhe por campanha</h2>
           <section className="surface-card campanhas-tabela-card">
             <div className="campanhas-tabela-scroll">
               <table className="dashboard-ranking-table campanhas-tabela">
@@ -274,7 +329,7 @@ const CampanhasPage: React.FC = () => {
           </section>
 
           {painel.revisaoOrigem.length > 0 && (
-            <section className="surface-card details-card campanhas-revisao">
+            <section id="revisao-origem" className="surface-card details-card campanhas-revisao">
               <h3 className="section-title">Origem Anúncios sem registro na Meta</h3>
               <p className="muted-text">
                 Leads com origem mapeada como Meta Ads, mas sem nenhum sinal da Meta (campanha, conjunto ou anúncio). Revise a origem
