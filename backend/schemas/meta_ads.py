@@ -435,3 +435,27 @@ class MetaAdsCockpitLeituraResponse(BaseModel):
     desatualizada: bool
     aviso: str | None
     iaDisponivel: bool
+
+
+class MetaAdsPerguntaMensagem(BaseModel):
+    papel: str = Field(max_length=20)
+    texto: str = Field(max_length=20_000)
+
+
+class MetaAdsPerguntaRequest(BaseModel):
+    dataInicial: date
+    dataFinal: date
+    macId: int | None = None
+    somenteAtivas: bool = False
+    pergunta: str = Field(min_length=1, max_length=500)
+    historico: list[MetaAdsPerguntaMensagem] = Field(default_factory=list, max_length=50)
+
+    @field_validator("pergunta", mode="before")
+    @classmethod
+    def _pergunta_sem_espacos(cls, valor):
+        return valor.strip() if isinstance(valor, str) else valor
+
+
+class MetaAdsPerguntaResponse(BaseModel):
+    resposta: str
+    restantesHoje: int

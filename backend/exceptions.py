@@ -25,3 +25,8 @@ class ConflictError(HTTPException):
     def __init__(self, detail: str = "Conflito de dados") -> None:
         super().__init__(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
+
+
+class TooManyRequestsError(HTTPException):
+    def __init__(self, detail: str = "Muitas requisições") -> None:
+        super().__init__(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=detail)

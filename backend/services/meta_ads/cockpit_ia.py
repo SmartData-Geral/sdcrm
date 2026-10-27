@@ -17,16 +17,20 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...core.tempo import utcnow
+from ...exceptions import BadRequestError, TooManyRequestsError
 from ...models.meta_ads_cockpit_leitura import MetaAdsCockpitLeitura
+from ...models.meta_ads_pergunta_uso import MetaAdsPerguntaUso
 from ...schemas.meta_ads import (
     MetaAdsCockpitLeituraResponse,
     MetaAdsCockpitLeituraTexto,
     MetaAdsCockpitResponse,
     MetaAdsLinha,
+    MetaAdsPerguntaMensagem,
+    MetaAdsPerguntaResponse,
 )
 from . import cockpit
 from .indicadores import FiltroPainel
-from .resumo import PREFIXO_AVISO, _motivo
+from .resumo import PREFIXO_AVISO, _motivo, hoje_local
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +52,25 @@ PROMPT_LEITURA = (
     '"funciona": "o que está funcionando, em até duas frases", '
     '"problema": "onde está o problema, em até duas frases", '
     '"olharAgora": "o que verificar agora, em até duas frases"}.'
+)
+
+
+LIMITE_PERGUNTAS_DIA = 30
+MAX_HISTORICO = 12
+MAX_TEXTO_HISTORICO = 2000
+PAPEIS_HISTORICO = {"pergunta": "user", "resposta": "assistant"}
+
+PROMPT_PERGUNTA = (
+    "Você é um analista de mídia paga que responde perguntas sobre os resultados de campanhas Meta Ads "
+    "para quem não é da área. Responda em português simples, sem jargão, em poucas frases. "
+    "Use apenas os números do período recebidos abaixo; não invente valores nem compare com referências "
+    "externas, médias de mercado ou benchmarks. "
+    "Quando um criativo ou etapa tiver amostra pequena (poucos leads no CRM), avise que a conclusão "
+    "ainda é fraca. "
+    "Recomende o que verificar ou testar; nunca diga que vai agir, alterar, pausar ou escalar algo "
+    "na conta. "
+    "Se a pergunta não puder ser respondida com estes números, diga isso e sugira o que olhar. "
+    "Mantenha a resposta curta."
 )
 
 
@@ -195,3 +218,69 @@ def gerar_leitura(
     guardada.mclGeradoEm = utcnow()
     db.commit()
     return _resposta(guardada, digest, None, True)
+
+
+def filtrar_historico(historico: list[MetaAdsPerguntaMensagem]) -> list[dict]:
+    """O historico vem do navegador (nao confiavel): so papeis conhecidos, texto curto, ultimas 12."""
+    validas = [
+        m for m in historico
+        if m.papel in PAPEIS_HISTORICO and m.texto.strip() and len(m.texto) <= MAX_TEXTO_HISTORICO
+    ]
+    return [{"role": PAPEIS_HISTORICO[m.papel], "content": m.texto} for m in validas[-MAX_HISTORICO:]]
+
+
+def _uso_do_dia(db: Session, usu_id: int, dia) -> MetaAdsPerguntaUso | None:
+    return db.execute(
+        select(MetaAdsPerguntaUso).where(
+            MetaAdsPerguntaUso.mpuUsuId == usu_id, MetaAdsPerguntaUso.mpuData == dia
+        )
+    ).scalar_one_or_none()
+
+
+def perguntar(
+    db: Session,
+    emp_id: int,
+    usu_id: int,
+    filtro: FiltroPainel,
+    pergunta: str,
+    historico: list[MetaAdsPerguntaMensagem],
+    *,
+    provedor=None,
+    hoje=None,
+) -> MetaAdsPerguntaResponse:
+    """Responde a pergunta com os numeros do recorte; so resposta bem-sucedida conta no limite diario."""
+    dia = hoje or hoje_local()
+    uso = _uso_do_dia(db, usu_id, dia)
+    if uso is not None and uso.mpuQuantidade >= LIMITE_PERGUNTAS_DIA:
+        raise TooManyRequestsError("Limite de perguntas de hoje atingido.")
+
+    contexto = contexto_ia(cockpit.montar(db, emp_id, filtro))
+    mensagens = [
+        {
+            "role": "system",
+            "content": PROMPT_PERGUNTA + "\n\nNúmeros do período (JSON):\n"
+            + json.dumps(contexto, ensure_ascii=False),
+        },
+        *filtrar_historico(historico),
+        {"role": "user", "content": pergunta},
+    ]
+    try:
+        if provedor is None:
+            from ..llm.llm_factory import get_scope_provider
+
+            provedor = get_scope_provider()
+        texto = (provedor.chat_completion(mensagens, temperature=0.3) or "").strip()
+        if not texto:
+            raise ValueError("resposta vazia")
+    except Exception as exc:
+        logger.warning("Cockpit: pergunta por IA indisponivel (%s)", type(exc).__name__)
+        raise BadRequestError(f"{PREFIXO_AVISO}: {_motivo(exc)}") from exc
+
+    if uso is None:
+        uso = MetaAdsPerguntaUso(mpuUsuId=usu_id, mpuData=dia, mpuQuantidade=0)
+        db.add(uso)
+    uso.mpuQuantidade += 1
+    db.commit()
+    return MetaAdsPerguntaResponse(
+        resposta=texto, restantesHoje=max(LIMITE_PERGUNTAS_DIA - uso.mpuQuantidade, 0)
+    )

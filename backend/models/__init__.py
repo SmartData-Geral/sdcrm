@@ -43,3 +43,4 @@ from .meta_ads_alerta import MetaAdsAlerta  # noqa: F401
 from .oportunidade_etapa_historico import OportunidadeEtapaHistorico  # noqa: F401
 from .meta_ads_resumo import MetaAdsResumo  # noqa: F401
 from .meta_ads_cockpit_leitura import MetaAdsCockpitLeitura  # noqa: F401
+from .meta_ads_pergunta_uso import MetaAdsPerguntaUso  # noqa: F401

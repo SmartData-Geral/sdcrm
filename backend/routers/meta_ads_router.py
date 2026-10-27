@@ -30,6 +30,8 @@ from ..schemas.meta_ads import (
     MetaAdsMonitorConfigResponse,
     MetaAdsMonitorConfigUpdate,
     MetaAdsPainelResponse,
+    MetaAdsPerguntaRequest,
+    MetaAdsPerguntaResponse,
     MetaAdsResumoDiarioListResponse,
     MetaAdsResumoDiarioResponse,
     MetaAdsResumoResponse,
@@ -213,6 +215,20 @@ def gerar_cockpit_leitura(
 ) -> MetaAdsCockpitLeituraResponse:
     emp_id = empresa_obrigatoria(db, current_user, company_id)
     return cockpit_ia.gerar_leitura(db, emp_id, _filtro_cockpit(data_inicial, data_final, mac_id, somente_ativas))
+
+
+@router.post("/cockpit/perguntar", response_model=MetaAdsPerguntaResponse)
+def perguntar_ao_analista(
+    payload: MetaAdsPerguntaRequest,
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    company_id: CompanyIdDep,
+) -> MetaAdsPerguntaResponse:
+    emp_id = empresa_obrigatoria(db, current_user, company_id)
+    filtro = _filtro_cockpit(payload.dataInicial, payload.dataFinal, payload.macId, payload.somenteAtivas)
+    return cockpit_ia.perguntar(
+        db, emp_id, current_user.usuId, filtro, payload.pergunta, payload.historico
+    )
 
 
 @router.get("/campanhas-opcoes", response_model=MetaAdsCampanhaOpcoesResponse)
