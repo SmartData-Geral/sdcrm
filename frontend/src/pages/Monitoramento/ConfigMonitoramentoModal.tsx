@@ -134,6 +134,11 @@ const ConfigMonitoramentoModal: React.FC<Props> = ({ isOpen, onClose, onSaved })
           {campoNumero("gastoMinRanking", "Gasto mínimo para entrar no ranking (R$)")}
           {campoNumero("horaResumo", "Hora do resumo diário (0–23)", "1", "Horário de Brasília, em dias úteis.")}
           <fieldset className="integracao-escopos">
+            <legend>Metas do cockpit</legend>
+            {campoNumero("metaCpl", "Meta de CPL (R$)", "0.01")}
+            {campoNumero("metaTaxaMql", "Meta de taxa de MQL (%)", "0.1")}
+          </fieldset>
+          <fieldset className="integracao-escopos">
             <legend>Alertas ativos</legend>
             {ALERTAS.map(([chave, rotulo]) => (
               <label key={chave} className="checkbox-inline">

@@ -101,6 +101,26 @@ class ConfigMonitorTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 MetaAdsMonitorConfigUpdate(**campos)
 
+    def test_metas_padrao(self) -> None:
+        r = config_monitor.config_resposta(self.db, self.emp.empId)
+        self.assertEqual(r.metaCpl, 150.0)
+        self.assertEqual(r.metaTaxaMql, 10.0)
+
+    def test_atualiza_metas(self) -> None:
+        r = config_monitor.atualizar_config(
+            self.db, self.emp.empId, MetaAdsMonitorConfigUpdate(metaCpl=180, metaTaxaMql=12.5)
+        )
+        self.assertEqual((r.metaCpl, r.metaTaxaMql), (180.0, 12.5))
+        cfg = config_monitor.obter_config(self.db, self.emp.empId)
+        self.db.refresh(cfg)
+        self.assertEqual(float(cfg.mmcMetaCpl), 180.0)
+        self.assertEqual(float(cfg.mmcMetaTaxaMql), 12.5)
+
+    def test_meta_taxa_fora_do_limite(self) -> None:
+        for campos in ({"metaTaxaMql": 0}, {"metaTaxaMql": 101}, {"metaCpl": 0}):
+            with self.assertRaises(ValueError):
+                MetaAdsMonitorConfigUpdate(**campos)
+
     def test_atualiza_e_limpa_etapa(self) -> None:
         propria = _etapa(self.db, self.emp.empId, "Qualquer")
         r = config_monitor.atualizar_config(

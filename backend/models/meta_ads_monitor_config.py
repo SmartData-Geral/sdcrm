@@ -33,6 +33,8 @@ class MetaAdsMonitorConfig(Base):
     mmcGastoMinRanking: Mapped[Decimal] = mapped_column(
         Numeric(14, 2), nullable=False, default=Decimal("50")
     )
+    mmcMetaCpl: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False, default=Decimal("150"))
+    mmcMetaTaxaMql: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False, default=Decimal("10"))
     mmcHoraResumo: Mapped[int] = mapped_column(Integer, nullable=False, default=8)
     mmcAlertaCpl: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     mmcAlertaGasto: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

@@ -136,6 +136,8 @@ export interface MonitorConfig {
   quedaCtrPct: number;
   horasSemContato: number;
   gastoMinRanking: number;
+  metaCpl: number;
+  metaTaxaMql: number;
   horaResumo: number;
   alertas: Record<string, boolean>;
 }

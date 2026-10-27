@@ -254,6 +254,8 @@ class MetaAdsMonitorConfigResponse(BaseModel):
     quedaCtrPct: int
     horasSemContato: int
     gastoMinRanking: float
+    metaCpl: float
+    metaTaxaMql: float
     horaResumo: int
     alertas: dict[str, bool]
 
@@ -269,6 +271,8 @@ class MetaAdsMonitorConfigUpdate(BaseModel):
     quedaCtrPct: int | None = Field(default=None, gt=0, le=100)
     horasSemContato: int | None = Field(default=None, gt=0, le=720)
     gastoMinRanking: float | None = Field(default=None, ge=0, le=1_000_000)
+    metaCpl: float | None = Field(default=None, gt=0, le=1_000_000)
+    metaTaxaMql: float | None = Field(default=None, ge=0.1, le=100)
     horaResumo: int | None = Field(default=None, ge=0, le=23)
     alertas: dict[str, bool] | None = None
 

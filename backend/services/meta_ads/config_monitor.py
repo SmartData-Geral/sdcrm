@@ -37,6 +37,8 @@ _NUMERICOS = {
     "gastoSemLead": ("mmcGastoSemLead", True),
     "frequenciaMax": ("mmcFrequenciaMax", True),
     "gastoMinRanking": ("mmcGastoMinRanking", True),
+    "metaCpl": ("mmcMetaCpl", True),
+    "metaTaxaMql": ("mmcMetaTaxaMql", True),
     "quedaCtrPct": ("mmcQuedaCtrPct", False),
     "horasSemContato": ("mmcHorasSemContato", False),
     "horaResumo": ("mmcHoraResumo", False),
@@ -80,6 +82,8 @@ def obter_config(db: Session, emp_id: int) -> MetaAdsMonitorConfig:
         mmcQuedaCtrPct=30,
         mmcHorasSemContato=24,
         mmcGastoMinRanking=Decimal("50"),
+        mmcMetaCpl=Decimal("150"),
+        mmcMetaTaxaMql=Decimal("10"),
         mmcHoraResumo=8,
         mmcSemContatoDesde=utcnow(),
     )
@@ -106,6 +110,8 @@ def _resposta(cfg: MetaAdsMonitorConfig) -> MetaAdsMonitorConfigResponse:
         quedaCtrPct=cfg.mmcQuedaCtrPct,
         horasSemContato=cfg.mmcHorasSemContato,
         gastoMinRanking=float(cfg.mmcGastoMinRanking),
+        metaCpl=float(cfg.mmcMetaCpl),
+        metaTaxaMql=float(cfg.mmcMetaTaxaMql),
         horaResumo=cfg.mmcHoraResumo,
         alertas={chave: bool(getattr(cfg, _COLUNA_ALERTA[chave])) for chave in ALERTAS_MONITOR},
     )
