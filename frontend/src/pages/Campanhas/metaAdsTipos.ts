@@ -388,3 +388,14 @@ export interface MetaAdsCockpitResposta {
   resposta: string;
   restantesHoje: number;
 }
+
+// Datas do backend vêm em UTC "naive" (sem offset); sem designador de fuso, interpreta como UTC.
+export function dataHoraUtc(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const temFuso = /(Z|[+-]\d{2}:?\d{2})$/i.test(iso);
+  const d = new Date(temFuso ? iso : `${iso}Z`);
+  if (Number.isNaN(d.getTime())) return "";
+  return d
+    .toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
+    .replace(",", "");
+}

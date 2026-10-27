@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../../contexts/AuthContext";
 import {
+  dataHoraUtc,
   mensagemErroApi,
   type CockpitRecorte,
   type CockpitSelo,
@@ -16,14 +17,6 @@ interface Props {
 }
 
 const ROTA = "/meta-ads/cockpit/leitura";
-
-function geradoEmBR(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const dois = (n: number) => String(n).padStart(2, "0");
-  return `${dois(d.getDate())}/${dois(d.getMonth() + 1)} ${dois(d.getHours())}:${dois(d.getMinutes())}`;
-}
 
 export function LeituraAnalista({ recorte, selo, fraseGargalo, onDisponibilidade }: Props) {
   const { api } = useAuth();
@@ -85,7 +78,7 @@ export function LeituraAnalista({ recorte, selo, fraseGargalo, onDisponibilidade
 
   const temLeitura = !!dados && (dados.leitura != null || !!dados.texto);
   const iaIndisponivel = dados != null && !dados.iaDisponivel;
-  const gerado = geradoEmBR(dados?.geradoEm ?? null);
+  const gerado = dataHoraUtc(dados?.geradoEm);
 
   return (
     <div className="cockpit-analista-leitura" aria-busy={gerando || carregando}>
