@@ -2,7 +2,7 @@
 
 - **Data:** 26/10/2026
 - **Autor:** Carlos Souza (com Claude)
-- **Status:** aguardando revisão
+- **Status:** implementada
 - **Base:** especificação funcional "Agente de Monitoramento de Campanhas Meta" (26/10/2026) e a fase 1
   já entregue (`2026-10-14-meta-ads-campanhas-design.md`: contas, sync diária por campanha, página
   Campanhas, faixa no Dashboard).
@@ -321,3 +321,23 @@ conta). Só leitura (`ads_read`, `read_insights`) passa.
 
 Decididos pelo Carlos na revisão: atribuição ao **primeiro anúncio**; primeiro contato registrado
 **movendo o cartão** para fora de "Contatos".
+
+## 9. Ajustes na implementação
+
+1. Um lead só conta na linha de um anúncio quando a campanha ligada a ele é a campanha do anúncio;
+   senão conta só na campanha (ou em "não identificada"). Mantém as linhas de anúncio contidas na
+   da campanha e respeita a escolha manual de campanha.
+2. MRR e Projeto do painel contam contratos fechados no período (regra por evento da seção 5.5),
+   não a regra da aba Fontes da fase 1. Leads e vendas continuam batendo com o Dashboard; o MRR
+   pode diferir para leads recebidos no período e ganhos depois.
+3. A comparação do resumo usa a média diária dos 7 dias **anteriores** ao período comparado.
+4. "Anúncio parado" só é avaliado de hora em hora, com status buscados na hora na Meta.
+5. A carga retroativa de rastreio exige a planilha inteira em ordem crescente de `created_time`.
+6. A carga do histórico de estágios ignora nomes do funil antigo (Primeiro Follow, Enviar Proposta,
+   Oportunidades, Agendar Reunião, Fechamento) e não cria linha de criação para lead sem texto de
+   mudança que está fora do estágio inicial.
+7. Implantação (27/10/2026): migrations 0031–0036; carga de estágios (30 transições, 132
+   criações); telefones dos leads "Anúncios" corrigidos (prefixo `p:` removido e telefone
+   normalizado preenchido, pois o INSERT antigo do n8n pulava a normalização); carga retroativa
+   com 36 de 42 leads da planilha ligados ao anúncio; regra "só leads com rastreio" ligada para a
+   Smart Data.
