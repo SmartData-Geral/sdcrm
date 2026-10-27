@@ -20,7 +20,7 @@ manual diferente) conta so na campanha, ou em "campanha nao identificada" sem ca
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 
 from sqlalchemy import and_, case, false, func, not_, or_, select, true
@@ -327,6 +327,8 @@ class CalculoPainel:
     resposta: MetaAdsPainelResponse
     leads_total: list[FunilLead]
     campanhas_incluidas: set[int]
+    # Campanhas cujas linhas compoem o gasto do total (as com movimento ou filhos).
+    campanhas_com_linha: set[int] = field(default_factory=set)
 
 
 def painel(db: Session, emp_id: int, filtro: FiltroPainel) -> MetaAdsPainelResponse:
@@ -439,7 +441,9 @@ def calcular_painel(db: Session, emp_id: int, filtro: FiltroPainel) -> CalculoPa
         cobertura=cobertura,
         revisaoOrigem=_revisao_origem(db, emp_id, filtro) if exigir else [],
     )
-    return CalculoPainel(resposta=resposta, leads_total=no_total, campanhas_incluidas=incluidas)
+    return CalculoPainel(resposta=resposta, leads_total=no_total, campanhas_incluidas=incluidas,
+        campanhas_com_linha={l.mcgId for l in linhas},
+    )
 
 
 def serie_por_intervalo(
@@ -455,7 +459,7 @@ def serie_por_intervalo(
     Funil: `contar` sobre os leads do total, cada etapa pela propria data dentro da faixa.
     """
     gasto_faixas = [dict(GASTO_ZERO) for _ in faixas]
-    incluidas = calculo.campanhas_incluidas
+    incluidas = calculo.campanhas_com_linha  # mesmo conjunto que `_somar_gasto(linhas)` do total
     if incluidas:
         m = MetaAdsInsightDiario
         conds = [m.midEmpId == emp_id, m.midMcgId.in_(incluidas)]

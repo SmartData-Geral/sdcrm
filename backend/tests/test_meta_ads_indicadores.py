@@ -410,12 +410,18 @@ class SerieTests(unittest.TestCase):
             self.assertEqual(linha, esperado)
         self.assertEqual(serie[1]["investimento"], 190.0)
 
+    def test_serie_campanha_so_com_impressoes_e_cliques(self) -> None:
+        c3 = b.criar_campanha(self.db, self.conta, "3", "Campanha 3")
+        b.criar_insight(self.db, c3, date(2026, 10, 5), 0, impressoes=777, cliques=33, leads=0)
+        self._conferir_soma()
+
     def test_serie_sem_campanhas_incluidas(self) -> None:
         filtro = ind.FiltroPainel(date(2026, 9, 1), date(2026, 10, 31), mac_id=999999)
         calculo = ind.calcular_painel(self.db, self.emp.empId, filtro)
         self.assertEqual(calculo.campanhas_incluidas, set())
         serie = ind.serie_por_intervalo(self.db, self.emp.empId, filtro, calculo, [self.SET, self.OUT])
-        self.assertEqual([f["investimento"] for f in serie], [0.0, 0.0])
+        for f in serie:
+            self.assertEqual(set(f.values()), {0, 0.0})
 
 
 class VinculoManualTests(unittest.TestCase):
