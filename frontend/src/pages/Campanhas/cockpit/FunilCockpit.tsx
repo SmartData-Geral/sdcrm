@@ -31,14 +31,13 @@ function textoTaxa(e: CockpitEtapa) {
 }
 
 export function FunilCockpit({ cockpit }: { cockpit: MetaAdsCockpit }) {
-  const resumo = cockpit.funil.map((e) => `${ROTULO_ETAPA[e.chave]}: ${inteiro(e.quantidade)}`).join("; ");
   return (
     <section className="cockpit-bloco" aria-labelledby="cockpit-funil-titulo">
       <div className="cockpit-bloco-cabeca">
         <h2 id="cockpit-funil-titulo">Do anúncio ao contrato</h2>
         <span>Cada degrau mostra quantos passaram e quanto custou chegar até ali.</span>
       </div>
-      <div className="cockpit-funil" role="img" aria-label={`Funil do anúncio ao contrato. ${resumo}.`}>
+      <div className="cockpit-funil">
         {cockpit.funil.map((e, i) => (
           <div key={e.chave} className={`cockpit-funil-linha${e.gargalo ? " cockpit-funil-linha--gargalo" : ""}`}>
             <div className="cockpit-funil-etapa">{ROTULO_ETAPA[e.chave]}</div>

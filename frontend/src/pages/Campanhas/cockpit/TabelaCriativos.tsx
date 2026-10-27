@@ -44,7 +44,7 @@ export function TabelaCriativos({ cockpit }: { cockpit: MetaAdsCockpit }) {
                   <td>{c.campanha}</td>
                   <td>{rotuloStatusCampanha(c.status)}</td>
                   <td>{moeda(c.investimento)}</td>
-                  <td>{inteiro(c.leadsMeta)}</td>
+                  <td>{c.leadsMeta === 0 && c.leadsCrm > 0 ? `${inteiro(c.leadsCrm)} (CRM)` : inteiro(c.leadsMeta)}</td>
                   <td>{moeda(c.cpl)}</td>
                   <td>{inteiro(c.mqls)}</td>
                   <td>{percentual(c.taxaMql)}</td>

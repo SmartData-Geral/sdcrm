@@ -157,7 +157,7 @@ export function GraficosTendencia({ cockpit }: { cockpit: MetaAdsCockpit }) {
       </div>
       <div className="cockpit-bloco">
         <h2>{`Leads por ${unidade}: Meta x CRM`}</h2>
-        <span className="cockpit-bloco-sub">Azul-escuro: leads que a Meta contou. Claro: os que chegaram ao CRM com o anúncio identificado.</span>
+        <span className="cockpit-bloco-sub">Azul-escuro: leads que a Meta contou. Claro: os que chegaram ao CRM.</span>
         {vazio ? <p className="cockpit-vazio">Sem investimento nem leads no período.</p> : <GraficoLeads serie={cockpit.serie} />}
         <div className="cockpit-legenda">
           <span><i className="cockpit-legenda-cor" style={{ background: "#1d4ed8" }} /> Leads na Meta</span>

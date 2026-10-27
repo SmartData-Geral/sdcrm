@@ -35,6 +35,12 @@ class RegrasCockpitTests(unittest.TestCase):
         self.assertEqual(r.selo_taxa_mql(5, 100, m), "ruim")
         self.assertEqual(r.selo_taxa_mql(0, 0, m), "sem_dados")
 
+    def test_taxa_arredondada_na_fronteira(self):
+        m29 = r.Metas(150, 29, 1.5, 150)
+        self.assertEqual(r.selo_taxa_mql(29, 100, m29), "bom")
+        c = r.classificar_anuncio(100, 100, 100, 29, m29)
+        self.assertEqual((c.quadrante, c.taxa_mql), ("escalar", 29.0))
+
     def test_selo_custo_mql(self):
         self.assertEqual(r.selo_custo_mql(1500, m), "bom")
         self.assertEqual(r.selo_custo_mql(2250, m), "atencao")
@@ -51,6 +57,8 @@ class RegrasCockpitTests(unittest.TestCase):
         self.assertEqual(r.gargalo(36, 3, 1, 0), "mql")
         self.assertEqual(r.gargalo(10, 5, 1, 0), "oportunidade")
         self.assertIsNone(r.gargalo(2, 1, 1, 0))
+        self.assertIsNone(r.gargalo(5, 5, 5, 5))
+        self.assertIsNone(r.gargalo(3, 4, 5, 6))
         self.assertEqual(r.gargalo(10, 5, 5, 0), "contrato")
         self.assertEqual(r.gargalo(10, 5, 4, 2), "mql")
 
@@ -74,7 +82,11 @@ class RegrasCockpitTests(unittest.TestCase):
     def test_classificar_sem_lead(self):
         c = r.classificar_anuncio(100, 0, 0, 0, m)
         self.assertEqual((c.quadrante, c.motivo), ("aguardar_dados", "sem_lead"))
-        self.assertEqual(r.classificar_anuncio(150, 0, 0, 0, m).quadrante, "pausar")
+        c = r.classificar_anuncio(150, 0, 0, 0, m)
+        self.assertEqual((c.quadrante, c.motivo), ("pausar", "sem_lead"))
+        rotulo, porque = r.recomendacao(c, True)
+        self.assertEqual(rotulo, "Pausar")
+        self.assertTrue(porque.startswith("Caro e sem MQL até agora"))
         c = r.classificar_anuncio(200, 2, 0, 0, m)
         self.assertEqual((c.quadrante, c.motivo), ("aguardar_dados", "sem_crm"))
         c = r.classificar_anuncio(100, 0, 2, 1, m)

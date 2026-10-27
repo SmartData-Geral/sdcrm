@@ -99,7 +99,7 @@ def selo_custo_mql(custo_mql: float | None, m: Metas) -> Selo:
 def selo_taxa_mql(mqls: int, leads_crm: int, m: Metas) -> Selo:
     if not leads_crm:
         return "sem_dados"
-    valor = mqls / leads_crm * 100
+    valor = taxa(mqls, leads_crm)
     if valor >= m.taxa_mql:
         return "bom"
     if valor >= m.taxa_mql * FRACAO_ATENCAO_TAXA:
@@ -115,7 +115,10 @@ def saude_periodo(cpl: Selo, taxa_mql: Selo) -> Selo:
 
 
 def gargalo(leads_crm: int, mqls: int, oportunidades: int, contratos: int) -> Passagem | None:
-    """Passagem de menor taxa entre as de base >= 3; no empate, a mais cedo no funil."""
+    """Passagem de menor taxa entre as de base >= 3; no empate, a mais cedo no funil.
+
+    Sem perda real (menor taxa >= 100%), nao ha gargalo.
+    """
     passagens: list[tuple[Passagem, int, int]] = [
         ("mql", leads_crm, mqls),
         ("oportunidade", mqls, oportunidades),
@@ -124,7 +127,8 @@ def gargalo(leads_crm: int, mqls: int, oportunidades: int, contratos: int) -> Pa
     elegiveis = [(p, Fraction(chegaram, base)) for p, base, chegaram in passagens if base >= BASE_MINIMA_GARGALO]
     if not elegiveis:
         return None
-    return min(elegiveis, key=lambda item: item[1])[0]
+    passagem, menor = min(elegiveis, key=lambda item: item[1])
+    return passagem if menor < 1 else None
 
 
 def frase_gargalo(passagem: Passagem, base: int, chegaram: int) -> str | None:
@@ -148,14 +152,14 @@ class Classificacao:
 def classificar_anuncio(investimento: float, leads_meta: int, leads_crm: int, mqls: int, m: Metas) -> Classificacao:
     if leads_meta == 0 and leads_crm == 0:
         if investimento >= m.gasto_sem_lead:
-            return Classificacao("pausar", None, True, None, None)
+            return Classificacao("pausar", "sem_lead", True, None, None)
         return Classificacao("aguardar_dados", "sem_lead", False, None, None)
     if leads_crm == 0:
         return Classificacao("aguardar_dados", "sem_crm", False, round(investimento / leads_meta, 2), None)
     cpl = investimento / (leads_meta or leads_crm)
-    taxa_bruta = mqls / leads_crm * 100
+    taxa_mql = taxa(mqls, leads_crm)
     barato = cpl <= m.cpl
-    converte = taxa_bruta >= m.taxa_mql
+    converte = taxa_mql >= m.taxa_mql
     if barato and converte:
         quadrante: Quadrante = "escalar"
     elif converte:
@@ -164,7 +168,7 @@ def classificar_anuncio(investimento: float, leads_meta: int, leads_crm: int, mq
         quadrante = "rever_publico"
     else:
         quadrante = "pausar"
-    return Classificacao(quadrante, None, leads_crm < AMOSTRA_MINIMA, round(cpl, 2), round(taxa_bruta, 2))
+    return Classificacao(quadrante, None, leads_crm < AMOSTRA_MINIMA, round(cpl, 2), taxa_mql)
 
 
 def recomendacao(c: Classificacao, ativo: bool) -> tuple[str, str]:

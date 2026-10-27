@@ -33,7 +33,7 @@ export function LeituraAnalista({ recorte, selo, fraseGargalo, onDisponibilidade
     somente_ativas: recorte.somenteAtivas,
   };
 
-  useEffect(() => {
+  const carregar = () => {
     const id = ++requisicao.current;
     setCarregando(true);
     setGerando(false);
@@ -51,6 +51,10 @@ export function LeituraAnalista({ recorte, selo, fraseGargalo, onDisponibilidade
       .finally(() => {
         if (id === requisicao.current) setCarregando(false);
       });
+  };
+
+  useEffect(() => {
+    carregar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, recorte.inicio, recorte.fim, recorte.macId, recorte.somenteAtivas]);
 
@@ -119,10 +123,16 @@ export function LeituraAnalista({ recorte, selo, fraseGargalo, onDisponibilidade
           A leitura usa só números agregados e não executa nada na conta.
         </p>
       )}
-      {dados?.aviso && (
+      {iaIndisponivel ? (
         <p className="cockpit-analista-nota" role="status">
-          {dados.aviso}
+          {dados?.aviso ?? "Leitura por IA indisponível"}
         </p>
+      ) : (
+        dados?.aviso && (
+          <p className="cockpit-analista-nota" role="status">
+            {dados.aviso}
+          </p>
+        )
       )}
       {erro && (
         <p className="cockpit-analista-erro" role="alert">
@@ -131,14 +141,20 @@ export function LeituraAnalista({ recorte, selo, fraseGargalo, onDisponibilidade
       )}
 
       <div>
-        <button
-          type="button"
-          className="cockpit-analista-botao"
-          onClick={gerar}
-          disabled={gerando || carregando || !dados || !dados.iaDisponivel}
-        >
-          {gerando ? "Gerando..." : temLeitura ? "Gerar de novo" : "Gerar leitura"}
-        </button>
+        {!dados && !carregando && erro ? (
+          <button type="button" className="cockpit-analista-botao" onClick={carregar}>
+            Tentar de novo
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="cockpit-analista-botao"
+            onClick={gerar}
+            disabled={gerando || carregando || !dados || !dados.iaDisponivel}
+          >
+            {gerando ? "Gerando..." : temLeitura ? "Gerar de novo" : "Gerar leitura"}
+          </button>
+        )}
       </div>
     </div>
   );

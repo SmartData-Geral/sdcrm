@@ -396,6 +396,6 @@ export function dataHoraUtc(iso: string | null | undefined): string {
   const d = new Date(temFuso ? iso : `${iso}Z`);
   if (Number.isNaN(d.getTime())) return "";
   return d
-    .toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
+    .toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
     .replace(",", "");
 }
