@@ -174,9 +174,10 @@ def recomendacao(c: Classificacao, ativo: bool) -> tuple[str, str]:
         porque = _POR_QUE_AGUARDAR[c.motivo or "sem_lead"]
     else:
         porque = _POR_QUE[c.quadrante]
-        if c.quadrante == "pausar" and not ativo:
-            rotulo = "Manter pausado"
+        if not ativo:
             porque += " (já pausado)"
+            if c.quadrante == "pausar":
+                rotulo = "Manter pausado"
     if c.amostra_pequena:
         porque += f" Amostra pequena: menos de {AMOSTRA_MINIMA} leads."
     return rotulo, porque

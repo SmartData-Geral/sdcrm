@@ -97,6 +97,14 @@ class RegrasCockpitTests(unittest.TestCase):
             ("Aguardar dados", "Gasto ainda baixo e nenhum lead: aguardar mais dados."),
         )
 
+    def test_recomendacao_inativo_em_outros_quadrantes(self):
+        rotulo, porque = r.recomendacao(r.classificar_anuncio(90, 5, 5, 1, m), False)
+        self.assertEqual(rotulo, "Escalar")
+        self.assertIn("(já pausado)", porque)
+        rotulo, porque = r.recomendacao(r.classificar_anuncio(100, 0, 0, 0, m), False)
+        self.assertEqual(rotulo, "Aguardar dados")
+        self.assertNotIn("(já pausado)", porque)
+
     def test_periodo_anterior(self):
         self.assertEqual(
             r.periodo_anterior(date(2026, 10, 1), date(2026, 10, 31)), (date(2026, 8, 31), date(2026, 9, 30))
