@@ -338,6 +338,86 @@ class PainelTests(unittest.TestCase):
         self.assertEqual([c.macId for c in ind.opcoes_contas(self.db, self.emp.empId).items], [self.conta.macId])
 
 
+class SerieTests(unittest.TestCase):
+    SET = (date(2026, 9, 1), date(2026, 9, 30))
+    OUT = (date(2026, 10, 1), date(2026, 10, 31))
+
+    def setUp(self) -> None:
+        self.db = b.nova_sessao()
+        self.emp = b.criar_empresa(self.db)
+        self.anuncios = b.criar_origem(self.db, self.emp.empId, "Anúncios")
+        self.conta = b.criar_conta(self.db, self.emp.empId, origens=[self.anuncios.ccoId])
+        self.c1 = b.criar_campanha(self.db, self.conta, "1", "Campanha 1")
+        self.c2 = b.criar_campanha(self.db, self.conta, "2", "Campanha 2", status="PAUSED")
+        for dia, valor in [(date(2026, 9, 10), 50), (date(2026, 9, 30), 70), (date(2026, 10, 2), 100), (date(2026, 10, 31), 30)]:
+            b.criar_insight(self.db, self.c1, dia, valor, impressoes=1000, cliques=20, leads=2)
+        for dia, valor in [(date(2026, 9, 15), 40), (date(2026, 10, 3), 60)]:
+            b.criar_insight(self.db, self.c2, dia, valor, impressoes=500, cliques=10, leads=1)
+        cco = self.anuncios.ccoId
+        b.criar_oportunidade(
+            self.db, self.emp.empId, opoCcoId=cco, opoMcgId=self.c1.mcgId,
+            opoDataRecebimento=date(2026, 9, 12), opoStatusFechamento="ganho",
+            opoDataFechamento=date(2026, 10, 4), opoValorFechado=1000, opoFechadoRecorrencia=0,
+        )
+        b.criar_oportunidade(
+            self.db, self.emp.empId, opoCcoId=cco, opoMcgId=self.c1.mcgId, opoDataRecebimento=date(2026, 10, 6),
+        )
+        b.criar_oportunidade(
+            self.db, self.emp.empId, opoCcoId=cco, opoMcgId=self.c2.mcgId, opoDataRecebimento=date(2026, 9, 20),
+        )
+        # sem campanha (entra no total) e mais um MQL (ganho em outubro)
+        b.criar_oportunidade(self.db, self.emp.empId, opoCcoId=cco, opoDataRecebimento=date(2026, 10, 7))
+
+    def _filtro(self, **kw) -> ind.FiltroPainel:
+        return ind.FiltroPainel(date(2026, 9, 1), date(2026, 10, 31), **kw)
+
+    def _conferir_soma(self, **kw) -> None:
+        filtro = self._filtro(**kw)
+        calculo = ind.calcular_painel(self.db, self.emp.empId, filtro)
+        serie = ind.serie_por_intervalo(self.db, self.emp.empId, filtro, calculo, [self.SET, self.OUT])
+        total = calculo.resposta.total
+        self.assertEqual(len(serie), 2)
+        self.assertGreater(total.investimento, 0)
+        self.assertGreater(total.leadsCrm, 0)
+        for chave in ("investimento", "impressoes", "cliques", "leadsMeta", "leadsCrm", "mqls", "oportunidades", "vendas"):
+            self.assertAlmostEqual(sum(f[chave] for f in serie), getattr(total, chave), places=2, msg=chave)
+
+    def test_painel_devolve_o_mesmo_que_calcular(self) -> None:
+        filtro = self._filtro()
+        self.assertEqual(
+            ind.painel(self.db, self.emp.empId, filtro),
+            ind.calcular_painel(self.db, self.emp.empId, filtro).resposta,
+        )
+
+    def test_serie_soma_total(self) -> None:
+        self._conferir_soma()
+
+    def test_serie_soma_total_com_filtros(self) -> None:
+        self._conferir_soma(somente_ativas=True)
+        self._conferir_soma(mac_id=self.conta.macId)
+
+    def test_serie_por_faixa(self) -> None:
+        filtro = self._filtro()
+        calculo = ind.calcular_painel(self.db, self.emp.empId, filtro)
+        serie = ind.serie_por_intervalo(self.db, self.emp.empId, filtro, calculo, [self.SET, self.OUT])
+        for faixa, linha in zip((self.SET, self.OUT), serie):
+            total = ind.painel(self.db, self.emp.empId, ind.FiltroPainel(*faixa)).total
+            esperado = {
+                "investimento": total.investimento, "impressoes": total.impressoes, "cliques": total.cliques,
+                "leadsMeta": total.leadsMeta, "leadsCrm": total.leadsCrm, "mqls": total.mqls,
+                "oportunidades": total.oportunidades, "vendas": total.vendas,
+            }
+            self.assertEqual(linha, esperado)
+        self.assertEqual(serie[1]["investimento"], 190.0)
+
+    def test_serie_sem_campanhas_incluidas(self) -> None:
+        filtro = ind.FiltroPainel(date(2026, 9, 1), date(2026, 10, 31), mac_id=999999)
+        calculo = ind.calcular_painel(self.db, self.emp.empId, filtro)
+        self.assertEqual(calculo.campanhas_incluidas, set())
+        serie = ind.serie_por_intervalo(self.db, self.emp.empId, filtro, calculo, [self.SET, self.OUT])
+        self.assertEqual([f["investimento"] for f in serie], [0.0, 0.0])
+
+
 class VinculoManualTests(unittest.TestCase):
     def setUp(self) -> None:
         self.db = b.nova_sessao()

@@ -320,7 +320,20 @@ def _por_id(db: Session, modelo, coluna_id, ids: set[int], *conds) -> dict:
     return {getattr(o, coluna_id.key): o for o in db.execute(stmt).scalars()}
 
 
+@dataclass
+class CalculoPainel:
+    """Resultado do painel mais os insumos para recortes (ex.: serie por intervalo)."""
+
+    resposta: MetaAdsPainelResponse
+    leads_total: list[FunilLead]
+    campanhas_incluidas: set[int]
+
+
 def painel(db: Session, emp_id: int, filtro: FiltroPainel) -> MetaAdsPainelResponse:
+    return calcular_painel(db, emp_id, filtro).resposta
+
+
+def calcular_painel(db: Session, emp_id: int, filtro: FiltroPainel) -> CalculoPainel:
     ini, fim = filtro.data_inicial, filtro.data_final
     exigir = exige_rastreio(db, emp_id, filtro.mac_id)
     condicao = _condicao_lead_meta(db, emp_id, filtro.mac_id, exigir)
@@ -418,7 +431,7 @@ def painel(db: Session, emp_id: int, filtro: FiltroPainel) -> MetaAdsPainelRespo
         )
         cobertura = round(rastreados / fun_total["leadsCrm"] * 100, 2)
 
-    return MetaAdsPainelResponse(
+    resposta = MetaAdsPainelResponse(
         temConta=tem_conta(db, emp_id),
         total=total,
         campanhas=linhas,
@@ -426,6 +439,66 @@ def painel(db: Session, emp_id: int, filtro: FiltroPainel) -> MetaAdsPainelRespo
         cobertura=cobertura,
         revisaoOrigem=_revisao_origem(db, emp_id, filtro) if exigir else [],
     )
+    return CalculoPainel(resposta=resposta, leads_total=no_total, campanhas_incluidas=incluidas)
+
+
+def serie_por_intervalo(
+    db: Session,
+    emp_id: int,
+    filtro: FiltroPainel,
+    calculo: CalculoPainel,
+    faixas: list[tuple[date, date]],
+) -> list[dict]:
+    """Um dict por faixa com as mesmas contas do total do painel (a soma das faixas e o total).
+
+    Gasto: insights diarios das campanhas incluidas no total, cada dia na sua faixa.
+    Funil: `contar` sobre os leads do total, cada etapa pela propria data dentro da faixa.
+    """
+    gasto_faixas = [dict(GASTO_ZERO) for _ in faixas]
+    incluidas = calculo.campanhas_incluidas
+    if incluidas:
+        m = MetaAdsInsightDiario
+        conds = [m.midEmpId == emp_id, m.midMcgId.in_(incluidas)]
+        periodo = _between_dates(m.midData, filtro.data_inicial, filtro.data_final)
+        if periodo is not None:
+            conds.append(periodo)
+        if filtro.mac_id is not None:
+            conds.append(m.midMacId == filtro.mac_id)
+        stmt = (
+            select(
+                m.midData.label("dia"),
+                func.coalesce(func.sum(m.midInvestimento), 0).label("inv"),
+                func.coalesce(func.sum(m.midImpressoes), 0).label("imp"),
+                func.coalesce(func.sum(m.midCliques), 0).label("cli"),
+                func.coalesce(func.sum(m.midLeadsMeta), 0).label("lm"),
+            )
+            .where(*conds)
+            .group_by(m.midData)
+        )
+        for r in db.execute(stmt):
+            dia = r.dia.date() if hasattr(r.dia, "date") else r.dia
+            for (ini, fim), gasto in zip(faixas, gasto_faixas):
+                if ini <= dia <= fim:
+                    gasto["investimento"] += float(r.inv)
+                    gasto["impressoes"] += int(r.imp)
+                    gasto["cliques"] += int(r.cli)
+                    gasto["leadsMeta"] += int(r.lm)
+                    break
+
+    serie: list[dict] = []
+    for (ini, fim), gasto in zip(faixas, gasto_faixas):
+        fun = contar(calculo.leads_total, ini, fim, lambda _l: 0).get(0, FUNIL_ZERO)
+        serie.append({
+            "investimento": round(gasto["investimento"], 2),
+            "impressoes": gasto["impressoes"],
+            "cliques": gasto["cliques"],
+            "leadsMeta": gasto["leadsMeta"],
+            "leadsCrm": fun["leadsCrm"],
+            "mqls": fun["mqls"],
+            "oportunidades": fun["oportunidades"],
+            "vendas": fun["contratos"],
+        })
+    return serie
 
 
 def _campanha_da_empresa(db: Session, emp_id: int, mcg_id: int) -> MetaAdsCampanha:
