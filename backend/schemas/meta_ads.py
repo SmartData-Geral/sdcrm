@@ -326,3 +326,94 @@ class MetaAdsResumoDiarioItem(BaseModel):
 
 class MetaAdsResumoDiarioListResponse(BaseModel):
     items: list[MetaAdsResumoDiarioItem]
+
+
+# ---- Cockpit de campanhas ----
+SeloCockpit = Literal["bom", "atencao", "ruim", "sem_dados"]
+QuadranteCockpit = Literal["escalar", "otimizar_custo", "rever_publico", "pausar", "aguardar_dados"]
+EtapaFunilCockpit = Literal["impressoes", "cliques", "leads", "crm", "mql", "oportunidade", "contrato"]
+
+
+class MetaAdsCockpitMetas(BaseModel):
+    cpl: float
+    taxaMql: float
+    custoMqlImplicito: float
+    cplFator: float
+
+
+class MetaAdsCockpitSelos(BaseModel):
+    cpl: SeloCockpit
+    taxaMql: SeloCockpit
+    custoMql: SeloCockpit
+    saude: SeloCockpit
+
+
+class MetaAdsCockpitEtapa(BaseModel):
+    """Degrau do funil. `taxa` e contra a etapa anterior (None na primeira); `custo` e o custo de chegar ali."""
+
+    chave: EtapaFunilCockpit
+    quantidade: int
+    taxa: float | None
+    custo: float | None
+    gargalo: bool
+
+
+class MetaAdsCockpitPonto(BaseModel):
+    inicio: date
+    fim: date
+    rotulo: str
+    investimento: float
+    impressoes: int
+    cliques: int
+    leadsMeta: int
+    leadsCrm: int
+    mqls: int
+    cpl: float | None
+
+
+class MetaAdsCockpitCriativo(BaseModel):
+    id: int | None
+    mcgId: int | None
+    nome: str
+    campanha: str
+    status: str | None
+    ativo: bool
+    investimento: float
+    leadsMeta: int
+    leadsCrm: int
+    mqls: int
+    cpl: float | None
+    taxaMql: float | None
+    quadrante: QuadranteCockpit
+    motivo: Literal["sem_lead", "sem_crm"] | None
+    amostraPequena: bool
+    recomendacao: str
+    porque: str
+
+
+class MetaAdsCockpitOperacao(BaseModel):
+    cobertura: float | None
+    horasPrimeiroContato: float | None
+    alertasAbertos: int
+    origemRevisar: int
+
+
+class MetaAdsCockpitResponse(BaseModel):
+    temConta: bool
+    inicio: date
+    fim: date
+    metas: MetaAdsCockpitMetas
+    total: MetaAdsLinha
+    taxaMql: float | None
+    anterior: MetaAdsLinha
+    anteriorInicio: date
+    anteriorFim: date
+    anteriorTemDados: bool
+    selos: MetaAdsCockpitSelos
+    funil: list[MetaAdsCockpitEtapa]
+    gargalo: Literal["mql", "oportunidade", "contrato"] | None
+    fraseGargalo: str | None
+    intervalo: Literal["mes", "semana"]
+    serie: list[MetaAdsCockpitPonto]
+    criativos: list[MetaAdsCockpitCriativo]
+    operacao: MetaAdsCockpitOperacao

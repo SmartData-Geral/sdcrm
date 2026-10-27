@@ -147,7 +147,7 @@ def _variacao(atual: float, base: float) -> float | None:
     return round((atual - base) / base * 100, 1) if base else None
 
 
-def _contar_alertas_abertos(db: Session, emp_id: int) -> int:
+def contar_alertas_abertos(db: Session, emp_id: int) -> int:
     return db.execute(
         select(func.count())
         .select_from(MetaAdsAlerta)
@@ -195,7 +195,7 @@ def montar_dados(db: Session, emp_id: int, hoje: date) -> dict:
         "piores": [_item(a) for a in piores],
         "cobertura": p_7.cobertura,
         "horasPrimeiroContato": p_7.total.horasPrimeiroContato,
-        "alertasAbertos": _contar_alertas_abertos(db, emp_id),
+        "alertasAbertos": contar_alertas_abertos(db, emp_id),
     }
 
 

@@ -24,6 +24,7 @@ from ..schemas.meta_ads import (
     MetaAdsAlertaResponse,
     MetaAdsCampanhaDetalheResponse,
     MetaAdsCampanhaOpcoesResponse,
+    MetaAdsCockpitResponse,
     MetaAdsContaOpcoesResponse,
     MetaAdsMonitorConfigResponse,
     MetaAdsMonitorConfigUpdate,
@@ -42,7 +43,7 @@ from ..schemas.meta_ads import (
     MetaAdsSyncPeriodoRequest,
     MetaAdsTesteResponse,
 )
-from ..services.meta_ads import alertas, config_monitor, contas, indicadores, resumo as resumo_diario, sincronizacao
+from ..services.meta_ads import alertas, cockpit as cockpit_servico, config_monitor, contas, indicadores, resumo as resumo_diario, sincronizacao
 
 router = APIRouter(prefix="/api/meta-ads", tags=["meta-ads"])
 
@@ -161,6 +162,22 @@ def painel(
 ) -> MetaAdsPainelResponse:
     emp_id = empresa_obrigatoria(db, current_user, company_id)
     return indicadores.painel(
+        db, emp_id, indicadores.FiltroPainel(data_inicial, data_final, mac_id, somente_ativas)
+    )
+
+
+@router.get("/cockpit", response_model=MetaAdsCockpitResponse)
+def cockpit(
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    company_id: CompanyIdDep,
+    data_inicial: date = Query(),
+    data_final: date = Query(),
+    mac_id: int | None = Query(default=None, alias="macId"),
+    somente_ativas: bool = Query(default=False),
+) -> MetaAdsCockpitResponse:
+    emp_id = empresa_obrigatoria(db, current_user, company_id)
+    return cockpit_servico.montar(
         db, emp_id, indicadores.FiltroPainel(data_inicial, data_final, mac_id, somente_ativas)
     )
 
