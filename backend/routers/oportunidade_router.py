@@ -16,6 +16,7 @@ from ..schemas.oportunidade import (
     OportunidadeSmartAgenteChatSend,
     OportunidadeSmartAgenteMensagemListResponse,
     OportunidadeStandByRequest,
+    OportunidadeTagsRequest,
     OportunidadeTemperaturaRequest,
     OportunidadeUpdate,
 )
@@ -187,6 +188,18 @@ def temperatura(
 ) -> OportunidadeResponse:
     require_user_in_company(db=db, current_user=current_user, company_id=company_id)
     return oportunidade_service.set_temperatura(db, opo_id, data, company_id)
+
+
+@router.put("/{opo_id}/tags", response_model=OportunidadeResponse)
+def tags(
+    opo_id: int,
+    data: OportunidadeTagsRequest,
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    company_id: CompanyIdDep,
+) -> OportunidadeResponse:
+    require_user_in_company(db=db, current_user=current_user, company_id=company_id)
+    return oportunidade_service.set_tags(db, opo_id, data, company_id)
 
 
 @router.patch("/{opo_id}/reuniao-confirmada", response_model=OportunidadeResponse)

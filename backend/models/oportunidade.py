@@ -123,6 +123,13 @@ class Oportunidade(Base):
     opoDataCriacao: Mapped[datetime] = AuditColumnFactory.datetime_criacao("opoDataCriacao")
     opoDataAtualizacao: Mapped[datetime | None] = AuditColumnFactory.datetime_atualizacao("opoDataAtualizacao")
 
+    # selectin: o kanban lista muitos cards e cada um mostra as tags.
+    tags: Mapped[list["Tag"]] = relationship(
+        "Tag",
+        secondary="oportunidade_tag",
+        order_by="Tag.tagNome",
+        lazy="selectin",
+    )
     historicos: Mapped[list["OportunidadeHistorico"]] = relationship(
         "OportunidadeHistorico",
         back_populates="oportunidade",

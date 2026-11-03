@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from .tag import TagResumo
+
 
 class OportunidadeBase(BaseModel):
     opoTitulo: str = Field(..., max_length=300)
@@ -105,7 +107,12 @@ class OportunidadeInDBBase(OportunidadeBase):
 
 
 class OportunidadeResponse(OportunidadeInDBBase):
-    pass
+    tags: list[TagResumo] = []
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _somente_tags_ativas(cls, tags: list) -> list:
+        return [t for t in tags if t.tagAtivo]
 
 
 class OportunidadeListResponse(BaseModel):
@@ -113,6 +120,10 @@ class OportunidadeListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class OportunidadeTagsRequest(BaseModel):
+    tagIds: list[int]
 
 
 class OportunidadeMoverEtapaRequest(BaseModel):

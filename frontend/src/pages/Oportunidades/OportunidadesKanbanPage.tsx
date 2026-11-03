@@ -7,13 +7,17 @@ import OptionalTextareaField from "../../components/OptionalTextareaField";
 import ListingToolbar from "../../components/ListingToolbar";
 import AvatarSelect from "../../components/AvatarSelect";
 import UserAvatar from "../../components/UserAvatar";
+import TagBadge, { TagResumo } from "../../components/tags/TagBadge";
 import { useAuth } from "../../contexts/AuthContext";
 import { calculateForecastValue } from "../../utils/forecast";
 import { getOportunidadePipelineContext } from "../../utils/oportunidadePipeline";
 
+const MAX_TAGS_NO_CARD = 4;
+
 interface OportunidadeItem {
   opoId: number;
   opoTitulo: string;
+  tags: TagResumo[];
   opoNomeContato: string | null;
   opoTelefone: string | null;
   opoEmpresaContato: string | null;
@@ -363,6 +367,22 @@ const OportunidadesKanbanPage: React.FC = () => {
             </span>
           </div>
         </div>
+
+        {opo.tags.length > 0 && (
+          <div className="kanban-card-tags">
+            {opo.tags.slice(0, MAX_TAGS_NO_CARD).map((tag) => (
+              <TagBadge key={tag.tagId} nome={tag.tagNome} cor={tag.tagCor} />
+            ))}
+            {opo.tags.length > MAX_TAGS_NO_CARD && (
+              <span
+                className="kanban-card-tags-mais"
+                title={opo.tags.slice(MAX_TAGS_NO_CARD).map((tag) => tag.tagNome).join(", ")}
+              >
+                +{opo.tags.length - MAX_TAGS_NO_CARD}
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="kanban-card-responsavel">
           {responsavel ? (

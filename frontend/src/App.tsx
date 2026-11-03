@@ -4,6 +4,7 @@ import DashboardPage from "./pages/Dashboard/DashboardPage";
 import ComoConheceuPage from "./pages/ComoConheceu/ComoConheceuPage";
 import EmpresasPage from "./pages/Empresas/EmpresasPage";
 import MotivoCancelamentoPage from "./pages/MotivoCancelamento/MotivoCancelamentoPage";
+import TagsPage from "./pages/Tags/TagsPage";
 import ProdutosPage from "./pages/Produtos/ProdutosPage";
 import EtapasKanbanPage from "./pages/EtapasKanban/EtapasKanbanPage";
 import UsuariosPage from "./pages/Usuarios/UsuariosPage";
@@ -50,6 +51,14 @@ function App() {
         element={
           <ProtectedRoute>
             <MotivoCancelamentoPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cadastros/tags"
+        element={
+          <ProtectedRoute>
+            <TagsPage />
           </ProtectedRoute>
         }
       />

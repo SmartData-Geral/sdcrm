@@ -34,6 +34,7 @@ from .routers import (
     llm_agente_router,
     meta_ads_router,
     motivo_cancelamento_router,
+    tag_router,
     oportunidade_router,
     proposta_router,
     proposta_escopo_sugestao_router,
@@ -90,6 +91,7 @@ app.include_router(auth_router.router)
 app.include_router(empresa_router.router)
 app.include_router(como_conheceu_router.router)
 app.include_router(motivo_cancelamento_router.router)
+app.include_router(tag_router.router)
 app.include_router(produto_router.router)
 app.include_router(etapa_kanban_router.router)
 app.include_router(oportunidade_router.router)

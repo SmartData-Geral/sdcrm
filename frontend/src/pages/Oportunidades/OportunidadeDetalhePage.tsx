@@ -8,6 +8,8 @@ import OptionalTextareaField from "../../components/OptionalTextareaField";
 import ActionIconButton from "../../components/ActionIconButton";
 import AvatarSelect from "../../components/AvatarSelect";
 import TemperatureSelect from "../../components/TemperatureSelect";
+import { TagResumo } from "../../components/tags/TagBadge";
+import TagSelect from "../../components/tags/TagSelect";
 import ReuniaoIaSection from "../../components/oportunidades/ReuniaoIaSection";
 import SmartAgenteIaSection from "../../components/oportunidades/SmartAgenteIaSection";
 import {
@@ -37,6 +39,7 @@ import { ContratoItem } from "../../components/contratos/wizardTypes";
 interface OportunidadeDetail {
   opoId: number;
   opoTitulo: string;
+  tags: TagResumo[];
   opoNomeContato: string | null;
   opoEmpresaContato: string | null;
   opoEmail: string | null;
@@ -113,6 +116,7 @@ const OportunidadeDetalhePage: React.FC = () => {
   const pipelineContext = useMemo(() => getOportunidadePipelineContext(location.pathname), [location.pathname]);
   const { api } = useAuth();
   const [oportunidade, setOportunidade] = useState<OportunidadeDetail | null>(null);
+  const [tagsDisponiveis, setTagsDisponiveis] = useState<TagResumo[]>([]);
   const [historicos, setHistoricos] = useState<HistoricoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingHist, setLoadingHist] = useState(false);
@@ -211,16 +215,18 @@ const OportunidadeDetalhePage: React.FC = () => {
 
   const loadCombos = async () => {
     try {
-      const [produtosRes, usuariosRes, ccoRes, motivosRes] = await Promise.all([
+      const [produtosRes, usuariosRes, ccoRes, motivosRes, tagsRes] = await Promise.all([
         api.get<{ items: Array<{ proId: number; proNome: string }> }>("/produtos", { params: { page_size: 100 } }),
         api.get<{ items: Array<{ usuId: number; usuNome: string; usuAvatarUrl?: string | null }> }>("/usuarios", { params: { page_size: 100 } }),
         api.get<{ items: Array<{ ccoId: number; ccoNome: string }> }>("/como-conheceu", { params: { page_size: 100 } }),
         api.get<{ items: MotivoCancelamentoOption[] }>("/motivos-cancelamento", { params: { page_size: 100, status: "ativos" } }),
+        api.get<{ items: TagResumo[] }>("/tags", { params: { page_size: 100, status: "ativos" } }),
       ]);
       setProdutos((produtosRes.data.items ?? []).map((i) => ({ id: i.proId, nome: i.proNome })));
       setUsuarios((usuariosRes.data.items ?? []).map((i) => ({ id: i.usuId, nome: i.usuNome, avatarUrl: i.usuAvatarUrl ?? null })));
       setComoConheceu((ccoRes.data.items ?? []).map((i) => ({ id: i.ccoId, nome: i.ccoNome })));
       setMotivosPerda(motivosRes.data.items ?? []);
+      setTagsDisponiveis(tagsRes.data.items ?? []);
       const templatesRes = await api.get<{ items: PropostaTemplateItem[] }>("/templates-proposta", {
         params: { page_size: 200 },
       });
@@ -627,6 +633,17 @@ const OportunidadeDetalhePage: React.FC = () => {
               Proposta
             </button>
             {!statusAberto && <span className={`context-item ${statusBadgeClass}`}>{oportunidade.opoStatusFechamento}</span>}
+          </div>
+          <div className="oportunidade-context-line">
+            <span className="context-field-label">Tags</span>
+            <TagSelect
+              options={tagsDisponiveis}
+              value={oportunidade.tags}
+              onChange={async (tagIds) => {
+                const res = await api.put<OportunidadeDetail>(`/oportunidades/${oportunidade.opoId}/tags`, { tagIds });
+                setOportunidade((prev) => (prev ? { ...prev, tags: res.data.tags } : prev));
+              }}
+            />
           </div>
         </div>
       </section>

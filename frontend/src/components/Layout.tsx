@@ -201,6 +201,13 @@ function getHeaderData(pathname: string): HeaderData {
       description: "Padronize motivos para fechamento perdido.",
     };
   }
+  if (pathname.startsWith("/cadastros/tags")) {
+    return {
+      breadcrumb: ["Dashboard", "Cadastros", "Tags"],
+      title: "Tags",
+      description: "Crie as tags que aparecem nos cards dos leads.",
+    };
+  }
   if (pathname.startsWith("/como-conheceu")) {
     return {
       breadcrumb: ["Dashboard", "Cadastros", "Como Conheceu"],
@@ -307,6 +314,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           path.startsWith("/etapas-kanban") ||
           path.startsWith("/cadastros/propostas") ||
           path.startsWith("/cadastros/metas-mensais") ||
+          path.startsWith("/cadastros/tags") ||
           path.startsWith("/cadastros/agentes-ia") ||
           path.startsWith("/cadastros/contratos") ||
           path.startsWith("/empresas")) &&
@@ -453,6 +461,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 </NavLink>
                 <NavLink to="/etapas-kanban" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
                   Etapas Kanban
+                </NavLink>
+                <NavLink to="/cadastros/tags" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
+                  Tags
                 </NavLink>
                 <NavLink to="/cadastros/metas-mensais" className={({ isActive }) => `sidebar-link sidebar-link--nested${isActive ? " active" : ""}`}>
                   Metas mensais

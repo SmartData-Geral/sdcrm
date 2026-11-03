@@ -8,6 +8,7 @@ from ..exceptions import BadRequestError, NotFoundError
 from ..models.etapa_kanban import EtapaKanban
 from ..models.oportunidade import Oportunidade
 from ..models.oportunidade_historico import OportunidadeHistorico
+from ..models.tag import Tag
 from . import etapa_historico, webhook_emitter
 from ..schemas.oportunidade import (
     OportunidadeCreate,
@@ -17,6 +18,7 @@ from ..schemas.oportunidade import (
     OportunidadeMoverEtapaRequest,
     OportunidadeResponse,
     OportunidadeStandByRequest,
+    OportunidadeTagsRequest,
     OportunidadeTemperaturaRequest,
     OportunidadeUpdate,
 )
@@ -407,6 +409,36 @@ def set_temperatura(
 ) -> OportunidadeResponse:
     obj = get_oportunidade(db, opo_id, company_id)
     obj.opoTemperatura = data.opoTemperatura
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return OportunidadeResponse.model_validate(obj)
+
+
+def set_tags(
+    db: Session,
+    opo_id: int,
+    data: OportunidadeTagsRequest,
+    company_id: Optional[int] = None,
+) -> OportunidadeResponse:
+    obj = get_oportunidade(db, opo_id, company_id)
+    tag_ids = set(data.tagIds)
+    novas: list[Tag] = []
+    if tag_ids:
+        novas = list(
+            db.scalars(
+                select(Tag).where(
+                    Tag.tagId.in_(tag_ids),
+                    Tag.tagEmpId == obj.opoEmpId,
+                    Tag.tagAtivo.is_(True),
+                )
+            ).all()
+        )
+        if len(novas) != len(tag_ids):
+            raise BadRequestError("Tag inválida ou inativa")
+    # Tags inativas nao aparecem na tela; mantemos o vinculo para reativar sem perder.
+    inativas = [t for t in obj.tags if not t.tagAtivo]
+    obj.tags = inativas + novas
     db.add(obj)
     db.commit()
     db.refresh(obj)

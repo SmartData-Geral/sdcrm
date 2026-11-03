@@ -2142,6 +2142,147 @@ label {
   text-overflow: ellipsis;
 }
 
+.tag-badge {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.1rem 0.4rem;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--tag-cor) 33%, transparent);
+  background: color-mix(in srgb, var(--tag-cor) 13%, transparent);
+  /* Mistura com escuro para manter leitura mesmo em cores claras escolhidas pela empresa. */
+  color: color-mix(in srgb, var(--tag-cor) 50%, #0f172a);
+  font-size: 0.67rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kanban-card-tags {
+  margin-top: 0.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.kanban-card-tags-mais {
+  font-size: 0.67rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.tag-select {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.tag-select-trigger {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px dashed #cbd5e1;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tag-select-trigger:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.tag-select-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  width: 240px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 0.25rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+.tag-select-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 32px;
+  padding: 0.25rem 0.4rem;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--brand);
+  cursor: pointer;
+}
+
+.tag-select-item:hover {
+  background: #f1f5f9;
+}
+
+.tag-select-item:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.tag-select-empty {
+  margin: 0;
+  padding: 0.4rem;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.tag-cor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.tag-cor-opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.tag-cor-opcao {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.tag-cor-opcao.is-active {
+  outline: 2px solid #0f172a;
+  outline-offset: 1px;
+}
+
+.tag-cor-opcoes input[type="color"] {
+  width: 34px;
+  height: 26px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.tag-preview {
+  font-size: 0.78rem;
+}
+
 .kanban-card-value-badge {
   display: inline-flex;
   align-items: center;
